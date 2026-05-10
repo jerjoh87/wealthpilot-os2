@@ -25,6 +25,12 @@ type BudgetSummary = {
   limit: number
 }
 
+type AiMessageInsert = {
+  user_id: string
+  role: 'user' | 'assistant'
+  content: string
+}
+
 const ChatSchema = z.object({
   message: z.string().min(1).max(2000),
 
@@ -42,18 +48,13 @@ const ChatSchema = z.object({
 
 // Builds a finance-aware system prompt from the user's live DB data
 async function buildSystemPrompt(userId: string): Promise<string> {
-  const db = supabaseAdmin()
+  const db = supabaseAdmin() as any
   const now = new Date()
   const month = now.getMonth() + 1
   const year = now.getFullYear()
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
 
-  const [
-    userResult,
-    budgetsResult,
-    billsResult,
-    txSummaryResult,
-  ] = await Promise.all([
+  const [userResult, budgetsResult, billsResult, txSummaryResult] = await Promise.all([
     db.from('users').select('name, plan').eq('id', userId).single(),
 
     db
@@ -72,10 +73,10 @@ async function buildSystemPrompt(userId: string): Promise<string> {
       .gte('date', monthStart),
   ])
 
-  const userData = userResult.data as UserSummary | null
-  const budgetsData = budgetsResult.data as unknown[] | null
-  const billsData = billsResult.data as unknown[] | null
-  const txSummaryData = txSummaryResult.data as unknown[] | null
+  const userData = userResult?.data as UserSummary | null
+  const budgetsData = userResult ? (budgetsResult?.data as unknown[] | null) : null
+  const billsData = billsResult?.data as unknown[] | null
+  const txSummaryData = txSummaryResult?.data as unknown[] | null
 
   const txSummary: TransactionSummary[] = Array.isArray(txSummaryData)
     ? txSummaryData.map((item) => {
@@ -147,14 +148,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
   const { message, history } = parsed.data
-  const db = supabaseAdmin()
+  const db = supabaseAdmin() as any
 
-  // 1. Persist user message
-  await db.from('ai_messages').insert({
+  const userMessage: AiMessageInsert = {
     user_id: user.id,
     role: 'user',
     content: message,
-  })
+  }
+
+  // 1. Persist user message
+  await db.from('ai_messages').insert(userMessage)
 
   // 2. Build context-aware system prompt from live DB
   const systemPrompt = await buildSystemPrompt(user.id)
@@ -164,7 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
+      'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
@@ -183,12 +186,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const aiData = await anthropicRes.json()
   const reply = aiData.content?.[0]?.text ?? 'No response from AI.'
 
-  // 4. Persist assistant reply
-  await db.from('ai_messages').insert({
+  const assistantMessage: AiMessageInsert = {
     user_id: user.id,
     role: 'assistant',
     content: reply,
-  })
+  }
+
+  // 4. Persist assistant reply
+  await db.from('ai_messages').insert(assistantMessage)
 
   return ok(res, { reply })
 }
