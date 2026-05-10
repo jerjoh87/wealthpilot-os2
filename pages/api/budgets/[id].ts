@@ -1,8 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { z } from 'zod'
 
-// PUT /api/budgets/:id  — update limit only
+const BudgetUpdateSchema = z.object({
+  limit: z.number(),
+})
+
+type BudgetUpdatePayload = {
+  limit: number
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') return methodNotAllowed(res, ['PUT'])
 
@@ -10,16 +18,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!user) return
 
   const { id } = req.query
-  const { limit } = req.body
-  if (typeof limit !== 'number' || limit <= 0) return err(res, 'Invalid limit')
 
-  const { data, error } = await supabaseAdmin()
+  if (!id || Array.isArray(id)) {
+    return err(res, 'Invalid budget ID', 400)
+  }
+
+  const parsed = BudgetUpdateSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return err(res, parsed.error.errors[0].message)
+  }
+
+  const db = supabaseAdmin() as any
+
+  const payload: BudgetUpdatePayload = {
+    limit: Number(parsed.data.limit ?? 0),
+  }
+
+  const { data, error } = await db
     .from('budgets')
-    .update({ limit })
-    .eq('id', id as string)
-    .eq('user_id', user.id)   // RLS — users can only update their own
-    .select().single()
+    .update(payload)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('*')
+    .single()
 
-  if (error) return err(res, error.message)
+  if (error) {
+    return err(res, error.message)
+  }
+
   return ok(res, data)
 }
