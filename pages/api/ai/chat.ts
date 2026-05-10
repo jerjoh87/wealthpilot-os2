@@ -3,6 +3,11 @@ import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { z } from 'zod'
 
+type UserSummary = {
+  name: string | null
+  plan: string | null
+}
+
 type TransactionSummary = {
   amount: number
   category: string | null
@@ -43,47 +48,68 @@ async function buildSystemPrompt(userId: string): Promise<string> {
   const year = now.getFullYear()
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
 
-  const [{ data: user }, { data: budgetsData }, { data: billsData }, { data: txSummaryData }] =
-    await Promise.all([
-      db.from('users').select('name, plan').eq('id', userId).single(),
+  const [
+    userResult,
+    budgetsResult,
+    billsResult,
+    txSummaryResult,
+  ] = await Promise.all([
+    db.from('users').select('name, plan').eq('id', userId).single(),
 
-      db
-        .from('budgets')
-        .select('category, limit')
-        .eq('user_id', userId)
-        .eq('month', month)
-        .eq('year', year),
+    db
+      .from('budgets')
+      .select('category, limit')
+      .eq('user_id', userId)
+      .eq('month', month)
+      .eq('year', year),
 
-      db.from('bills').select('name, amount, due_day, autopay').eq('user_id', userId),
+    db.from('bills').select('name, amount, due_day, autopay').eq('user_id', userId),
 
-      db
-        .from('transactions')
-        .select('amount, category')
-        .eq('user_id', userId)
-        .gte('date', monthStart),
-    ])
+    db
+      .from('transactions')
+      .select('amount, category')
+      .eq('user_id', userId)
+      .gte('date', monthStart),
+  ])
+
+  const userData = userResult.data as UserSummary | null
+  const budgetsData = budgetsResult.data as unknown[] | null
+  const billsData = billsResult.data as unknown[] | null
+  const txSummaryData = txSummaryResult.data as unknown[] | null
 
   const txSummary: TransactionSummary[] = Array.isArray(txSummaryData)
-    ? txSummaryData.map((t: any) => ({
-        amount: Number(t.amount ?? 0),
-        category: t.category ?? null,
-      }))
+    ? txSummaryData.map((item) => {
+        const t = item as Partial<TransactionSummary>
+
+        return {
+          amount: Number(t.amount ?? 0),
+          category: t.category ?? null,
+        }
+      })
     : []
 
   const bills: BillSummary[] = Array.isArray(billsData)
-    ? billsData.map((b: any) => ({
-        name: b.name ?? null,
-        amount: Number(b.amount ?? 0),
-        due_day: typeof b.due_day === 'number' ? b.due_day : null,
-        autopay: typeof b.autopay === 'boolean' ? b.autopay : null,
-      }))
+    ? billsData.map((item) => {
+        const b = item as Partial<BillSummary>
+
+        return {
+          name: b.name ?? null,
+          amount: Number(b.amount ?? 0),
+          due_day: typeof b.due_day === 'number' ? b.due_day : null,
+          autopay: typeof b.autopay === 'boolean' ? b.autopay : null,
+        }
+      })
     : []
 
   const budgets: BudgetSummary[] = Array.isArray(budgetsData)
-    ? budgetsData.map((b: any) => ({
-        category: b.category ?? null,
-        limit: Number(b.limit ?? 0),
-      }))
+    ? budgetsData.map((item) => {
+        const b = item as Partial<BudgetSummary>
+
+        return {
+          category: b.category ?? null,
+          limit: Number(b.limit ?? 0),
+        }
+      })
     : []
 
   const totalSpend = txSummary
@@ -101,7 +127,7 @@ async function buildSystemPrompt(userId: string): Promise<string> {
       .map((b) => `${b.category ?? 'Uncategorized'} ($${b.limit.toFixed(2)} limit)`)
       .join(', ') || 'none set'
 
-  return `You are WealthPilot AI, a personal finance coach for ${user?.name ?? 'the user'}.
+  return `You are WealthPilot AI, a personal finance coach for ${userData?.name ?? 'the user'}.
 Current month: ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}.
 Monthly income tracked: $${totalIncome.toFixed(2)}.
 Monthly spending tracked: $${totalSpend.toFixed(2)}.
