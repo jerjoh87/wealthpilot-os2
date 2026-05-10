@@ -1,16 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '../types/database'
 
-// Browser-safe client (uses anon key)
-export const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 
-// Server-only client (uses service role — never expose to client)
-export const supabaseAdmin = () =>
-  createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+export function supabaseBrowser() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase browser environment variables')
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
+
+export function supabaseAdmin() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error('Missing Supabase admin environment variables')
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+}
