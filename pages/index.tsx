@@ -1,219 +1,170 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
 
-const metrics = [
-  { label: 'Assets tracked', value: '$2.4B+', detail: 'Across connected client portfolios' },
-  { label: 'Avg. savings uplift', value: '18.7%', detail: 'After 90 days with AI automations' },
-  { label: 'On-time bill rate', value: '99.2%', detail: 'Reminder + smart cash-flow planning' },
+const topMetrics = [
+  { label: 'Net Worth', value: '$1,284,632', trend: '+12.7% vs last month', tone: 'up' },
+  { label: 'Monthly Cash Flow', value: '$8,642', trend: '+8.3% vs last month', tone: 'up' },
+  { label: 'Investments', value: '$926,123', trend: '+15.4% vs last month', tone: 'up' },
+  { label: 'Savings Rate', value: '26.4%', trend: '-3.1% vs last month', tone: 'down' },
 ]
 
 const featureCards = [
-  {
-    icon: '📊',
-    title: 'Executive Money Command',
-    description:
-      'Unified view of cash flow, liabilities, portfolio exposure, and runway forecasts with live visual intelligence.',
-  },
-  {
-    icon: '🧠',
-    title: 'AI Financial Co‑Pilot',
-    description:
-      'Get clear next-best actions on spending, debt, and investment strategy from a model trained on your real behavior patterns.',
-  },
-  {
-    icon: '🛡️',
-    title: 'Risk & Fraud Shield',
-    description:
-      'Catch unusual transactions, payment spikes, and account anomalies instantly with behavior-based alerting.',
-  },
-  {
-    icon: '📅',
-    title: 'Smart Bill Orchestration',
-    description:
-      'Visual payment timelines and due-date optimization prevent late fees while preserving target liquidity.',
-  },
-  {
-    icon: '📈',
-    title: 'Profit Lock Insights',
-    description:
-      'Track gains, identify de-risk opportunities, and preserve upside with threshold-based portfolio intelligence.',
-  },
-  {
-    icon: '🔐',
-    title: 'Institution-Grade Security',
-    description:
-      'Bank-level encryption, tokenized access via Plaid, and read-only data connections built for trust.',
-  },
+  { title: 'Smart Budgeting', desc: 'Auto-categorize spending and build budgets that actually work.' },
+  { title: 'Bills & Calendar', desc: 'Plan, track, and never miss a payment again.' },
+  { title: 'AI Financial Coach', desc: 'Personalized insights and action plans tailored to your goals.' },
+  { title: 'Credit Score Tracker', desc: 'Monitor your score and learn what improves it over time.' },
+  { title: 'Portfolio & Investing', desc: 'Track performance, diversification, and rebalancing ideas.' },
+  { title: 'Profit Lock', desc: 'Set smart thresholds to protect gains in volatile markets.' },
+]
+
+const plans = [
+  { name: 'Free', price: '$0', detail: 'For getting started', cta: 'Get Started' },
+  { name: 'Pro', price: '$7.99', detail: 'For serious money management', cta: 'Start Free Trial', highlight: true },
+  { name: 'Premium', price: '$14.99', detail: 'For wealth builders', cta: 'Start Free Trial' },
 ]
 
 const Home: NextPage = () => {
   return (
     <div className="page">
-      <div className="aurora auroraOne" />
-      <div className="aurora auroraTwo" />
-      <main className="container">
+      <header className="topbar shell">
+        <div className="brand">WealthPilot <span>OS</span></div>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#security">Security</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <div className="actions">
+          <Link href="/dashboard" className="ghost">Sign In</Link>
+          <Link href="/dashboard" className="solid">Get Started</Link>
+        </div>
+      </header>
+
+      <main className="shell">
         <section className="hero">
-          <div className="heroPanel">
-            <p className="eyebrow">WealthPilot OS • Elite Financial Intelligence</p>
-            <h1>Make your first impression unforgettable with a premium money platform experience.</h1>
-            <p className="subheadline">
-              Designed to convert instantly: cinematic visuals, polished motion, and a luxury-grade value proposition that positions your brand as best-in-class from the first scroll.
-            </p>
-            <div className="ctaRow">
-              <Link href="/dashboard" className="btn btnPrimary">Start Free</Link>
-              <Link href="/dashboard" className="btn btnSecondary">Book Demo</Link>
-            </div>
-            <div className="trustRow">
-              <span>Powered by Plaid</span>
-              <span>Read-only bank access</span>
-              <span>AI-guided planning</span>
+          <div className="heroCopy">
+            <p className="kicker">All-in-one financial operating system</p>
+            <h1>Your AI-powered command center for <span>money</span>, <span>bills</span>, <span>credit</span>, and <span>investing</span>.</h1>
+            <p>Connect your accounts, track spending, plan bills, monitor credit, and get AI-powered insights that grow your wealth.</p>
+            <div className="heroCta">
+              <Link href="/dashboard" className="solid">Start Free</Link>
+              <Link href="/dashboard" className="ghost">View Dashboard</Link>
             </div>
           </div>
 
-          <div className="heroVisual">
-            <div className="glassCard large floating">
-              <p>Financial Health Score</p>
-              <strong>91</strong>
-              <small>+11 pts this quarter</small>
+          <div className="dashMock">
+            <h3>Good morning, Alex! 👋</h3>
+            <div className="metricRow">
+              {topMetrics.map((item) => (
+                <article key={item.label} className="metricCard">
+                  <small>{item.label}</small>
+                  <strong>{item.value}</strong>
+                  <span className={item.tone}>{item.trend}</span>
+                </article>
+              ))}
             </div>
-            <div className="glassCard small drift">
-              <p>Cash Flow Signal</p>
-              <strong>+ $12,430</strong>
+            <div className="mockGrid">
+              <article className="chart">Net Worth Trend</article>
+              <article className="donut">Asset Allocation</article>
+              <article className="insight">AI Financial Insight</article>
             </div>
-            <div className="glassCard small pulse">
-              <p>Portfolio Guard</p>
-              <strong>Protected</strong>
-            </div>
-            <div className="orbit orbitOne" />
-            <div className="orbit orbitTwo" />
           </div>
         </section>
 
-        <section className="metrics">
-          {metrics.map((metric) => (
-            <article className="metricCard" key={metric.label}>
-              <p>{metric.label}</p>
-              <h2>{metric.value}</h2>
-              <small>{metric.detail}</small>
-            </article>
-          ))}
-        </section>
-
-        <section className="featuresSection">
-          <div className="sectionHeader">
-            <p>WHY CLIENTS STAY</p>
-            <h2>Built to look premium. Engineered to perform.</h2>
-          </div>
+        <section id="features" className="featureSection">
+          <h2>Everything you need to take control of your money</h2>
           <div className="featureGrid">
-            {featureCards.map((feature, idx) => (
-              <article className="featureCard" key={feature.title} style={{ animationDelay: `${idx * 90}ms` }}>
-                <span className="featureIcon" aria-hidden>{feature.icon}</span>
+            {featureCards.map((feature) => (
+              <article key={feature.title}>
                 <h3>{feature.title}</h3>
-                <p>{feature.description}</p>
+                <p>{feature.desc}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="finalCta">
-          <h2>Turn visitors into high-intent clients in under 10 seconds.</h2>
-          <p>
-            Upgrade your first-screen experience with strong visuals, meaningful motion, and a crystal-clear premium promise.
-          </p>
-          <Link href="/dashboard" className="btn btnPrimary">Launch WealthPilot</Link>
+        <section id="pricing" className="pricingSection">
+          <h2>Simple, transparent pricing</h2>
+          <div className="pricingGrid">
+            {plans.map((plan) => (
+              <article key={plan.name} className={plan.highlight ? 'plan highlight' : 'plan'}>
+                <h3>{plan.name}</h3>
+                <p className="price">{plan.price} <span>/ month</span></p>
+                <p>{plan.detail}</p>
+                <Link href="/dashboard" className="ghost">{plan.cta}</Link>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="security" className="footerCta">
+          <h2>Join thousands taking control of their financial future.</h2>
+          <p>Start your journey with WealthPilot OS today.</p>
+          <Link href="/dashboard" className="solid">Start Free</Link>
         </section>
       </main>
 
       <style jsx>{`
-        .page {
-          min-height: 100vh;
-          color: #edf2ff;
-          font-family: Inter, Arial, sans-serif;
-          background: radial-gradient(circle at 10% -10%, #412078 0%, #0a1024 44%, #03060f 100%);
-          position: relative;
-          overflow: hidden;
-        }
-        .container { width: min(1150px, 92%); margin: 0 auto; padding: 42px 0 70px; position: relative; z-index: 2; }
-        .aurora { position: absolute; border-radius: 999px; filter: blur(38px); opacity: .35; animation: breathe 12s ease-in-out infinite; }
-        .auroraOne { width: 360px; height: 360px; background: #8d5dff; top: -120px; left: -140px; }
-        .auroraTwo { width: 320px; height: 320px; background: #1ea7ff; bottom: -140px; right: -80px; animation-delay: 2s; }
+        .page { min-height: 100vh; background: radial-gradient(circle at 25% 10%, #25145f 0, #090d27 50%, #050711 100%); color: #ecedff; font-family: Inter, Arial, sans-serif; }
+        .shell { width: min(1320px, 94%); margin: 0 auto; }
+        .topbar { padding: 18px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .brand { font-size: 1.45rem; font-weight: 700; }
+        .brand span { color: #9b6cff; }
+        nav { display: flex; gap: 28px; }
+        nav a { color: #cdd4ff; text-decoration: none; font-size: .95rem; }
+        .actions { display: flex; gap: 10px; }
+        .solid, .ghost { border-radius: 12px; padding: 10px 18px; text-decoration: none; font-weight: 700; border: 1px solid transparent; }
+        .solid { background: linear-gradient(90deg, #7049ff, #8748ff); color: #fff; }
+        .ghost { color: #d8defe; border-color: rgba(147, 165, 255, .4); background: rgba(123, 146, 255, .1); }
 
-        .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; align-items: stretch; }
-        .heroPanel, .heroVisual {
-          border-radius: 24px;
-          border: 1px solid rgba(153, 179, 255, .22);
-          background: linear-gradient(145deg, rgba(17, 25, 52, .88), rgba(7, 12, 31, .84));
-          box-shadow: 0 30px 65px rgba(0,0,0,.4);
-        }
-        .heroPanel { padding: 42px; }
-        .eyebrow { letter-spacing: .13em; font-size: .72rem; text-transform: uppercase; color: #adc0ff; }
-        h1 { margin: 14px 0; line-height: 1.14; font-size: clamp(2rem, 3.8vw, 3.3rem); }
-        .subheadline { color: #b5c5ef; line-height: 1.6; max-width: 58ch; }
-        .ctaRow { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
-        .btn { padding: 12px 20px; border-radius: 999px; text-decoration: none; font-weight: 700; border: 1px solid transparent; transition: transform .2s ease, box-shadow .2s ease; }
-        .btn:hover { transform: translateY(-2px); }
-        .btnPrimary { color: #fff; background: linear-gradient(90deg, #7d57ff, #488cff); box-shadow: 0 10px 30px rgba(84, 111, 255, .45); }
-        .btnSecondary { color: #d8e2ff; background: rgba(117, 146, 255, .15); border-color: rgba(153, 172, 255, .4); }
-        .trustRow { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 14px; color: #a5b6e4; font-size: .87rem; }
+        .hero { margin-top: 12px; display: grid; grid-template-columns: 1fr 1.5fr; gap: 22px; }
+        .heroCopy, .dashMock, .featureSection, .pricingSection, .footerCta { border: 1px solid rgba(131, 148, 255, .22); border-radius: 18px; background: rgba(7, 11, 30, .72); backdrop-filter: blur(4px); }
+        .heroCopy { padding: 34px; }
+        .kicker { color: #9cc2ff; margin-bottom: 8px; }
+        h1 { font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.13; margin: 0 0 16px; }
+        h1 span:nth-of-type(1) { color: #9f6dff; }
+        h1 span:nth-of-type(2) { color: #53b6ff; }
+        h1 span:nth-of-type(3) { color: #7d8fff; }
+        h1 span:nth-of-type(4) { color: #3dd066; }
+        .heroCopy p { color: #bec8f3; line-height: 1.6; }
+        .heroCta { display: flex; gap: 12px; margin-top: 18px; }
 
-        .heroVisual { padding: 28px; position: relative; min-height: 360px; overflow: hidden; }
-        .glassCard { position: absolute; border-radius: 16px; padding: 16px; backdrop-filter: blur(8px); background: rgba(12, 18, 40, .68); border: 1px solid rgba(158, 178, 255, .24); }
-        .glassCard p { margin: 0; font-size: .82rem; color: #9fb4e9; }
-        .glassCard strong { display: block; margin-top: 10px; font-size: 1.45rem; }
-        .glassCard small { color: #7ef6be; }
-        .large { width: 52%; top: 22px; left: 20px; }
-        .small { width: 44%; }
-        .drift { right: 20px; top: 78px; }
-        .pulse { right: 56px; bottom: 30px; }
-        .orbit { position: absolute; border-radius: 50%; border: 1px solid rgba(137, 162, 255, .35); }
-        .orbitOne { width: 300px; height: 300px; bottom: -120px; left: -70px; animation: spin 18s linear infinite; }
-        .orbitTwo { width: 220px; height: 220px; top: -60px; right: -70px; animation: spinReverse 15s linear infinite; }
+        .dashMock { padding: 22px; }
+        .dashMock h3 { margin: 0 0 14px; }
+        .metricRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .metricCard { padding: 12px; border-radius: 12px; background: rgba(16, 23, 54, .86); border: 1px solid rgba(138, 156, 255, .18); }
+        .metricCard small { color: #92a8e8; display: block; }
+        .metricCard strong { margin: 6px 0; display: block; }
+        .metricCard span { font-size: .85rem; }
+        .up { color: #4fe37f; }
+        .down { color: #ff9658; }
 
-        .metrics { margin-top: 24px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
-        .metricCard { padding: 20px; border-radius: 18px; background: rgba(10, 18, 40, .7); border: 1px solid rgba(150, 176, 255, .2); }
-        .metricCard p { margin: 0; color: #9db2e9; font-size: .86rem; }
-        .metricCard h2 { margin: 8px 0 5px; font-size: 2rem; }
-        .metricCard small { color: #b1c3f2; }
+        .mockGrid { margin-top: 14px; display: grid; gap: 10px; grid-template-columns: 1.4fr .9fr .9fr; }
+        .mockGrid article { min-height: 120px; border-radius: 14px; background: linear-gradient(140deg, rgba(20, 28, 63, .9), rgba(9, 14, 33, .9)); border: 1px solid rgba(131, 152, 255, .2); padding: 16px; font-weight: 600; }
 
-        .featuresSection { margin-top: 38px; }
-        .sectionHeader p { margin: 0; letter-spacing: .15em; color: #9cb1e5; font-size: .74rem; }
-        .sectionHeader h2 { margin: 8px 0 18px; font-size: clamp(1.55rem, 3vw, 2.35rem); }
-        .featureGrid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0,1fr)); }
-        .featureCard {
-          padding: 20px;
-          border-radius: 18px;
-          background: linear-gradient(150deg, rgba(17, 28, 58, .84), rgba(8, 15, 35, .9));
-          border: 1px solid rgba(144, 170, 255, .2);
-          animation: rise .55s ease both;
-        }
-        .featureIcon { font-size: 1.2rem; display: inline-block; margin-bottom: 8px; }
-        .featureCard h3 { margin: 0 0 8px; font-size: 1.05rem; }
-        .featureCard p { margin: 0; color: #b5c6f1; line-height: 1.55; }
+        .featureSection, .pricingSection, .footerCta { margin-top: 20px; padding: 24px; }
+        h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 3vw, 2.4rem); }
+        .featureGrid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .featureGrid article { border: 1px solid rgba(136, 153, 255, .16); border-radius: 14px; background: rgba(14, 21, 49, .75); padding: 16px; }
+        .featureGrid h3 { margin: 0 0 8px; }
+        .featureGrid p { margin: 0; color: #b8c5ef; }
 
-        .finalCta { margin-top: 32px; text-align: center; border-radius: 22px; padding: 30px 24px; border: 1px solid rgba(158, 180, 255, .3); background: linear-gradient(90deg, rgba(86, 53, 186, .35), rgba(41, 108, 214, .25)); }
-        .finalCta h2 { margin: 0; font-size: clamp(1.35rem, 2.8vw, 2.2rem); }
-        .finalCta p { max-width: 720px; margin: 12px auto 18px; color: #c4d2f8; }
+        .pricingGrid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .plan { border-radius: 14px; border: 1px solid rgba(137, 155, 255, .2); background: rgba(12, 19, 45, .8); padding: 16px; }
+        .highlight { border-color: #8e64ff; box-shadow: 0 0 0 1px rgba(142, 100, 255, .4), 0 14px 34px rgba(95, 64, 196, .28); }
+        .price { font-size: 2rem; margin: 10px 0 6px; }
+        .price span { font-size: .95rem; color: #abbbeb; }
 
-        @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes spinReverse { to { transform: rotate(-360deg); } }
-        @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-        .floating { animation: float 6s ease-in-out infinite; }
-        .drift { animation: float 5.5s ease-in-out infinite .8s; }
-        .pulse { animation: float 4.8s ease-in-out infinite .3s; }
+        .footerCta { text-align: center; margin-bottom: 24px; }
+        .footerCta p { color: #bdc9f1; }
 
-        @media (max-width: 980px) {
+        @media (max-width: 1080px) {
           .hero { grid-template-columns: 1fr; }
-          .featureGrid, .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+          .metricRow { grid-template-columns: repeat(2, 1fr); }
         }
-        @media (max-width: 640px) {
-          .heroPanel { padding: 26px 20px; }
-          .featureGrid, .metrics { grid-template-columns: 1fr; }
-          .heroVisual { min-height: 320px; }
-          .large, .small { width: calc(100% - 30px); }
-          .drift { top: 145px; left: 15px; right: auto; }
-          .pulse { bottom: 20px; left: 15px; right: auto; }
+        @media (max-width: 760px) {
+          nav { display: none; }
+          .featureGrid, .pricingGrid, .mockGrid, .metricRow { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
