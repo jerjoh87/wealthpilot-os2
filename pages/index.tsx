@@ -102,7 +102,6 @@ const Home: NextPage = () => {
           <p>Start your journey with WealthPilot OS today.</p>
           <Link href="/dashboard" className="solid">Start Free</Link>
         </section>
-      </main>
 
       <style jsx>{`
         .page { min-height: 100vh; background: radial-gradient(circle at 25% 10%, #25145f 0, #090d27 50%, #050711 100%); color: #ecedff; font-family: Inter, Arial, sans-serif; }

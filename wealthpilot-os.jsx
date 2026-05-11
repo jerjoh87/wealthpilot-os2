@@ -1359,11 +1359,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
 function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const safeAccounts = pickCollection(accounts, ["accounts"], []);
+  const safeBills = pickCollection(bills, ["bills"], []);
+  const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
+  const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
-  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
-  const upcomingBills = bills.filter(b => !b.paid);
-  const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
+  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const upcomingBills = safeBills.filter(b => !b.paid);
+  const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
@@ -1411,17 +1415,17 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
+            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
             <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
           </div>
           <div style={{marginTop:8}}>
-            {budget.slice(0,4).map(b => (
+            {safeBudget.slice(0,4).map(b => (
               <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
                 <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
@@ -1443,9 +1447,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.length === 0 ? (
+          {safeAccounts.length === 0 ? (
             <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1463,7 +1467,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 6).map(t => (
+              {safeTransactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1481,7 +1485,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {safeTransactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
                     <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet. Connect your bank to get started.</p></div>
