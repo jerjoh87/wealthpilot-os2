@@ -78,10 +78,7 @@ const Home: NextPage = () => {
           <a href="#security">Security</a>
           <a href="#faq">FAQ</a>
         </nav>
-        <div className="actions">
-          <Link href="/dashboard" className="ghost">Sign In</Link>
-          <Link href="/dashboard" className="solid">Get Started</Link>
-        </div>
+        <Link href="/dashboard" className="btn btnGhost">Sign In</Link>
       </header>
 
       <main className="shell">
