@@ -1,32 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "./lib/supabase";
 
 // ── API CLIENT ────────────────────────────────────────────────────────────────
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-// import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi } from './api-client';
 //
-// DEMO MODE (no backend required) — stubs return null and fall back to mock data.
-const authApi = {
-  login:  async (email, pw)       => { throw new Error("Backend not connected"); },
-  signup: async (email, pw, name) => { throw new Error("Backend not connected"); },
-  me:     async ()                => null,
-};
-const billsApi = {
-  list:   async ()         => null,
-  update: async (id, data) => null,
-  create: async (data)     => null,
-  remove: async (id)       => null,
-};
-const calApi = {
-  list:   async (m, y)     => null,
-  create: async (data)     => null,
-  update: async (id, data) => null,
-  remove: async (id)       => null,
-};
-const aiApi = {
-  chat: async (msg, history) => null,
-};
+// Live API client enabled.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
@@ -133,12 +114,29 @@ function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' && localStorage.getItem('wp_token');
-    if (!token) { setUser(false); setLoading(false); return; }
-    authApi.me()
-      .then(u => setUser(u || false))
-      .catch(() => setUser(false))
-      .finally(() => setLoading(false));
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        localStorage.setItem('wp_token', data.session.access_token);
+        try {
+          const u = await authApi.me();
+          setUser(u || data.session.user || false);
+        } catch {
+          setUser(data.session.user || false);
+        }
+        setLoading(false);
+        return;
+      }
+
+      const token = typeof window !== 'undefined' && localStorage.getItem('wp_token');
+      if (!token) { setUser(false); setLoading(false); return; }
+      authApi.me()
+        .then(u => setUser(u || false))
+        .catch(() => setUser(false))
+        .finally(() => setLoading(false));
+    };
+
+    init();
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -153,7 +151,8 @@ function useAuth() {
     setUser(data?.user || MOCK.user);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('wp_token');
     setUser(false);
   }, []);
@@ -256,6 +255,24 @@ function AuthGate({ onAuth }) {
           opacity:busy?0.7:1,transition:"opacity .15s"
         }}>
           {busy ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+
+
+
+        <button onClick={async () => {
+          await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin
+            }
+          });
+        }} disabled={busy} style={{
+          width:"100%",padding:"11px",borderRadius:10,border:"1px solid var(--border2)",cursor:"pointer",
+          background:"var(--bg3)",color:"var(--text)",
+          fontFamily:"inherit",fontSize:15,fontWeight:600,
+          opacity:busy?0.7:1,transition:"opacity .15s",marginTop:10
+        }}>
+          Continue with Google
         </button>
 
         <div style={{textAlign:"center",marginTop:16,fontSize:13,color:"var(--text2)"}}>
