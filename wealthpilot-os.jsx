@@ -392,6 +392,11 @@ function useAccounts() {
 //               or use web-push when service worker is registered.
 
 function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, mode }) {
+  const safeAccounts = ensureArray(accounts, []);
+  const safeBills = ensureArray(bills, []);
+  const safeBudget = ensureArray(budget, []);
+  const safeTransactions = ensureArray(transactions, []);
+  const safeGoals = ensureArray(goals, []);
   // Mode-adjusted thresholds — Survival escalates everything, Wealth relaxes low-balance
   const T = {
     LOW_BALANCE_CRITICAL:    mode === "survival" ? 1000  : mode === "wealth" ? 200   : 500,
@@ -410,7 +415,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   const push   = (a) => alerts.push({ ...a, ts: now.toISOString(), dismissed: false });
 
   // 1. LOW BALANCE
-  accounts.filter(a => a.type === "checking").forEach(a => {
+  safeAccounts.filter(a => a.type === "checking").forEach(a => {
     if (a.balance < T.LOW_BALANCE_CRITICAL) {
       push({ id:`low-bal-crit-${a.id}`, type:"low_balance", severity:"critical",
         icon:"⚠️", title:`Critical: Low Balance — ${a.name}`,
@@ -423,7 +428,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 2. OVERSPENDING
-  budget.forEach(b => {
+  safeBudget.forEach(b => {
     const pct = b.spent / b.limit;
     if (pct >= T.OVERSPEND_CRITICAL) {
       push({ id:`overspend-crit-${b.category}`, type:"overspending", severity:"critical",
@@ -437,7 +442,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 3. LARGE TRANSACTION
-  transactions.filter(t => t.amount < 0).forEach(t => {
+  safeTransactions.filter(t => t.amount < 0).forEach(t => {
     const abs = Math.abs(t.amount);
     if (abs >= T.LARGE_TX_CRITICAL) {
       push({ id:`large-tx-crit-${t.id}`, type:"large_transaction", severity:"critical",
@@ -451,7 +456,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 4. UPCOMING BILL
-  bills.filter(b => !b.paid).forEach(b => {
+  safeBills.filter(b => !b.paid).forEach(b => {
     const dueDate = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
     if (dueDate < now) dueDate.setMonth(dueDate.getMonth() + 1);
     const daysUntil = Math.ceil((dueDate - now) / (1000*60*60*24));
@@ -463,7 +468,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 5. SAVINGS GOAL BEHIND
-  goals.forEach(g => {
+  safeGoals.forEach(g => {
     if (g.current >= g.target) return;
     const pct = g.current / g.target;
     if (!g.deadline) return;
@@ -488,7 +493,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
         body:`Down ${Math.abs(portfolio.dayChangePct).toFixed(2)}% today (${fmt(Math.abs(portfolio.dayChange))}).` });
     }
   } else {
-    const totalCash = accounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
+    const totalCash = safeAccounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
     if (totalCash > 5000 && mode !== "survival") {
       push({ id:"funding-readiness", type:"funding_readiness", severity:"info",
         icon:"📈", title:"Investing Opportunity",
@@ -497,8 +502,8 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   }
 
   // 7. SUBSCRIPTION INCREASE
-  bills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
-    const recentTx = transactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
+  safeBills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
+    const recentTx = safeTransactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
     if (recentTx && Math.abs(recentTx.amount) > b.amount * 1.05) {
       push({ id:`sub-increase-${b.id}`, type:"subscription_increase", severity:"info",
         icon:"🔔", title:`Price Increase: ${b.name}`,
@@ -1592,9 +1597,10 @@ function BudgetPage({ modeConfig, budgets = [] }) {
 }
 
 function TransactionsPage({ transactions = [] }) {
+  const safeTransactions = ensureArray(transactions, []);
   const [filter, setFilter] = useState("All");
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
-  const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
+  const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
   if (loading) return <LoadingCard message="Loading bills…" />;
   return (
@@ -1671,7 +1677,7 @@ function BillsPage() {
   }, []);
 
   const toggle = async (id) => {
-    const bill = bills.find(b => b.id === id);
+    const bill = safeBills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
@@ -1694,8 +1700,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {bills.length} total bills</div>
+          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {safeBills.length} total bills</div>
         </div>
       </div>
 
