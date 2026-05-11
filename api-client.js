@@ -72,7 +72,10 @@ export const calendarEvents = {
 
 // ── Transactions ──────────────────────────────────────────────────────────────
 export const transactions = {
-  list:           (params = {}) => get(`/transactions?${new URLSearchParams(params)}`),
+  list:           async (params = {}) => {
+    const data = await get(`/transactions?${new URLSearchParams(params)}`);
+    return Array.isArray(data) ? data : (data?.transactions || []);
+  },
   updateCategory: (id, cat)     => put(`/transactions/${id}`, { category: cat }),
 };
 
@@ -85,7 +88,10 @@ export const budgets = {
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────
 export const portfolio = {
-  list: ()     => get('/portfolio'),
+  list: async () => {
+    const data = await get('/portfolio');
+    return data || { holdings: [], summary: { totalValue: 0, dayChangePct: 0 }, connected: false };
+  },
   sync: ()     => post('/portfolio/sync', {}),
   add:  (data) => post('/portfolio', data),
 };

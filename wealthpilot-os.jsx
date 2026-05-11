@@ -1448,6 +1448,10 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
+          <div className="text-sm text-muted">{portfolio?.connected ? `Portfolio preview: ${portfolio.holdings?.length || 0} holdings` : "Portfolio preview/demo only"}</div>
+        </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
@@ -4079,6 +4083,15 @@ export default function WealthPilotOS() {
     portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
   });
+  const [liveStatus, setLiveStatus] = useState({
+    accounts: { loading: true, error: false },
+    transactions: { loading: true, error: false },
+    bills: { loading: true, error: false },
+    budgets: { loading: true, error: false },
+    calendarEvents: { loading: true, error: false },
+    creditScore: { loading: true, error: false },
+    portfolio: { loading: true, error: false },
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -4154,7 +4167,7 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
