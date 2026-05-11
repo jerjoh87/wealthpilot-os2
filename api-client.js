@@ -29,15 +29,15 @@ async function request(path, options = {}) {
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new Error(`Expected JSON response but received: ${text.slice(0, 200) || 'empty body'}`);
+      throw new Error('Unexpected server response. Please try again.');
     }
   }
 
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid API response format: missing JSON object payload');
+    throw new Error('Invalid server response. Please try again.');
   }
 
-  if (!res.ok) throw new Error(payload.error || `Request failed with status ${res.status}`);
+  if (!res.ok) throw new Error('Request failed. Please try again.');
   return payload.data;
 }
 
@@ -72,7 +72,10 @@ export const calendarEvents = {
 
 // ── Transactions ──────────────────────────────────────────────────────────────
 export const transactions = {
-  list:           (params = {}) => get(`/transactions?${new URLSearchParams(params)}`),
+  list:           async (params = {}) => {
+    const data = await get(`/transactions?${new URLSearchParams(params)}`);
+    return Array.isArray(data) ? data : (data?.transactions || []);
+  },
   updateCategory: (id, cat)     => put(`/transactions/${id}`, { category: cat }),
 };
 
@@ -85,7 +88,10 @@ export const budgets = {
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────
 export const portfolio = {
-  list: ()     => get('/portfolio'),
+  list: async () => {
+    const data = await get('/portfolio');
+    return data || { holdings: [], summary: { totalValue: 0, dayChangePct: 0 }, connected: false };
+  },
   sync: ()     => post('/portfolio/sync', {}),
   add:  (data) => post('/portfolio', data),
 };

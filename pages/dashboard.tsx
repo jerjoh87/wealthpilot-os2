@@ -26,29 +26,6 @@ const WealthPilotOS = dynamic(
   }
 )
 
-const Dashboard: NextPage = () => (
-  <>
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 2147483647,
-        background: 'red',
-        color: 'white',
-        padding: '14px',
-        textAlign: 'center',
-        fontSize: '18px',
-        fontWeight: 900,
-        letterSpacing: '1px',
-      }}
-    >
-      DEPLOY TEST — DASHBOARD FILE UPDATED — 2026-05-11-4
-    </div>
-
-    <WealthPilotOS />
-  </>
-)
+const Dashboard: NextPage = () => <WealthPilotOS />
 
 export default Dashboard

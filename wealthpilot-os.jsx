@@ -11,11 +11,11 @@ import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiA
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK = {
-  user: { name: "Alex Chen", email: "alex@example.com", plan: "Pro" },
+  user: { name: "WealthPilot User", email: "", plan: "Pro" },
   accounts: [
-    { id: 1, name: "Chase Checking", type: "checking", balance: 8420.55, institution: "Chase", last4: "4821", connected: true },
-    { id: 2, name: "Chase Savings", type: "savings", balance: 22100.00, institution: "Chase", last4: "9932", connected: true },
-    { id: 3, name: "Apple Card", type: "credit", balance: -1240.80, institution: "Apple", last4: "3301", connected: true },
+    { id: 1, name: "Checking Account", type: "checking", balance: 8420.55, institution: "Chase", last4: "4821", connected: true },
+    { id: 2, name: "Savings Account", type: "savings", balance: 22100.00, institution: "Chase", last4: "9932", connected: true },
+    { id: 3, name: "Credit Card", type: "credit", balance: -1240.80, institution: "Apple", last4: "3301", connected: true },
   ],
   income: 7200,
   spending: 4318.42,
@@ -48,18 +48,18 @@ const MOCK = {
     { id: 7, name: "Gym", amount: 45, dueDay: 28, category: "Health", paid: false, autopay: true },
   ],
   transactions: [
-    { id: 1, name: "Whole Foods Market", amount: -89.43, date: "2026-05-08", category: "Groceries", account: "Chase Checking" },
-    { id: 2, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-07", category: "Income", account: "Chase Checking" },
-    { id: 3, name: "Uber Eats", amount: -34.20, date: "2026-05-07", category: "Dining", account: "Apple Card" },
-    { id: 4, name: "Shell Gas Station", amount: -58.10, date: "2026-05-06", category: "Transport", account: "Chase Checking" },
-    { id: 5, name: "Amazon", amount: -127.99, date: "2026-05-05", category: "Shopping", account: "Apple Card" },
-    { id: 6, name: "Starbucks", amount: -7.85, date: "2026-05-05", category: "Dining", account: "Apple Card" },
-    { id: 7, name: "Target", amount: -62.40, date: "2026-05-04", category: "Shopping", account: "Chase Checking" },
-    { id: 8, name: "Planet Fitness", amount: -25.00, date: "2026-05-03", category: "Health", account: "Apple Card" },
-    { id: 9, name: "Netflix", amount: -15.99, date: "2026-05-02", category: "Entertainment", account: "Apple Card" },
-    { id: 10, name: "Chipotle", amount: -13.50, date: "2026-05-02", category: "Dining", account: "Apple Card" },
-    { id: 11, name: "CVS Pharmacy", amount: -28.75, date: "2026-05-01", category: "Health", account: "Chase Checking" },
-    { id: 12, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-01", category: "Income", account: "Chase Checking" },
+    { id: 1, name: "Whole Foods Market", amount: -89.43, date: "2026-05-08", category: "Groceries", account: "Checking Account" },
+    { id: 2, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-07", category: "Income", account: "Checking Account" },
+    { id: 3, name: "Uber Eats", amount: -34.20, date: "2026-05-07", category: "Dining", account: "Credit Card" },
+    { id: 4, name: "Shell Gas Station", amount: -58.10, date: "2026-05-06", category: "Transport", account: "Checking Account" },
+    { id: 5, name: "Amazon", amount: -127.99, date: "2026-05-05", category: "Shopping", account: "Credit Card" },
+    { id: 6, name: "Starbucks", amount: -7.85, date: "2026-05-05", category: "Dining", account: "Credit Card" },
+    { id: 7, name: "Target", amount: -62.40, date: "2026-05-04", category: "Shopping", account: "Checking Account" },
+    { id: 8, name: "Planet Fitness", amount: -25.00, date: "2026-05-03", category: "Health", account: "Credit Card" },
+    { id: 9, name: "Netflix", amount: -15.99, date: "2026-05-02", category: "Entertainment", account: "Credit Card" },
+    { id: 10, name: "Chipotle", amount: -13.50, date: "2026-05-02", category: "Dining", account: "Credit Card" },
+    { id: 11, name: "CVS Pharmacy", amount: -28.75, date: "2026-05-01", category: "Health", account: "Checking Account" },
+    { id: 12, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-01", category: "Income", account: "Checking Account" },
   ],
   budget: [
     { category: "Housing", limit: 1900, spent: 1850, color: "#6366f1" },
@@ -91,6 +91,20 @@ const MOCK = {
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = (n, opts = {}) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, ...opts }).format(n);
 const fmtK = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : fmt(n);
+const ensureArray = (value, fallback = []) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.accounts)) return value.accounts;
+  if (Array.isArray(value?.items)) return value.items;
+  return fallback;
+};
+const pickCollection = (value, keys = [], fallback = []) => {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) {
+    if (Array.isArray(value?.[key])) return value[key];
+  }
+  return ensureArray(value, fallback);
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -106,6 +120,37 @@ const CATEGORY_ICONS = {
   Shopping: "🛍️", Entertainment: "🎬", Health: "💊", Income: "💵",
   Utilities: "⚡", Insurance: "🛡️", Default: "💳"
 };
+
+const FRIENDLY_ERRORS = {
+  auth: "We couldn’t sign you in right now. Please try again.",
+  googleAuth: "Google sign-in failed. Please try again.",
+  dashboard: "We couldn’t load your dashboard. Please refresh.",
+  plaidConnect: "Bank connection failed. Please try again.",
+  plaidSync: "We couldn’t sync your accounts. Please try again.",
+  bills: "We couldn’t load your bills. Please refresh.",
+  calendar: "We couldn’t load your calendar. Please refresh.",
+  transactions: "We couldn’t load your transactions. Please refresh.",
+  budgets: "We couldn’t load your budgets. Please refresh.",
+  ai: "AI Coach is temporarily unavailable.",
+  creditScore: "We couldn’t load your credit score. Please try again.",
+  portfolio: "We couldn’t load your portfolio. Please refresh.",
+  settings: "Settings update failed. Please try again.",
+};
+
+const ErrorNotice = ({ message }) => (
+  <div style={{fontSize:12,color:"var(--red)",marginBottom:12,padding:"8px 10px",background:"rgba(244,63,94,0.1)",borderRadius:8,border:"1px solid rgba(244,63,94,0.2)"}}>
+    {message}
+  </div>
+);
+
+const EmptyState = ({ icon="📭", message }) => (
+  <div className="empty-state"><div className="icon">{icon}</div><p className="text-sm">{message}</p></div>
+);
+
+const LoadingCard = ({ message="Loading…" }) => (
+  <div className="card"><div className="text-sm text-muted">{message}</div></div>
+);
+
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
@@ -191,7 +236,7 @@ function AuthGate({ onAuth }) {
     try {
       await onAuth(mode, email, password, name);
     } catch (e) {
-      setError(e.message || "Something went wrong.");
+      setError(FRIENDLY_ERRORS.auth);
     } finally { setBusy(false); }
   };
 
@@ -241,7 +286,7 @@ function AuthGate({ onAuth }) {
             <label style={{fontSize:11,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Name</label>
             <input value={name} onChange={e=>setName(e.target.value)}
               style={{width:"100%",background:"var(--bg3)",border:"1px solid var(--border2)",color:"var(--text)",borderRadius:10,padding:"9px 12px",fontSize:14,outline:"none",fontFamily:"inherit"}}
-              placeholder="Alex Chen" />
+              placeholder="Your full name" />
           </div>
         )}
 
@@ -273,13 +318,21 @@ function AuthGate({ onAuth }) {
 
 
         <button onClick={async () => {
-          const { error } = await supabase.auth.signInWithOAuth({
+          setError("");
+          setBusy(true);
+          try {
+            const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
               redirectTo: `${window.location.origin}/auth/callback`,
             }
           });
-          if (error) throw error;
+            if (error) throw error;
+          } catch {
+            setError(FRIENDLY_ERRORS.googleAuth);
+          } finally {
+            setBusy(false);
+          }
         }} disabled={busy} style={{
           width:"100%",padding:"11px",borderRadius:10,border:"1px solid var(--border2)",cursor:"pointer",
           background:"var(--bg3)",color:"var(--text)",
@@ -328,10 +381,11 @@ function useAccounts() {
     } finally { setSyncing(false); }
   }, []);
 
-  const totalCash  = accounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
-  const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
+  const safeAccounts = ensureArray(accounts, MOCK.accounts);
+  const totalCash  = safeAccounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
+  const creditDebt = safeAccounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
 
-  return { accounts, totalCash, creditDebt, syncing, lastSync, refresh };
+  return { accounts: safeAccounts, totalCash, creditDebt, syncing, lastSync, refresh };
 }
 
 // ─── ALERT ENGINE ─────────────────────────────────────────────────────────────
@@ -345,6 +399,11 @@ function useAccounts() {
 //               or use web-push when service worker is registered.
 
 function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, mode }) {
+  const safeAccounts = ensureArray(accounts, []);
+  const safeBills = ensureArray(bills, []);
+  const safeBudget = ensureArray(budget, []);
+  const safeTransactions = ensureArray(transactions, []);
+  const safeGoals = ensureArray(goals, []);
   // Mode-adjusted thresholds — Survival escalates everything, Wealth relaxes low-balance
   const T = {
     LOW_BALANCE_CRITICAL:    mode === "survival" ? 1000  : mode === "wealth" ? 200   : 500,
@@ -363,7 +422,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   const push   = (a) => alerts.push({ ...a, ts: now.toISOString(), dismissed: false });
 
   // 1. LOW BALANCE
-  accounts.filter(a => a.type === "checking").forEach(a => {
+  safeAccounts.filter(a => a.type === "checking").forEach(a => {
     if (a.balance < T.LOW_BALANCE_CRITICAL) {
       push({ id:`low-bal-crit-${a.id}`, type:"low_balance", severity:"critical",
         icon:"⚠️", title:`Critical: Low Balance — ${a.name}`,
@@ -376,7 +435,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 2. OVERSPENDING
-  budget.forEach(b => {
+  safeBudget.forEach(b => {
     const pct = b.spent / b.limit;
     if (pct >= T.OVERSPEND_CRITICAL) {
       push({ id:`overspend-crit-${b.category}`, type:"overspending", severity:"critical",
@@ -390,7 +449,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 3. LARGE TRANSACTION
-  transactions.filter(t => t.amount < 0).forEach(t => {
+  safeTransactions.filter(t => t.amount < 0).forEach(t => {
     const abs = Math.abs(t.amount);
     if (abs >= T.LARGE_TX_CRITICAL) {
       push({ id:`large-tx-crit-${t.id}`, type:"large_transaction", severity:"critical",
@@ -404,7 +463,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 4. UPCOMING BILL
-  bills.filter(b => !b.paid).forEach(b => {
+  safeBills.filter(b => !b.paid).forEach(b => {
     const dueDate = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
     if (dueDate < now) dueDate.setMonth(dueDate.getMonth() + 1);
     const daysUntil = Math.ceil((dueDate - now) / (1000*60*60*24));
@@ -416,7 +475,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 5. SAVINGS GOAL BEHIND
-  goals.forEach(g => {
+  safeGoals.forEach(g => {
     if (g.current >= g.target) return;
     const pct = g.current / g.target;
     if (!g.deadline) return;
@@ -441,7 +500,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
         body:`Down ${Math.abs(portfolio.dayChangePct).toFixed(2)}% today (${fmt(Math.abs(portfolio.dayChange))}).` });
     }
   } else {
-    const totalCash = accounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
+    const totalCash = safeAccounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
     if (totalCash > 5000 && mode !== "survival") {
       push({ id:"funding-readiness", type:"funding_readiness", severity:"info",
         icon:"📈", title:"Investing Opportunity",
@@ -450,8 +509,8 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   }
 
   // 7. SUBSCRIPTION INCREASE
-  bills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
-    const recentTx = transactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
+  safeBills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
+    const recentTx = safeTransactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
     if (recentTx && Math.abs(recentTx.amount) > b.amount * 1.05) {
       push({ id:`sub-increase-${b.id}`, type:"subscription_increase", severity:"info",
         icon:"🔔", title:`Price Increase: ${b.name}`,
@@ -1312,11 +1371,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
 function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const safeAccounts = pickCollection(accounts, ["accounts"], []);
+  const safeBills = pickCollection(bills, ["bills"], []);
+  const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
+  const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
-  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
-  const upcomingBills = bills.filter(b => !b.paid);
-  const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
+  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const upcomingBills = safeBills.filter(b => !b.paid);
+  const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
@@ -1326,7 +1389,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div>
             <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
-            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Good morning, Kenny!</div>
+            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Welcome back.</div>
             <div style={{fontSize:13,color:"var(--text2)",marginTop:6}}>AI is monitoring your cash flow, portfolio risk, and upcoming obligations in real time.</div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
@@ -1364,27 +1427,31 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
+            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
             <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
           </div>
           <div style={{marginTop:8}}>
-            {budget.slice(0,4).map(b => (
+            {safeBudget.slice(0,4).map(b => (
               <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
                 <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills</p></div>}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div>}
         </div>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
+          <div className="text-sm text-muted">{portfolio?.connected ? `Portfolio preview: ${portfolio.holdings?.length || 0} holdings` : "Portfolio preview/demo only"}</div>
+        </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
@@ -1396,9 +1463,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.length === 0 ? (
+          {safeAccounts.length === 0 ? (
             <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1416,7 +1483,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 6).map(t => (
+              {safeTransactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1434,13 +1501,14 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {safeTransactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet. Connect your bank to get started.</p></div>
                   </td>
                 </tr>
               )}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -1453,8 +1521,10 @@ function BudgetPage({ modeConfig, budgets = [] }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Mode suggestions banner */}
       {suggestions.length > 0 && (
         <div className="card mb-4" style={{padding:"12px 16px",background:modeConfig.bg,border:`1px solid ${modeConfig.border}`}}>
@@ -1500,7 +1570,7 @@ function BudgetPage({ modeConfig, budgets = [] }) {
           <div className="section-title">Category Budgets</div>
           <button className="btn btn-primary btn-sm">+ Add Category</button>
         </div>
-        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budgets yet. Add your first category budget.</p></div> : budgets.map(b => {
+        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
           const over = remaining < 0;
@@ -1538,12 +1608,15 @@ function BudgetPage({ modeConfig, budgets = [] }) {
 }
 
 function TransactionsPage({ transactions = [] }) {
+  const safeTransactions = ensureArray(transactions, []);
   const [filter, setFilter] = useState("All");
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
-  const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
+  const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="card mb-4" style={{padding:"12px 16px"}}>
         <div className="flex items-center gap-3" style={{flexWrap:"wrap"}}>
           <span className="text-sm text-muted">Filter:</span>
@@ -1590,6 +1663,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -1600,6 +1674,8 @@ function TransactionsPage({ transactions = [] }) {
 
 function BillsPage() {
   const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const unpaid = bills.filter(b => !b.paid);
   const paid = bills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
@@ -1607,18 +1683,21 @@ function BillsPage() {
 
   // Load from API on mount; fallback to MOCK if backend not connected
   useEffect(() => {
-    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => {});
+    setLoading(true);
+    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => setError(FRIENDLY_ERRORS.bills)).finally(() => setLoading(false));
   }, []);
 
   const toggle = async (id) => {
-    const bill = bills.find(b => b.id === id);
+    const bill = safeBills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
-    try { await billsApi.update(id, { paid: updated.paid }); } catch { /* noop */ }
+    try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="grid-3 mb-4">
         <div className="card">
           <div className="card-title">Due This Month</div>
@@ -1632,8 +1711,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {bills.length} total bills</div>
+          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {safeBills.length} total bills</div>
         </div>
       </div>
 
@@ -1643,7 +1722,7 @@ function BillsPage() {
             <div className="section-title">Upcoming Bills</div>
             <button className="btn btn-primary btn-sm">+ Add Bill</button>
           </div>
-          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No upcoming bills.</p></div> : unpaid.map(b => (
+          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No bills yet. Add your first bill.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
               <div className="bill-info">
@@ -1683,8 +1762,10 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="portfolio-placeholder mb-4">
         <div style={{fontSize:32, marginBottom:12}}>🔗</div>
         <h3>Connect Your Brokerage</h3>
@@ -1704,7 +1785,7 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           <div className="card-value" style={{fontSize:32}}>{fmt(totalValue)}</div>
           <span className="change-badge pos">↑ {fmt(dayChange)} (+{dayChangePct}%)</span>
         </div>
-        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Demo data only — connect your account for live data"}</div>
+        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Preview data — Connect your account for live data"}</div>
       </div>
 
       <div className="card">
@@ -1773,7 +1854,7 @@ Be concise, specific. Use emojis sparingly.`;
         setMessages(m => [...m, { role: "assistant", content: fallbackReply }]);
       }
     } catch {
-      setMessages(m => [...m, { role: "assistant", content: "Connection issue. Please try again." }]);
+      setMessages(m => [...m, { role: "assistant", content: FRIENDLY_ERRORS.ai }]);
     }
     setLoading(false);
   };
@@ -1863,7 +1944,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
       if (!data?.link_token) throw new Error("Missing Plaid link token");
       setLinkToken(data.link_token);
     } catch (e) {
-      setError(e.message || "Failed to initialize Plaid");
+      setError(FRIENDLY_ERRORS.plaidConnect);
     } finally { setLoading(false); }
   }, []);
 
@@ -1926,21 +2007,61 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast }) {
+function SettingsPage({ addToast, user }) {
   const [toggles, setToggles] = useState({
-    notifications: true, autopay: true, weeklyReport: true, twoFactor: false,
+    notifications: true,
+    autopay: true,
+    weeklyReport: true,
+    twoFactor: false,
+    saveChatHistory: true,
+    dailyAiSummary: true,
+    weeklyAiReview: true,
+    billReminders: true,
+    lowBalanceAlerts: true,
+    overspendingAlerts: true,
+    largeTransactionAlerts: true,
+    portfolioAlerts: true,
+    weeklySummaryEmail: true,
+    autoCategorize: true,
+    rolloverBudget: false,
+    privacyMode: false,
+    darkMode: true,
+    compactMode: false,
+    hideNetWorthWidget: false,
+    hideBudgetWidget: false,
+    hidePortfolioWidget: false,
   });
-  const toggle = (k) => setToggles(t => ({...t, [k]: !t[k]}));
+
+  const [form, setForm] = useState({
+    fullName: MOCK.user.name,
+    email: MOCK.user.email,
+    password: '••••••••',
+    monthlyIncome: '7200',
+    paySchedule: 'Biweekly',
+    financialGoal: 'Build emergency fund',
+    riskTolerance: 'Moderate',
+    financialMode: 'Balanced Growth',
+    emergencyFundTarget: '10000',
+    aiTone: 'Balanced',
+    adviceDepth: 'Detailed',
+    budgetResetDay: '1',
+    spendingSensitivity: 'Medium',
+    budgetMethod: '50/30/20',
+    sessionTimeout: '30 minutes',
+    accentColor: 'Electric Blue',
+    currentPlan: MOCK.user.plan,
+  });
+
+  const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+  const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const plaid = usePlaidConnect({
-    onSuccess: async (publicToken) => {
-      await plaidApi.exchange(publicToken);
-      addToast && addToast("Bank connected successfully!", "success");
+    onSuccess: async () => {
+      addToast && addToast('Bank connected successfully!', 'success');
     },
     onExit: () => {},
   });
 
-  // Auto-fetch link token on mount
   useEffect(() => { plaid.fetchLinkToken(); }, []);
 
   const handlePlaidConnect = () => {
@@ -1949,185 +2070,138 @@ function SettingsPage({ addToast }) {
   };
 
   const handleSync = async () => {
-    await plaid.sync();
-    addToast && addToast("Accounts synced ✓", "success");
+    try {
+      await plaid.sync();
+      addToast && addToast("Accounts synced ✓", "success");
+    } catch {
+      addToast && addToast(FRIENDLY_ERRORS.plaidSync, "error");
+    }
   };
 
-  return (
-    <div className="grid-2">
-      {/* LEFT */}
+  const renderToggleRow = (key, label, desc) => (
+    <div key={key} className="setting-row">
       <div>
-        <div className="card settings-section">
-          <h3>Profile</h3>
-          {[
-            { label: "Full Name",          value: MOCK.user.name },
-            { label: "Email",              value: MOCK.user.email },
-            { label: "Subscription Plan",  value: MOCK.user.plan },
-          ].map(r => (
-            <div key={r.label} className="setting-row">
-              <div>
-                <div className="setting-label">{r.label}</div>
-                <div className="setting-desc">{r.value}</div>
-              </div>
-              <button className="btn btn-ghost btn-sm">Edit</button>
-            </div>
-          ))}
-        </div>
-
-        <div className="card settings-section">
-          <h3>Preferences</h3>
-          {[
-            { key:"notifications", label:"Push Notifications",  desc:"Bill reminders and alerts" },
-            { key:"autopay",       label:"Autopay Reminders",   desc:"Notify before autopay charges" },
-            { key:"weeklyReport",  label:"Weekly Summary",      desc:"Email report every Sunday" },
-            { key:"twoFactor",     label:"Two-Factor Auth",     desc:"Extra security on login" },
-          ].map(r => (
-            <div key={r.key} className="setting-row">
-              <div>
-                <div className="setting-label">{r.label}</div>
-                <div className="setting-desc">{r.desc}</div>
-              </div>
-              <div className={`toggle ${toggles[r.key] ? "on" : ""}`} onClick={() => toggle(r.key)} />
-            </div>
-          ))}
-        </div>
+        <div className="setting-label">{label}</div>
+        <div className="setting-desc">{desc}</div>
       </div>
+      <div className={`toggle ${toggles[key] ? 'on' : ''}`} onClick={() => toggle(key)} />
+    </div>
+  );
 
-      {/* RIGHT */}
-      <div>
-        {/* ── PLAID CONNECT CARD ── */}
-        <div className="card mb-4">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>🏦 Bank Accounts</h3>
-            {plaid.connected && (
-              <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-ghost btn-sm" onClick={handleSync} disabled={plaid.syncing}>
-                  {plaid.syncing ? "Syncing…" : "↻ Sync"}
-                </button>
-                <button className="btn btn-danger btn-sm" onClick={plaid.disconnect}>Disconnect</button>
+  const renderSelectRow = (label, desc, key, options) => (
+    <div className="setting-row" key={key}>
+      <div style={{flex:1}}>
+        <div className="setting-label">{label}</div>
+        <div className="setting-desc">{desc}</div>
+      </div>
+      <select
+        value={form[key]}
+        onChange={(e) => updateField(key, e.target.value)}
+        style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:150}}
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="grid-2" style={{alignItems:'start'}}>
+        <div>
+          <div className="card settings-section">
+            <h3>1. Account</h3>
+            {[
+              ['Full name','Manage your legal account name','fullName'],
+              ['Email','Used for login and billing updates','email'],
+              ['Password','Update your account password','password'],
+            ].map(([label,desc,key]) => (
+              <div className="setting-row" key={key}>
+                <div style={{flex:1}}><div className="setting-label">{label}</div><div className="setting-desc">{desc}</div></div>
+                <input value={form[key]} onChange={(e)=>updateField(key,e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} />
               </div>
-            )}
+            ))}
+            {renderToggleRow('twoFactor','Two-factor auth','Require a verification step at login.')}
+            <button className="btn btn-danger btn-sm" style={{marginTop:8}}>Delete Account</button>
           </div>
 
-          {/* Not connected state */}
-          {!plaid.connected && (
-            <div style={{
-              background:"linear-gradient(135deg,rgba(79,142,247,0.08),rgba(99,102,241,0.05))",
-              border:"1px dashed rgba(79,142,247,0.3)", borderRadius:12, padding:20, textAlign:"center"
-            }}>
-              <div style={{fontSize:32,marginBottom:8}}>🔗</div>
-              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:6}}>Connect Your Bank</div>
-              <div style={{fontSize:12,color:"var(--text2)",marginBottom:16}}>
-                Securely sync accounts via Plaid. Read-only access. 256-bit encryption.
-              </div>
-              {plaid.error && (
-                <div style={{fontSize:12,color:"var(--red)",marginBottom:12,padding:"6px 10px",background:"rgba(244,63,94,0.1)",borderRadius:8}}>
-                  {plaid.error}
-                </div>
-              )}
-              <button
-                className="btn btn-primary"
-                onClick={handlePlaidConnect}
-                disabled={plaid.loading}
-                style={{width:"100%",justifyContent:"center"}}
-              >
-                {plaid.loading ? "Initializing…" : "Connect with Plaid"}
-              </button>
-              <div style={{marginTop:10,fontSize:10,color:"var(--text3)"}}>
-                Powered by Plaid · Bank-level security · Never stores credentials
-              </div>
-            </div>
-          )}
-
-          {/* Connected — show accounts */}
-          {plaid.connected && (
-            <>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14}}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>
-                <span style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Connected</span>
-                <span style={{fontSize:12,color:"var(--text3)"}}>· {plaid.accounts.length} accounts</span>
-                {plaid.lastSyncedAt && (
-                  <span style={{fontSize:12,color:"var(--text3)"}}>
-                    · Last synced {plaid.lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                )}
-              </div>
-
-              {plaid.accounts.map(a => (
-                <div key={a.id} className="integration-card" style={{marginBottom:8}}>
-                  <div className="int-icon">
-                    {a.type === "checking" ? "🏦" : a.type === "savings" ? "💰" : "💳"}
-                  </div>
-                  <div className="int-info">
-                    <div className="int-name">{a.name}</div>
-                    <div className="int-status">
-                      {a.institution} · ••••{a.last4} ·{" "}
-                      <span style={{textTransform:"capitalize"}}>{a.type}</span>
-                    </div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{
-                      fontFamily:"Syne",fontWeight:700,fontSize:14,
-                      color: a.balance < 0 ? "var(--red)" : "var(--text)"
-                    }}>
-                      {fmt(a.balance)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={handlePlaidConnect}
-                style={{marginTop:8,width:"100%",justifyContent:"center"}}
-              >
-                + Add Another Bank
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Other integrations */}
-        <div className="card mb-4">
-          <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:14}}>Other Integrations</h3>
-          {[
-            { icon:"📊", name:"Webull",    desc:"Portfolio sync",          status:"Not connected", cls:"badge-gray",   action:"Connect" },
-            { icon:"🔄", name:"SnapTrade", desc:"Multi-brokerage sync",    status:"Coming soon",   cls:"badge-yellow", action:null },
-            { icon:"💳", name:"Stripe",    desc:"Subscription billing",    status:"Active",        cls:"badge-green",  action:null },
-          ].map(int => (
-            <div key={int.name} className="integration-card" style={{marginBottom:8}}>
-              <div className="int-icon">{int.icon}</div>
-              <div className="int-info">
-                <div className="int-name">{int.name}</div>
-                <div className="int-status">{int.desc}</div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span className={`badge ${int.cls}`}>{int.status}</span>
-                {int.action && (
-                  <button className="btn btn-ghost btn-sm" style={{padding:"3px 10px",fontSize:11}}>
-                    {int.action}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Subscription */}
-        <div className="card">
-          <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:14}}>Subscription</h3>
-          <div style={{background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.1))",border:"1px solid rgba(79,142,247,0.2)",borderRadius:12,padding:16,marginBottom:14}}>
-            <div style={{fontSize:11,color:"var(--accent)",fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>WealthPilot Pro</div>
-            <div style={{fontFamily:"Syne",fontWeight:700,fontSize:24,marginTop:4}}>$9.99 <span style={{fontSize:14,fontWeight:400,color:"var(--text2)"}}>/ month</span></div>
-            <div className="text-xs text-muted" style={{marginTop:4}}>Next billing: June 9, 2026</div>
+          <div className="card settings-section">
+            <h3>2. Financial Profile</h3>
+            <div className="setting-row"><div><div className="setting-label">Monthly income</div><div className="setting-desc">Net monthly household income.</div></div><input value={form.monthlyIncome} onChange={(e)=>updateField('monthlyIncome', e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:120}} /></div>
+            {renderSelectRow('Pay schedule','How often your primary paycheck arrives.','paySchedule',['Weekly','Biweekly','Semi-monthly','Monthly'])}
+            {renderSelectRow('Main financial goal','Primary objective for recommendations.','financialGoal',['Build emergency fund','Pay down debt','Grow investments','Save for home'])}
+            {renderSelectRow('Risk tolerance','Used for portfolio and cash flow suggestions.','riskTolerance',['Conservative','Moderate','Aggressive'])}
+            {renderSelectRow('Financial mode selector','Controls AI strategy and spending posture.','financialMode',['Conservative Defense','Balanced Growth','Aggressive Acceleration'])}
+            <div className="setting-row"><div><div className="setting-label">Emergency fund target</div><div className="setting-desc">Recommended 3-6 months of expenses.</div></div><input value={form.emergencyFundTarget} onChange={(e)=>updateField('emergencyFundTarget',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:120}} /></div>
           </div>
-          {["Unlimited bank accounts","AI Coach access","Advanced analytics","Priority support"].map(f => (
-            <div key={f} className="flex items-center gap-2" style={{marginBottom:8}}>
-              <span style={{color:"var(--green)"}}>✓</span>
-              <span className="text-sm">{f}</span>
+
+          <div className="card settings-section">
+            <h3>3. Connected Accounts</h3>
+            <div style={{fontSize:11,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>Plaid Bank Connection</div>
+            <div className="mb-4">{/* keep plaid card working */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                <h3 style={{fontFamily:'Syne',fontWeight:700,fontSize:15}}>🏦 Bank Accounts</h3>
+                {plaid.connected && <div style={{display:'flex',gap:8}}><button className="btn btn-ghost btn-sm" onClick={handleSync} disabled={plaid.syncing}>{plaid.syncing ? 'Syncing…' : 'Sync now'}</button><button className="btn btn-danger btn-sm" onClick={plaid.disconnect}>Disconnect account</button></div>}
+              </div>
+              {!plaid.connected ? <button className="btn btn-primary" onClick={handlePlaidConnect} disabled={plaid.loading} style={{width:'100%',justifyContent:'center'}}>{plaid.loading ? 'Initializing…' : 'Connect with Plaid'}</button> : <>{plaid.accounts.map(a => <div key={a.id} className="integration-card" style={{marginBottom:8}}><div className="int-icon">{a.type === 'checking' ? '🏦' : a.type === 'savings' ? '💰' : '💳'}</div><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.institution} · ••••{a.last4}</div></div><div style={{fontFamily:'Syne',fontWeight:700,fontSize:14}}>{fmt(a.balance)}</div></div>)}</>}
             </div>
-          ))}
-          <button className="btn btn-danger btn-sm" style={{marginTop:12}}>Cancel Subscription</button>
+            <div className="integration-card"><div className="int-icon">📊</div><div className="int-info"><div className="int-name">Webull / SnapTrade</div><div className="int-status">Brokerage sync placeholder</div></div><span className="badge badge-yellow">Coming soon</span></div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>4. AI Coach Preferences</h3>
+            {renderSelectRow('AI tone','Voice and accountability style.','aiTone',['Strict','Balanced','Encouraging'])}
+            {renderSelectRow('Advice depth','Complexity level for insights.','adviceDepth',['Simple','Detailed','Advanced'])}
+            {renderToggleRow('saveChatHistory','Save chat history','Store prior AI conversations for context.')}
+            {renderToggleRow('dailyAiSummary','Daily AI summary','Deliver a quick daily financial briefing.')}
+            {renderToggleRow('weeklyAiReview','Weekly AI review','Receive a weekly strategy recap every Sunday.')}
+          </div>
+
+          <div className="card settings-section">
+            <h3>5. Notifications</h3>
+            {renderToggleRow('billReminders','Bill due reminders','Remind you before due dates.')}
+            {renderToggleRow('lowBalanceAlerts','Low balance alerts','Alert when account balances fall below threshold.')}
+            {renderToggleRow('overspendingAlerts','Overspending alerts','Detect category and monthly budget overages.')}
+            {renderToggleRow('largeTransactionAlerts','Large transaction alerts','Flag unusual high-value spending events.')}
+            {renderToggleRow('portfolioAlerts','Portfolio alerts','Notify on significant market movement.')}
+            {renderToggleRow('weeklySummaryEmail','Weekly summary email','Send your full weekly financial digest.')}
+          </div>
+        </div>
+
+        <div>
+          <div className="card settings-section">
+            <h3>6. Budget Preferences</h3>
+            <div className="setting-row"><div><div className="setting-label">Monthly budget reset day</div><div className="setting-desc">Calendar day to reset budget tracking.</div></div><input value={form.budgetResetDay} onChange={(e)=>updateField('budgetResetDay',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:70}} /></div>
+            {renderToggleRow('autoCategorize','Auto-categorize transactions','Apply smart categories to new transactions.')}
+            {renderToggleRow('rolloverBudget','Rollover unused budget','Carry remaining funds into next month.')}
+            {renderSelectRow('Spending alert sensitivity','Threshold level for spend warnings.','spendingSensitivity',['Low','Medium','High'])}
+            {renderSelectRow('Budget method selector','Framework for allocations.','budgetMethod',['50/30/20','Zero-based','Envelope','Pay Yourself First'])}
+          </div>
+
+          <div className="card settings-section">
+            <h3>7. Privacy & Security</h3>
+            {renderToggleRow('privacyMode','Privacy mode / hide balances','Mask balances and sensitive amounts on screen.')}
+            {renderSelectRow('Session timeout selector','Auto sign-out period when inactive.','sessionTimeout',['15 minutes','30 minutes','1 hour','4 hours'])}
+            <div className="setting-row"><div><div className="setting-label">Export my data</div><div className="setting-desc">Download your account records as CSV/JSON.</div></div><button className="btn btn-ghost btn-sm">Export</button></div>
+            <div className="setting-row"><div><div className="setting-label">Delete my data</div><div className="setting-desc">Permanently remove stored financial profile data.</div></div><button className="btn btn-danger btn-sm">Delete Data</button></div>
+            <div className="setting-row"><div><div className="setting-label">Connected data permissions</div><div className="setting-desc">Review what data each integration can access.</div></div><button className="btn btn-ghost btn-sm">Review</button></div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>8. Appearance</h3>
+            {renderToggleRow('darkMode','Dark mode toggle','Premium low-glare experience for night usage.')}
+            {renderSelectRow('Accent color selector','Set your interface highlight color.','accentColor',['Electric Blue','Emerald','Violet','Rose'])}
+            {renderToggleRow('compactMode','Compact mode toggle','Reduce spacing to fit more content.')}
+            {renderToggleRow('hideNetWorthWidget','Show/hide dashboard widgets · Net Worth','Control Net Worth card visibility.')}
+            {renderToggleRow('hideBudgetWidget','Show/hide dashboard widgets · Budget','Control Budget card visibility.')}
+            {renderToggleRow('hidePortfolioWidget','Show/hide dashboard widgets · Portfolio','Control Portfolio card visibility.')}
+          </div>
+
+          <div className="card settings-section">
+            <h3>9. Billing</h3>
+            <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · $9.99 / month</div></div><span className="badge badge-green">Active</span></div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm">Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
+            <div style={{marginTop:14,padding:12,border:'1px dashed var(--border2)',borderRadius:12,color:'var(--text2)',fontSize:12}}>Billing history placeholder · Invoice download and payment history will appear here.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2240,9 +2314,12 @@ function CalendarPage({ addToast }) {
   const [activeFilters, setFilters] = useState([]);
   const BLANK = { title:"", amount:"", type:"bill", dueDate:toISO(now), status:"upcoming", autopay:false, recurring:"monthly", notes:"" };
   const [form, setForm] = useState(BLANK);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d); }).catch(() => {});
+    setLoading(true);
+    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d); }).catch(() => setError(FRIENDLY_ERRORS.calendar)).finally(() => setLoading(false));
   }, [mo, yr]);
 
   const todayISO = toISO(now);
@@ -2302,8 +2379,10 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Summary Cards */}
       <div className="grid-4 mb-4" style={{gap:12}}>
         {[
@@ -2607,12 +2686,7 @@ function CalendarPage({ addToast }) {
 
 // ─── STUB PAGES ───────────────────────────────────────────────────────────────
 // ─── CREDIT SCORE PAGE ────────────────────────────────────────────────────────
-const SCORE_HISTORY = [
-  { score:682, date:"2025-11-01" }, { score:690, date:"2025-12-01" },
-  { score:695, date:"2026-01-01" }, { score:701, date:"2026-02-01" },
-  { score:698, date:"2026-03-01" }, { score:712, date:"2026-04-01" },
-  { score:724, date:"2026-05-01" },
-];
+const SCORE_HISTORY = [];
 
 const SCORE_BANDS = [
   { label:"Poor",      min:300, max:579,  color:"#f43f5e" },
@@ -2700,14 +2774,15 @@ function ScoreLineChart({ history }) {
 function CreditScorePage({ addToast, initialScore }) {
   const [history, setHistory] = useState(() => {
     if (initialScore?.score) return [...SCORE_HISTORY.slice(0, -1), { score: initialScore.score, date: toISO(new Date()), provider: initialScore.provider || "api" }];
-    return SCORE_HISTORY;
+    return [];
   });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
-  const latest  = history[history.length - 1];
-  const prev    = history[history.length - 2];
-  const trend   = latest.score - prev.score;
-  const color   = scoreColor(latest.score);
+  const hasHistory = history.length > 0;
+  const latest  = hasHistory ? history[history.length - 1] : null;
+  const prev    = history.length > 1 ? history[history.length - 2] : null;
+  const trend   = hasHistory && prev ? latest.score - prev.score : 0;
+  const color   = hasHistory ? scoreColor(latest.score) : "#8892a4";
 
   const submit = async () => {
     const s = parseInt(form.score);
@@ -2728,21 +2803,21 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Top row */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:16,alignItems:"start",marginBottom:16}}>
         {/* Gauge card */}
         <div className="card" style={{textAlign:"center",minWidth:200}}>
           <div className="card-title" style={{textAlign:"left"}}>Credit Score</div>
-          <ScoreGauge score={latest.score} />
+          {hasHistory ? <ScoreGauge score={latest.score} /> : <div className="empty-state"><div className="icon">⭐</div><p className="text-sm">Log your first credit score</p></div>}
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--text3)",marginTop:4,padding:"0 4px"}}>
             <span>300</span><span>850</span>
           </div>
           <div style={{marginTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            <span className={`change-badge ${trend>=0?"pos":"neg"}`}>
-              {trend>=0?"↑":"↓"} {Math.abs(trend)} pts vs last month
-            </span>
+            {hasHistory && prev ? <span className={`change-badge ${trend>=0?"pos":"neg"}`}>{trend>=0?"↑":"↓"} {Math.abs(trend)} pts vs last month</span> : <span className="badge badge-gray">No score history yet</span>}
           </div>
           <button className="btn btn-primary" style={{width:"100%",marginTop:14,justifyContent:"center"}}
             onClick={()=>setShowForm(s=>!s)}>
@@ -2781,7 +2856,7 @@ function CreditScorePage({ addToast, initialScore }) {
               <span style={{fontSize:11,color:"var(--text3)"}}>Last {history.length} months</span>
             </div>
             <div style={{padding:"4px 0 8px"}}>
-              <ScoreLineChart history={history} />
+              {hasHistory ? <ScoreLineChart history={history} /> : <div className="empty-state"><div className="icon">📈</div><p className="text-sm">Log your first credit score</p></div>}
             </div>
             {/* X-axis labels */}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
@@ -2949,8 +3024,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:"Syne",fontWeight:800,fontSize:22,marginBottom:4}}>
@@ -3169,6 +3246,8 @@ function GoalsPage({ addToast, modeConfig }) {
   const [editing, setEditing] = useState(null);
   const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
@@ -3192,8 +3271,10 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Summary */}
       <div className="grid-3 mb-4" style={{gap:12}}>
         <div className="card" style={{borderLeft:"3px solid var(--accent)",padding:"14px 16px"}}>
@@ -3490,8 +3571,10 @@ function ReportsPage() {
   const nwEnd   = nwMonths[nwMonths.length-1].value;
   const nwGain  = nwEnd - nwStart;
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Period toggle + header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div className="section-title">Financial Reports</div>
@@ -3591,6 +3674,7 @@ function ReportsPage() {
                   </tr>
                 );
               })}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -3786,8 +3870,10 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
     );
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* ── Hero net worth ── */}
       <div style={{
         background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.06))",
@@ -4028,27 +4114,44 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [liveDataLoading, setLiveDataLoading] = useState(true);
+  const [liveDataError, setLiveDataError] = useState("");
   const [liveData, setLiveData] = useState({
     accounts: [],
     bills: [],
     transactions: [],
     budgets: [],
-    portfolio: MOCK.portfolio,
+    portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
+  });
+  const [liveStatus, setLiveStatus] = useState({
+    accounts: { loading: true, error: false },
+    transactions: { loading: true, error: false },
+    bills: { loading: true, error: false },
+    budgets: { loading: true, error: false },
+    calendarEvents: { loading: true, error: false },
+    creditScore: { loading: true, error: false },
+    portfolio: { loading: true, error: false },
   });
 
   useEffect(() => {
     const fetchData = async () => {
+      setLiveDataLoading(true);
+      setLiveDataError("");
       const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
       const accounts = await safe(async () => {
         const res = await fetch("/api/accounts");
         if (!res.ok) throw new Error("accounts unavailable");
         const payload = await res.json();
-        return payload?.data || [];
+        return ensureArray(payload?.data ?? payload, []);
       }, acct.accounts);
-      const bills = await safe(() => billsApi.list(), []);
-      const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(), []);
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const bills = ensureArray(await safe(() => billsApi.list(), []), []);
+      const transactions = ensureArray(await safe(() => txApi.list(), []), []);
+      const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
@@ -4058,7 +4161,14 @@ export default function WealthPilotOS() {
         return p || MOCK.portfolio;
       }, MOCK.portfolio);
       const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+      setLiveData({
+        accounts: ensureArray(accounts, acct.accounts),
+        bills,
+        transactions,
+        budgets,
+        portfolio,
+        creditScore
+      });
     };
     fetchData();
   }, [acct.accounts]);
@@ -4098,7 +4208,7 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
@@ -4110,7 +4220,7 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} />;
       default:             return <Dashboard setPage={showPage} />;
     }
   };
@@ -4166,7 +4276,7 @@ export default function WealthPilotOS() {
           <div className="sidebar-bottom">
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
-              <span style={{fontSize:13,fontWeight:500}}>{user?.name || MOCK.user.name}</span>
+              <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
             </div>
             <div className="plan-badge">✦ Pro Plan</div>
             <div className="nav-item" style={{marginTop:4,color:"var(--red)"}} onClick={logout}>
