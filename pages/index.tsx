@@ -1,98 +1,113 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
 
-const trustItems = [
-  'Bank-level encryption',
-  'Read-only bank access',
-  'Powered by Plaid',
-  'AI insights',
-  'No hidden fees',
+const metrics = [
+  { label: 'Assets tracked', value: '$2.4B+', detail: 'Across connected client portfolios' },
+  { label: 'Avg. savings uplift', value: '18.7%', detail: 'After 90 days with AI automations' },
+  { label: 'On-time bill rate', value: '99.2%', detail: 'Reminder + smart cash-flow planning' },
 ]
 
-const features = [
+const featureCards = [
   {
-    title: 'Budgeting',
+    icon: '📊',
+    title: 'Executive Money Command',
     description:
-      'Track every dollar with live category intelligence, net-worth snapshots, and monthly cash flow trends.',
+      'Unified view of cash flow, liabilities, portfolio exposure, and runway forecasts with live visual intelligence.',
   },
   {
-    title: 'Bills & Calendar',
+    icon: '🧠',
+    title: 'AI Financial Co‑Pilot',
     description:
-      'Stay ahead of due dates with proactive reminders and a visual payment timeline that keeps you on schedule.',
+      'Get clear next-best actions on spending, debt, and investment strategy from a model trained on your real behavior patterns.',
   },
   {
-    title: 'AI Coach',
+    icon: '🛡️',
+    title: 'Risk & Fraud Shield',
     description:
-      'Get personalized guidance on spending, saving, and tradeoffs backed by your real financial data.',
+      'Catch unusual transactions, payment spikes, and account anomalies instantly with behavior-based alerting.',
   },
   {
-    title: 'Credit Score Tracker',
+    icon: '📅',
+    title: 'Smart Bill Orchestration',
     description:
-      'Monitor your score progress, understand score drivers, and receive targeted actions to improve faster.',
+      'Visual payment timelines and due-date optimization prevent late fees while preserving target liquidity.',
   },
   {
-    title: 'Portfolio / Profit Lock',
+    icon: '📈',
+    title: 'Profit Lock Insights',
     description:
-      'View allocation, performance, and profit-protection opportunities in one investing command center.',
+      'Track gains, identify de-risk opportunities, and preserve upside with threshold-based portfolio intelligence.',
   },
   {
-    title: 'Smart Alerts',
+    icon: '🔐',
+    title: 'Institution-Grade Security',
     description:
-      'Catch unusual activity, bill spikes, and milestone opportunities before they impact your goals.',
-  },
-]
-
-const faq = [
-  {
-    q: 'Is it safe to connect my bank accounts?',
-    a: 'Yes. WealthPilot OS uses bank-grade encryption and secure tokenized connections via Plaid. Your credentials are never stored in plain text.',
-  },
-  {
-    q: 'How does the AI feature work?',
-    a: 'Our AI analyzes your spending patterns, bills, and trends to deliver practical recommendations you can act on immediately.',
-  },
-  {
-    q: 'Can I change plans later?',
-    a: 'Absolutely. You can upgrade, downgrade, or cancel at any time from your dashboard settings.',
-  },
-  {
-    q: 'What happens if I cancel?',
-    a: 'Your paid features remain active through your billing period, and you can continue using the Free plan afterward.',
-  },
-  {
-    q: 'How do I delete my data?',
-    a: 'You can request full data deletion from the Delete Account link, and we permanently remove your profile and connected records.',
+      'Bank-level encryption, tokenized access via Plaid, and read-only data connections built for trust.',
   },
 ]
 
 const Home: NextPage = () => {
   return (
     <div className="page">
+      <div className="aurora auroraOne" />
+      <div className="aurora auroraTwo" />
       <main className="container">
-        <section className="hero card">
-          <p className="eyebrow">WealthPilot OS</p>
-          <h1>Your AI-powered command center for money, bills, credit, and investing.</h1>
-          <p className="subheadline">
-            Connect your accounts, track spending, plan bills, monitor credit, and get AI-powered financial insights in one premium dashboard.
-          </p>
-          <div className="ctaRow">
-            <Link href="/dashboard" className="btn btnPrimary">Start Free</Link>
-            <Link href="/dashboard" className="btn btnSecondary">Sign In</Link>
-            <Link href="/dashboard" className="btn btnGhost">View Dashboard Demo</Link>
+        <section className="hero">
+          <div className="heroPanel">
+            <p className="eyebrow">WealthPilot OS • Elite Financial Intelligence</p>
+            <h1>Make your first impression unforgettable with a premium money platform experience.</h1>
+            <p className="subheadline">
+              Designed to convert instantly: cinematic visuals, polished motion, and a luxury-grade value proposition that positions your brand as best-in-class from the first scroll.
+            </p>
+            <div className="ctaRow">
+              <Link href="/dashboard" className="btn btnPrimary">Start Free</Link>
+              <Link href="/dashboard" className="btn btnSecondary">Book Demo</Link>
+            </div>
+            <div className="trustRow">
+              <span>Powered by Plaid</span>
+              <span>Read-only bank access</span>
+              <span>AI-guided planning</span>
+            </div>
+          </div>
+
+          <div className="heroVisual">
+            <div className="glassCard large floating">
+              <p>Financial Health Score</p>
+              <strong>91</strong>
+              <small>+11 pts this quarter</small>
+            </div>
+            <div className="glassCard small drift">
+              <p>Cash Flow Signal</p>
+              <strong>+ $12,430</strong>
+            </div>
+            <div className="glassCard small pulse">
+              <p>Portfolio Guard</p>
+              <strong>Protected</strong>
+            </div>
+            <div className="orbit orbitOne" />
+            <div className="orbit orbitTwo" />
           </div>
         </section>
 
-        <section className="trust card">
-          {trustItems.map((item) => (
-            <div className="trustItem" key={item}>{item}</div>
+        <section className="metrics">
+          {metrics.map((metric) => (
+            <article className="metricCard" key={metric.label}>
+              <p>{metric.label}</p>
+              <h2>{metric.value}</h2>
+              <small>{metric.detail}</small>
+            </article>
           ))}
         </section>
 
-        <section className="features">
-          <h2>Everything you need to run your financial life</h2>
-          <div className="grid">
-            {features.map((feature) => (
-              <article className="card feature" key={feature.title}>
+        <section className="featuresSection">
+          <div className="sectionHeader">
+            <p>WHY CLIENTS STAY</p>
+            <h2>Built to look premium. Engineered to perform.</h2>
+          </div>
+          <div className="featureGrid">
+            {featureCards.map((feature, idx) => (
+              <article className="featureCard" key={feature.title} style={{ animationDelay: `${idx * 90}ms` }}>
+                <span className="featureIcon" aria-hidden>{feature.icon}</span>
                 <h3>{feature.title}</h3>
                 <p>{feature.description}</p>
               </article>
@@ -100,126 +115,105 @@ const Home: NextPage = () => {
           </div>
         </section>
 
-        <section className="preview card">
-          <div className="previewHeader">
-            <h2>Premium dashboard experience</h2>
-            <span>Live overview • Cash flow • AI insights</span>
-          </div>
-          <div className="previewGrid">
-            <div className="mockCard">
-              <p>Net Worth</p>
-              <strong>$1,234,567</strong>
-              <small>+12.5% this month</small>
-            </div>
-            <div className="mockCard">
-              <p>Monthly Cash Flow</p>
-              <strong>$8,425</strong>
-              <small>Healthy trajectory</small>
-            </div>
-            <div className="mockChart">
-              <p>Asset Allocation</p>
-              <div className="ring" />
-            </div>
-            <div className="mockChart">
-              <p>Financial Health Score</p>
-              <div className="score">82</div>
-            </div>
-          </div>
-        </section>
-
-        <section className="pricing">
-          <h2>Simple pricing</h2>
-          <div className="grid pricingGrid">
-            <article className="card priceCard">
-              <h3>Free</h3>
-              <p className="price">$0</p>
-              <p>Core tracking, budgeting, and account monitoring.</p>
-            </article>
-            <article className="card priceCard featured">
-              <h3>Pro</h3>
-              <p className="price">$9.99/mo</p>
-              <p>Advanced AI insights, reports, and smart automations.</p>
-            </article>
-            <article className="card priceCard">
-              <h3>Premium</h3>
-              <p className="price">$19.99/mo</p>
-              <p>Full intelligence suite, profit lock, and priority support.</p>
-            </article>
-          </div>
-        </section>
-
-        <section className="faq">
-          <h2>Frequently asked questions</h2>
-          <div className="grid">
-            {faq.map((item) => (
-              <article className="card faqCard" key={item.q}>
-                <h3>{item.q}</h3>
-                <p>{item.a}</p>
-              </article>
-            ))}
-          </div>
+        <section className="finalCta">
+          <h2>Turn visitors into high-intent clients in under 10 seconds.</h2>
+          <p>
+            Upgrade your first-screen experience with strong visuals, meaningful motion, and a crystal-clear premium promise.
+          </p>
+          <Link href="/dashboard" className="btn btnPrimary">Launch WealthPilot</Link>
         </section>
       </main>
 
-      <footer className="footer">
-        <div className="footerLinks">
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Disclaimer</a>
-          <a href="#">Contact</a>
-          <a href="#">Delete Account</a>
-          <Link href="/dashboard">Dashboard/Login</Link>
-        </div>
-      </footer>
-
       <style jsx>{`
-        .page { min-height: 100vh; background: radial-gradient(circle at 20% 0%, #2b145f 0%, #070a14 45%, #04060d 100%); color: #e8ecff; font-family: Inter, Arial, sans-serif; }
-        .container { width: min(1120px, 92%); margin: 0 auto; padding: 48px 0 64px; }
-        .card { background: linear-gradient(145deg, rgba(17,24,49,.9), rgba(8,12,25,.88)); border: 1px solid rgba(132,152,255,.16); border-radius: 20px; box-shadow: 0 20px 45px rgba(0,0,0,.35); }
-        .hero { padding: 44px; text-align: center; }
-        h1 { font-size: clamp(1.9rem, 3.4vw, 3rem); line-height: 1.2; margin: 12px auto 16px; max-width: 850px; }
-        .eyebrow { color: #b9b7ff; letter-spacing: .12em; text-transform: uppercase; font-size: .74rem; }
-        .subheadline { max-width: 840px; margin: 0 auto; color: #b9c2e6; line-height: 1.6; }
-        .ctaRow { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-        .btn { padding: 12px 18px; border-radius: 999px; font-weight: 600; text-decoration: none; transition: .25s ease; border: 1px solid transparent; }
-        .btnPrimary { background: linear-gradient(90deg, #7f5bff, #6b8dff); color: white; }
-        .btnSecondary { background: rgba(127, 91, 255, .2); border-color: rgba(163, 143, 255, .45); color: #e8ecff; }
-        .btnGhost { background: transparent; border-color: rgba(190, 205, 255, .35); color: #cdd8ff; }
-        .btn:hover { transform: translateY(-2px); }
-        .trust { margin-top: 20px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); padding: 14px 20px; gap: 10px; }
-        .trustItem { text-align: center; color: #c2ccf3; font-size: .92rem; }
-        section { margin-top: 32px; }
-        h2 { font-size: clamp(1.4rem, 2.7vw, 2rem); margin-bottom: 16px; }
-        .grid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0,1fr)); }
-        .feature, .priceCard, .faqCard { padding: 20px; }
-        .feature h3, .faqCard h3, .priceCard h3 { margin: 0 0 10px; }
-        .feature p, .faqCard p, .priceCard p { margin: 0; color: #adbadf; line-height: 1.55; }
-        .preview { padding: 20px; }
-        .previewHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-        .previewHeader span { color: #9fb0e2; font-size: .9rem; }
-        .previewGrid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
-        .mockCard, .mockChart { background: rgba(9,13,30,.92); border-radius: 14px; border: 1px solid rgba(113,130,230,.22); padding: 16px; min-height: 130px; }
-        .mockCard p, .mockChart p { margin: 0; color: #97a7d5; font-size: .88rem; }
-        .mockCard strong { display: block; font-size: 1.6rem; margin-top: 12px; }
-        .mockCard small { color: #5be9a8; }
-        .ring { width: 78px; height: 78px; border-radius: 50%; margin-top: 16px; background: conic-gradient(#7f5bff 0 30%, #19d39a 30% 58%, #4889ff 58% 82%, #f8943a 82% 100%); }
-        .score { margin-top: 18px; font-size: 2rem; color: #93f9c8; font-weight: 700; }
-        .pricingGrid .featured { border-color: rgba(127, 91, 255, .58); box-shadow: 0 0 0 1px rgba(127,91,255,.4), 0 24px 50px rgba(61,28,129,.55); }
-        .price { font-size: 1.7rem; color: #f3f5ff !important; margin-bottom: 8px !important; }
-        .footer { border-top: 1px solid rgba(141, 158, 244, .2); padding: 22px 0 34px; margin-top: 24px; }
-        .footerLinks { width: min(1120px, 92%); margin: 0 auto; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-        .footer a { color: #adb8e4; text-decoration: none; font-size: .92rem; }
-
-        @media (max-width: 1000px) {
-          .trust { grid-template-columns: repeat(2, minmax(0,1fr)); }
-          .grid, .previewGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .page {
+          min-height: 100vh;
+          color: #edf2ff;
+          font-family: Inter, Arial, sans-serif;
+          background: radial-gradient(circle at 10% -10%, #412078 0%, #0a1024 44%, #03060f 100%);
+          position: relative;
+          overflow: hidden;
         }
+        .container { width: min(1150px, 92%); margin: 0 auto; padding: 42px 0 70px; position: relative; z-index: 2; }
+        .aurora { position: absolute; border-radius: 999px; filter: blur(38px); opacity: .35; animation: breathe 12s ease-in-out infinite; }
+        .auroraOne { width: 360px; height: 360px; background: #8d5dff; top: -120px; left: -140px; }
+        .auroraTwo { width: 320px; height: 320px; background: #1ea7ff; bottom: -140px; right: -80px; animation-delay: 2s; }
 
+        .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; align-items: stretch; }
+        .heroPanel, .heroVisual {
+          border-radius: 24px;
+          border: 1px solid rgba(153, 179, 255, .22);
+          background: linear-gradient(145deg, rgba(17, 25, 52, .88), rgba(7, 12, 31, .84));
+          box-shadow: 0 30px 65px rgba(0,0,0,.4);
+        }
+        .heroPanel { padding: 42px; }
+        .eyebrow { letter-spacing: .13em; font-size: .72rem; text-transform: uppercase; color: #adc0ff; }
+        h1 { margin: 14px 0; line-height: 1.14; font-size: clamp(2rem, 3.8vw, 3.3rem); }
+        .subheadline { color: #b5c5ef; line-height: 1.6; max-width: 58ch; }
+        .ctaRow { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn { padding: 12px 20px; border-radius: 999px; text-decoration: none; font-weight: 700; border: 1px solid transparent; transition: transform .2s ease, box-shadow .2s ease; }
+        .btn:hover { transform: translateY(-2px); }
+        .btnPrimary { color: #fff; background: linear-gradient(90deg, #7d57ff, #488cff); box-shadow: 0 10px 30px rgba(84, 111, 255, .45); }
+        .btnSecondary { color: #d8e2ff; background: rgba(117, 146, 255, .15); border-color: rgba(153, 172, 255, .4); }
+        .trustRow { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 14px; color: #a5b6e4; font-size: .87rem; }
+
+        .heroVisual { padding: 28px; position: relative; min-height: 360px; overflow: hidden; }
+        .glassCard { position: absolute; border-radius: 16px; padding: 16px; backdrop-filter: blur(8px); background: rgba(12, 18, 40, .68); border: 1px solid rgba(158, 178, 255, .24); }
+        .glassCard p { margin: 0; font-size: .82rem; color: #9fb4e9; }
+        .glassCard strong { display: block; margin-top: 10px; font-size: 1.45rem; }
+        .glassCard small { color: #7ef6be; }
+        .large { width: 52%; top: 22px; left: 20px; }
+        .small { width: 44%; }
+        .drift { right: 20px; top: 78px; }
+        .pulse { right: 56px; bottom: 30px; }
+        .orbit { position: absolute; border-radius: 50%; border: 1px solid rgba(137, 162, 255, .35); }
+        .orbitOne { width: 300px; height: 300px; bottom: -120px; left: -70px; animation: spin 18s linear infinite; }
+        .orbitTwo { width: 220px; height: 220px; top: -60px; right: -70px; animation: spinReverse 15s linear infinite; }
+
+        .metrics { margin-top: 24px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+        .metricCard { padding: 20px; border-radius: 18px; background: rgba(10, 18, 40, .7); border: 1px solid rgba(150, 176, 255, .2); }
+        .metricCard p { margin: 0; color: #9db2e9; font-size: .86rem; }
+        .metricCard h2 { margin: 8px 0 5px; font-size: 2rem; }
+        .metricCard small { color: #b1c3f2; }
+
+        .featuresSection { margin-top: 38px; }
+        .sectionHeader p { margin: 0; letter-spacing: .15em; color: #9cb1e5; font-size: .74rem; }
+        .sectionHeader h2 { margin: 8px 0 18px; font-size: clamp(1.55rem, 3vw, 2.35rem); }
+        .featureGrid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0,1fr)); }
+        .featureCard {
+          padding: 20px;
+          border-radius: 18px;
+          background: linear-gradient(150deg, rgba(17, 28, 58, .84), rgba(8, 15, 35, .9));
+          border: 1px solid rgba(144, 170, 255, .2);
+          animation: rise .55s ease both;
+        }
+        .featureIcon { font-size: 1.2rem; display: inline-block; margin-bottom: 8px; }
+        .featureCard h3 { margin: 0 0 8px; font-size: 1.05rem; }
+        .featureCard p { margin: 0; color: #b5c6f1; line-height: 1.55; }
+
+        .finalCta { margin-top: 32px; text-align: center; border-radius: 22px; padding: 30px 24px; border: 1px solid rgba(158, 180, 255, .3); background: linear-gradient(90deg, rgba(86, 53, 186, .35), rgba(41, 108, 214, .25)); }
+        .finalCta h2 { margin: 0; font-size: clamp(1.35rem, 2.8vw, 2.2rem); }
+        .finalCta p { max-width: 720px; margin: 12px auto 18px; color: #c4d2f8; }
+
+        @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spinReverse { to { transform: rotate(-360deg); } }
+        @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .floating { animation: float 6s ease-in-out infinite; }
+        .drift { animation: float 5.5s ease-in-out infinite .8s; }
+        .pulse { animation: float 4.8s ease-in-out infinite .3s; }
+
+        @media (max-width: 980px) {
+          .hero { grid-template-columns: 1fr; }
+          .featureGrid, .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        }
         @media (max-width: 640px) {
-          .container { padding-top: 26px; }
-          .hero { padding: 26px 18px; }
-          .grid, .previewGrid, .trust { grid-template-columns: 1fr; }
-          .previewHeader { flex-direction: column; align-items: flex-start; }
+          .heroPanel { padding: 26px 20px; }
+          .featureGrid, .metrics { grid-template-columns: 1fr; }
+          .heroVisual { min-height: 320px; }
+          .large, .small { width: calc(100% - 30px); }
+          .drift { top: 145px; left: 15px; right: auto; }
+          .pulse { bottom: 20px; left: 15px; right: auto; }
         }
       `}</style>
     </div>
