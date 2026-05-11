@@ -2,9 +2,7 @@
 // Thin fetch wrapper. All API calls go through here.
 // Token stored in localStorage. Replace with httpOnly cookies in production.
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL
-  ? `${process.env.NEXT_PUBLIC_APP_URL}/api`
-  : '/api';
+const BASE = '/api';
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 export const getToken  = () => (typeof window !== 'undefined' ? localStorage.getItem('wp_token') : null);
