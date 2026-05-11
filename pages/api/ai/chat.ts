@@ -139,12 +139,33 @@ Budget categories this month: ${budgetText}.
 Be concise, specific, and reference actual numbers. Never make up data not provided above.`
 }
 
+
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_MESSAGES = 20
+const aiRateLimitByUser = new Map<string, number[]>()
+
+function isRateLimited(userId: string) {
+  const now = Date.now()
+  const cutoff = now - RATE_LIMIT_WINDOW_MS
+  const entries = (aiRateLimitByUser.get(userId) ?? []).filter((t) => t > cutoff)
+
+  if (entries.length >= RATE_LIMIT_MAX_MESSAGES) {
+    aiRateLimitByUser.set(userId, entries)
+    return true
+  }
+
+  entries.push(now)
+  aiRateLimitByUser.set(userId, entries)
+  return false
+}
 // POST /api/ai/chat
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
 
   const user = await requireUser(req, res)
   if (!user) return
+
+  if (isRateLimited(user.id)) return err(res, 'Rate limit exceeded: max 20 messages per minute', 429)
 
   const parsed = ChatSchema.safeParse(req.body)
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
