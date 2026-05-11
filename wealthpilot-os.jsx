@@ -4138,12 +4138,32 @@ export default function WealthPilotOS() {
     }
   };
 
-  return (
-    <>
-      <style>{css}</style>
-      <Toast toasts={toasts} />
+ return (
+  <>
+    <style>{css}</style>
 
-      <div className="app">
+    <div
+      style={{
+        position: "fixed",
+        top: "12px",
+        right: "12px",
+        zIndex: 2147483647,
+        background: "red",
+        color: "white",
+        padding: "10px 14px",
+        borderRadius: "10px",
+        fontSize: "13px",
+        fontWeight: 900,
+        border: "2px solid white",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
+      }}
+    >
+      UI VERSION: 2026-05-11-2
+    </div>
+
+    <Toast toasts={toasts} />
+
+    <div className="app">
         {/* ── Desktop Sidebar ── */}
         <nav className={`sidebar ${collapsed ? "collapsed" : ""}`}>
           <div className="sidebar-logo" style={{cursor:"pointer"}} onClick={() => setCollapsed(c => !c)}>
