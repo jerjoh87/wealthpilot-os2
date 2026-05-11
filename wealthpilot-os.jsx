@@ -4143,23 +4143,23 @@ export default function WealthPilotOS() {
     <style>{css}</style>
 
     <div
-      style={{
-        position: "fixed",
-        top: "12px",
-        right: "12px",
-        zIndex: 2147483647,
-        background: "red",
-        color: "white",
-        padding: "10px 14px",
-        borderRadius: "10px",
-        fontSize: "13px",
-        fontWeight: 900,
-        border: "2px solid white",
-        boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
-      }}
-    >
-      UI VERSION: 2026-05-11-2
-    </div>
+  style={{
+    position: "fixed",
+    top: "12px",
+    right: "12px",
+    zIndex: 2147483647,
+    background: "red",
+    color: "white",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    fontWeight: 900,
+    border: "2px solid white",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
+  }}
+>
+  UI VERSION: 2026-05-11-3
+</div>
 
     <Toast toasts={toasts} />
 
