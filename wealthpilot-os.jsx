@@ -98,6 +98,13 @@ const ensureArray = (value, fallback = []) => {
   if (Array.isArray(value?.items)) return value.items;
   return fallback;
 };
+const pickCollection = (value, keys = [], fallback = []) => {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) {
+    if (Array.isArray(value?.[key])) return value[key];
+  }
+  return ensureArray(value, fallback);
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
