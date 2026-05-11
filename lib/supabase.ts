@@ -1,6 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+function normalizeSupabaseUrl(url: string) {
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+
+  try {
+    const parsed = new URL(trimmed)
+    // Supabase client expects project base URL (https://<project>.supabase.co),
+    // not endpoint paths like /auth/v1 or /rest/v1.
+    return parsed.origin
+  } catch {
+    return trimmed.replace(/\/$/, '')
+  }
+}
+
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl)
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 

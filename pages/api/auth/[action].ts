@@ -1,10 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '../../../lib/supabase'
-import { ok, err, methodNotAllowed, getUser } from '../../../lib/api'
-import { supabaseAdmin } from '../../../lib/supabase'
+import { ok, err, methodNotAllowed } from '../../../lib/api'
 import { SignupSchema, LoginSchema } from '../../../lib/schemas'
 import { z } from 'zod'
 
+function getSiteUrl(req: NextApiRequest) {
+  const host = req.headers['x-forwarded-host'] || req.headers.host
+  const protocol = (req.headers['x-forwarded-proto'] as string) || 'http'
+  const rawHost = Array.isArray(host) ? host[0] : host
+  if (!rawHost) return undefined
+  return `${protocol}://${rawHost}`
+}
 
 const LogoutSchema = z.object({
   refresh_token: z.string().min(1).optional(),
@@ -18,8 +24,16 @@ export async function signup(req: NextApiRequest, res: NextApiResponse) {
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
   const { email, password, name } = parsed.data
+  const siteUrl = getSiteUrl(req)
 
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name },
+      ...(siteUrl ? { emailRedirectTo: siteUrl } : {}),
+    },
+  })
   if (error) return err(res, error.message)
 
   return ok(res, { user: data.user, session: data.session }, 201)
@@ -39,7 +53,6 @@ export async function login(req: NextApiRequest, res: NextApiResponse) {
 
   return ok(res, { user: data.user, session: data.session })
 }
-
 
 // POST /api/auth/logout
 export async function logout(req: NextApiRequest, res: NextApiResponse) {
@@ -62,7 +75,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const action = Array.isArray(rawAction) ? rawAction[0] : rawAction
 
   if (action === 'signup') return signup(req, res)
-  if (action === 'login')  return login(req, res)
+  if (action === 'login') return login(req, res)
   if (action === 'logout') return logout(req, res)
   return err(res, 'Not found', 404)
 }
