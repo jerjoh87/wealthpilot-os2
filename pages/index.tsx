@@ -1,28 +1,32 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
 
-const features = [
-  'Bank-level encryption',
-  'Powered by Plaid',
-  'AI-powered insights',
-  'Private & secure',
-  'Read-only access',
-  'Cancel anytime',
+const topMetrics = [
+  { label: 'Net Worth', value: '$1,284,632', trend: '+12.7% vs last month', tone: 'up' },
+  { label: 'Monthly Cash Flow', value: '$8,642', trend: '+8.3% vs last month', tone: 'up' },
+  { label: 'Investments', value: '$926,123', trend: '+15.4% vs last month', tone: 'up' },
+  { label: 'Savings Rate', value: '26.4%', trend: '-3.1% vs last month', tone: 'down' },
 ]
 
-const productCards = [
-  { title: 'Smart Budgeting', body: 'Auto-categorize spending, set live budgets, and track every dollar.' },
-  { title: 'Bills & Calendar', body: 'Never miss due dates with reminders and payment planning.' },
-  { title: 'AI Financial Coach', body: 'Get personalized money guidance based on your real data.' },
-  { title: 'Credit Score Tracker', body: 'Monitor score changes and drivers with actionable steps.' },
-  { title: 'Portfolio & Investing', body: 'Track performance, allocation, and risk from one dashboard.' },
-  { title: 'Smart Alerts', body: 'Catch unusual spending, bill spikes, and anomalies instantly.' },
+const featureCards = [
+  { title: 'Smart Budgeting', desc: 'Auto-categorize spending and build budgets that actually work.' },
+  { title: 'Bills & Calendar', desc: 'Plan, track, and never miss a payment again.' },
+  { title: 'AI Financial Coach', desc: 'Personalized insights and action plans tailored to your goals.' },
+  { title: 'Credit Score Tracker', desc: 'Monitor your score and learn what improves it over time.' },
+  { title: 'Portfolio & Investing', desc: 'Track performance, diversification, and rebalancing ideas.' },
+  { title: 'Profit Lock', desc: 'Set smart thresholds to protect gains in volatile markets.' },
+]
+
+const plans = [
+  { name: 'Free', price: '$0', detail: 'For getting started', cta: 'Get Started' },
+  { name: 'Pro', price: '$7.99', detail: 'For serious money management', cta: 'Start Free Trial', highlight: true },
+  { name: 'Premium', price: '$14.99', detail: 'For wealth builders', cta: 'Start Free Trial' },
 ]
 
 const Home: NextPage = () => {
   return (
     <div className="page">
-      <header className="topbar">
+      <header className="topbar shell">
         <div className="brand">WealthPilot <span>OS</span></div>
         <nav>
           <a href="#features">Features</a>
@@ -31,103 +35,136 @@ const Home: NextPage = () => {
           <a href="#faq">FAQ</a>
         </nav>
         <div className="actions">
-          <Link href="/dashboard" className="btn ghost">Sign In</Link>
-          <Link href="/dashboard" className="btn primary">Get Started</Link>
+          <Link href="/dashboard" className="ghost">Sign In</Link>
+          <Link href="/dashboard" className="solid">Get Started</Link>
         </div>
       </header>
 
-      <main className="container">
+      <main className="shell">
         <section className="hero">
-          <div className="left">
-            <p className="eyebrow">✨ All-in-one financial operating system</p>
-            <h1>
-              Your AI-powered command center for <span className="c1">money</span>, <span className="c2">bills</span>, <span className="c3">credit</span>, and <span className="c4">investing</span>.
-            </h1>
+          <div className="heroCopy">
+            <p className="kicker">All-in-one financial operating system</p>
+            <h1>Your AI-powered command center for <span>money</span>, <span>bills</span>, <span>credit</span>, and <span>investing</span>.</h1>
             <p>Connect your accounts, track spending, plan bills, monitor credit, and get AI-powered insights that grow your wealth.</p>
-            <div className="cta">
-              <Link href="/dashboard" className="btn primary">Start Free</Link>
-              <Link href="/dashboard" className="btn ghost">View Dashboard →</Link>
+            <div className="heroCta">
+              <Link href="/dashboard" className="solid">Start Free</Link>
+              <Link href="/dashboard" className="ghost">View Dashboard</Link>
             </div>
           </div>
-          <div className="right">
-            <div className="mock">
-              <div className="mockHead">Good morning, Alex! 👋</div>
-              <div className="stats">
-                <div><small>Net Worth</small><strong>$1,284,632</strong></div>
-                <div><small>Monthly Cash Flow</small><strong>$8,642</strong></div>
-                <div><small>Savings Rate</small><strong>26.4%</strong></div>
-              </div>
-              <div className="graph" />
+
+          <div className="dashMock">
+            <h3>Good morning, Alex! 👋</h3>
+            <div className="metricRow">
+              {topMetrics.map((item) => (
+                <article key={item.label} className="metricCard">
+                  <small>{item.label}</small>
+                  <strong>{item.value}</strong>
+                  <span className={item.tone}>{item.trend}</span>
+                </article>
+              ))}
+            </div>
+            <div className="mockGrid">
+              <article className="chart">Net Worth Trend</article>
+              <article className="donut">Asset Allocation</article>
+              <article className="insight">AI Financial Insight</article>
             </div>
           </div>
         </section>
 
-        <section className="strip" id="features">
-          {features.map((f) => <div key={f}>{f}</div>)}
-        </section>
-
-        <section className="gridWrap">
-          <h2>Everything you need to run your financial life</h2>
-          <div className="grid">
-            {productCards.map((card) => (
-              <article key={card.title}>
-                <h3>{card.title}</h3>
-                <p>{card.body}</p>
+        <section id="features" className="featureSection">
+          <h2>Everything you need to take control of your money</h2>
+          <div className="featureGrid">
+            {featureCards.map((feature) => (
+              <article key={feature.title}>
+                <h3>{feature.title}</h3>
+                <p>{feature.desc}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="pricing" id="pricing">
+        <section id="pricing" className="pricingSection">
           <h2>Simple, transparent pricing</h2>
-          <div className="plans">
-            <div className="plan"><h3>Free</h3><p className="price">$0<span>/month</span></p></div>
-            <div className="plan popular"><h3>Pro</h3><p className="price">$7.99<span>/month</span></p></div>
-            <div className="plan"><h3>Premium</h3><p className="price">$14.99<span>/month</span></p></div>
+          <div className="pricingGrid">
+            {plans.map((plan) => (
+              <article key={plan.name} className={plan.highlight ? 'plan highlight' : 'plan'}>
+                <h3>{plan.name}</h3>
+                <p className="price">{plan.price} <span>/ month</span></p>
+                <p>{plan.detail}</p>
+                <Link href="/dashboard" className="ghost">{plan.cta}</Link>
+              </article>
+            ))}
           </div>
         </section>
 
-        <section className="security" id="security">
-          <h2>Your security is our priority</h2>
-          <p>256-bit encryption · SOC 2 alignment · read-only account connections via Plaid.</p>
+        <section id="security" className="footerCta">
+          <h2>Join thousands taking control of their financial future.</h2>
+          <p>Start your journey with WealthPilot OS today.</p>
+          <Link href="/dashboard" className="solid">Start Free</Link>
         </section>
-
-        <section className="faq" id="faq">
-          <h2>Frequently asked questions</h2>
-          <details><summary>How does WealthPilot connect to my accounts?</summary><p>We use Plaid secure tokenized connections with read-only permissions.</p></details>
-          <details><summary>Can I cancel anytime?</summary><p>Yes. You can cancel or downgrade at any time from settings.</p></details>
-          <details><summary>Will this impact my credit score?</summary><p>No. Tracking and insights do not trigger hard inquiries.</p></details>
-        </section>
-      </main>
-
-      <footer className="footer">© 2026 WealthPilot OS · All rights reserved.</footer>
 
       <style jsx>{`
-        .page{min-height:100vh;background:radial-gradient(circle at 20% 0%,#21114f 0,#070b1b 46%,#03050f 100%);color:#eef2ff;font-family:Inter,system-ui,sans-serif}
-        .container{width:min(1280px,94%);margin:auto;padding-bottom:64px}
-        .topbar{position:sticky;top:0;background:rgba(5,8,20,.75);backdrop-filter:blur(8px);border-bottom:1px solid rgba(129,105,255,.2);display:flex;align-items:center;justify-content:space-between;padding:14px 3%}
-        .brand{font-weight:800;font-size:28px}.brand span{color:#9d63ff}
-        nav{display:flex;gap:30px} nav a{color:#cfd6ff;text-decoration:none;font-size:14px}
-        .actions{display:flex;gap:10px}.btn{padding:10px 18px;border-radius:12px;text-decoration:none;font-weight:700}.primary{background:linear-gradient(90deg,#7f42ff,#4f6bff);color:#fff}.ghost{border:1px solid rgba(151,133,255,.4);color:#d6ddff}
-        .hero{display:grid;grid-template-columns:1.02fr 1fr;gap:20px;padding:36px 0}
-        .left,.right{background:rgba(6,12,29,.74);border:1px solid rgba(112,90,255,.28);border-radius:20px;padding:28px}
-        .eyebrow{color:#9effca;font-size:14px}.left h1{font-size:58px;line-height:1.05;margin:10px 0 16px}
-        .left p{color:#b9c5f9;font-size:22px;max-width:780px}.c1{color:#8a64ff}.c2{color:#44a7ff}.c3{color:#6e6cff}.c4{color:#47d976}
-        .cta{display:flex;gap:12px;margin-top:20px}
-        .mockHead{font-size:20px;font-weight:700;margin-bottom:12px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stats div{background:#0d1430;border:1px solid rgba(124,101,255,.25);padding:12px;border-radius:12px}.stats small{display:block;color:#9aa7d4}.stats strong{font-size:22px}
-        .graph{margin-top:12px;height:220px;border-radius:14px;border:1px solid rgba(124,101,255,.25);background:linear-gradient(180deg,rgba(148,88,255,.22),rgba(6,8,16,.35))}
-        .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:10px;background:rgba(9,14,34,.9);border:1px solid rgba(124,101,255,.2);border-radius:14px}.strip div{text-align:center;color:#c7d4ff;font-size:14px}
-        .gridWrap{margin-top:28px}.gridWrap h2,.pricing h2{font-size:40px;margin-bottom:14px}
-        .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.grid article,.plan{background:#090f26;border:1px solid rgba(124,101,255,.24);border-radius:14px;padding:16px}.grid p{color:#b8c5f5}
-        .pricing{margin-top:30px}.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.price{font-size:40px;font-weight:800}.price span{font-size:16px;color:#8f9bca}.popular{outline:2px solid #824bff}
-        .security,.faq{margin-top:28px;background:#090f26;border:1px solid rgba(124,101,255,.24);border-radius:14px;padding:18px}
-        .security p,.faq p{color:#b8c5f5}
-        details{padding:10px 0;border-top:1px solid rgba(124,101,255,.2)}
-        details:first-of-type{border-top:none}
-        summary{cursor:pointer;font-weight:600}
-        .footer{margin:20px auto 0;width:min(1280px,94%);padding:14px 0;color:#95a1cc;border-top:1px solid rgba(124,101,255,.2)}
-        @media (max-width:1100px){.hero{grid-template-columns:1fr}.left h1{font-size:42px}.left p{font-size:18px}.strip{grid-template-columns:repeat(2,1fr)}.grid,.plans{grid-template-columns:1fr 1fr}nav{display:none}}
-        @media (max-width:700px){.grid,.plans{grid-template-columns:1fr}.stats{grid-template-columns:1fr}.left h1{font-size:34px}}
+        .page { min-height: 100vh; background: radial-gradient(circle at 25% 10%, #25145f 0, #090d27 50%, #050711 100%); color: #ecedff; font-family: Inter, Arial, sans-serif; }
+        .shell { width: min(1320px, 94%); margin: 0 auto; }
+        .topbar { padding: 18px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .brand { font-size: 1.45rem; font-weight: 700; }
+        .brand span { color: #9b6cff; }
+        nav { display: flex; gap: 28px; }
+        nav a { color: #cdd4ff; text-decoration: none; font-size: .95rem; }
+        .actions { display: flex; gap: 10px; }
+        .solid, .ghost { border-radius: 12px; padding: 10px 18px; text-decoration: none; font-weight: 700; border: 1px solid transparent; }
+        .solid { background: linear-gradient(90deg, #7049ff, #8748ff); color: #fff; }
+        .ghost { color: #d8defe; border-color: rgba(147, 165, 255, .4); background: rgba(123, 146, 255, .1); }
+
+        .hero { margin-top: 12px; display: grid; grid-template-columns: 1fr 1.5fr; gap: 22px; }
+        .heroCopy, .dashMock, .featureSection, .pricingSection, .footerCta { border: 1px solid rgba(131, 148, 255, .22); border-radius: 18px; background: rgba(7, 11, 30, .72); backdrop-filter: blur(4px); }
+        .heroCopy { padding: 34px; }
+        .kicker { color: #9cc2ff; margin-bottom: 8px; }
+        h1 { font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.13; margin: 0 0 16px; }
+        h1 span:nth-of-type(1) { color: #9f6dff; }
+        h1 span:nth-of-type(2) { color: #53b6ff; }
+        h1 span:nth-of-type(3) { color: #7d8fff; }
+        h1 span:nth-of-type(4) { color: #3dd066; }
+        .heroCopy p { color: #bec8f3; line-height: 1.6; }
+        .heroCta { display: flex; gap: 12px; margin-top: 18px; }
+
+        .dashMock { padding: 22px; }
+        .dashMock h3 { margin: 0 0 14px; }
+        .metricRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .metricCard { padding: 12px; border-radius: 12px; background: rgba(16, 23, 54, .86); border: 1px solid rgba(138, 156, 255, .18); }
+        .metricCard small { color: #92a8e8; display: block; }
+        .metricCard strong { margin: 6px 0; display: block; }
+        .metricCard span { font-size: .85rem; }
+        .up { color: #4fe37f; }
+        .down { color: #ff9658; }
+
+        .mockGrid { margin-top: 14px; display: grid; gap: 10px; grid-template-columns: 1.4fr .9fr .9fr; }
+        .mockGrid article { min-height: 120px; border-radius: 14px; background: linear-gradient(140deg, rgba(20, 28, 63, .9), rgba(9, 14, 33, .9)); border: 1px solid rgba(131, 152, 255, .2); padding: 16px; font-weight: 600; }
+
+        .featureSection, .pricingSection, .footerCta { margin-top: 20px; padding: 24px; }
+        h2 { margin: 0 0 16px; font-size: clamp(1.55rem, 3vw, 2.4rem); }
+        .featureGrid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .featureGrid article { border: 1px solid rgba(136, 153, 255, .16); border-radius: 14px; background: rgba(14, 21, 49, .75); padding: 16px; }
+        .featureGrid h3 { margin: 0 0 8px; }
+        .featureGrid p { margin: 0; color: #b8c5ef; }
+
+        .pricingGrid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .plan { border-radius: 14px; border: 1px solid rgba(137, 155, 255, .2); background: rgba(12, 19, 45, .8); padding: 16px; }
+        .highlight { border-color: #8e64ff; box-shadow: 0 0 0 1px rgba(142, 100, 255, .4), 0 14px 34px rgba(95, 64, 196, .28); }
+        .price { font-size: 2rem; margin: 10px 0 6px; }
+        .price span { font-size: .95rem; color: #abbbeb; }
+
+        .footerCta { text-align: center; margin-bottom: 24px; }
+        .footerCta p { color: #bdc9f1; }
+
+        @media (max-width: 1080px) {
+          .hero { grid-template-columns: 1fr; }
+          .metricRow { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 760px) {
+          nav { display: none; }
+          .featureGrid, .pricingGrid, .mockGrid, .metricRow { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   )

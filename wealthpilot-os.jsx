@@ -98,14 +98,6 @@ const ensureArray = (value, fallback = []) => {
   if (Array.isArray(value?.items)) return value.items;
   return fallback;
 };
-const pickCollection = (value, keys = [], fallback = []) => {
-  if (Array.isArray(value)) return value;
-  for (const key of keys) {
-    if (Array.isArray(value?.[key])) return value[key];
-    if (Array.isArray(value?.data?.[key])) return value.data[key];
-  }
-  return ensureArray(value, fallback);
-};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -121,6 +113,37 @@ const CATEGORY_ICONS = {
   Shopping: "🛍️", Entertainment: "🎬", Health: "💊", Income: "💵",
   Utilities: "⚡", Insurance: "🛡️", Default: "💳"
 };
+
+const FRIENDLY_ERRORS = {
+  auth: "We couldn’t sign you in right now. Please try again.",
+  googleAuth: "Google sign-in failed. Please try again.",
+  dashboard: "We couldn’t load your dashboard. Please refresh.",
+  plaidConnect: "Bank connection failed. Please try again.",
+  plaidSync: "We couldn’t sync your accounts. Please try again.",
+  bills: "We couldn’t load your bills. Please refresh.",
+  calendar: "We couldn’t load your calendar. Please refresh.",
+  transactions: "We couldn’t load your transactions. Please refresh.",
+  budgets: "We couldn’t load your budgets. Please refresh.",
+  ai: "AI Coach is temporarily unavailable.",
+  creditScore: "We couldn’t load your credit score. Please try again.",
+  portfolio: "We couldn’t load your portfolio. Please refresh.",
+  settings: "Settings update failed. Please try again.",
+};
+
+const ErrorNotice = ({ message }) => (
+  <div style={{fontSize:12,color:"var(--red)",marginBottom:12,padding:"8px 10px",background:"rgba(244,63,94,0.1)",borderRadius:8,border:"1px solid rgba(244,63,94,0.2)"}}>
+    {message}
+  </div>
+);
+
+const EmptyState = ({ icon="📭", message }) => (
+  <div className="empty-state"><div className="icon">{icon}</div><p className="text-sm">{message}</p></div>
+);
+
+const LoadingCard = ({ message="Loading…" }) => (
+  <div className="card"><div className="text-sm text-muted">{message}</div></div>
+);
+
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
@@ -206,7 +229,7 @@ function AuthGate({ onAuth }) {
     try {
       await onAuth(mode, email, password, name);
     } catch (e) {
-      setError(e.message || "Something went wrong.");
+      setError(FRIENDLY_ERRORS.auth);
     } finally { setBusy(false); }
   };
 
@@ -288,13 +311,21 @@ function AuthGate({ onAuth }) {
 
 
         <button onClick={async () => {
-          const { error } = await supabase.auth.signInWithOAuth({
+          setError("");
+          setBusy(true);
+          try {
+            const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
               redirectTo: `${window.location.origin}/auth/callback`,
             }
           });
-          if (error) throw error;
+            if (error) throw error;
+          } catch {
+            setError(FRIENDLY_ERRORS.googleAuth);
+          } finally {
+            setBusy(false);
+          }
         }} disabled={busy} style={{
           width:"100%",padding:"11px",borderRadius:10,border:"1px solid var(--border2)",cursor:"pointer",
           background:"var(--bg3)",color:"var(--text)",
@@ -1457,10 +1488,11 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               {safeTransactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet. Connect your bank to get started.</p></div>
                   </td>
                 </tr>
               )}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -1473,8 +1505,10 @@ function BudgetPage({ modeConfig, budgets = [] }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Mode suggestions banner */}
       {suggestions.length > 0 && (
         <div className="card mb-4" style={{padding:"12px 16px",background:modeConfig.bg,border:`1px solid ${modeConfig.border}`}}>
@@ -1520,7 +1554,7 @@ function BudgetPage({ modeConfig, budgets = [] }) {
           <div className="section-title">Category Budgets</div>
           <button className="btn btn-primary btn-sm">+ Add Category</button>
         </div>
-        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budgets yet. Add your first category budget.</p></div> : budgets.map(b => {
+        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
           const over = remaining < 0;
@@ -1562,8 +1596,10 @@ function TransactionsPage({ transactions = [] }) {
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
   const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="card mb-4" style={{padding:"12px 16px"}}>
         <div className="flex items-center gap-3" style={{flexWrap:"wrap"}}>
           <span className="text-sm text-muted">Filter:</span>
@@ -1610,6 +1646,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -1620,6 +1657,8 @@ function TransactionsPage({ transactions = [] }) {
 
 function BillsPage() {
   const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const unpaid = bills.filter(b => !b.paid);
   const paid = bills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
@@ -1627,18 +1666,21 @@ function BillsPage() {
 
   // Load from API on mount; fallback to MOCK if backend not connected
   useEffect(() => {
-    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => {});
+    setLoading(true);
+    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => setError(FRIENDLY_ERRORS.bills)).finally(() => setLoading(false));
   }, []);
 
   const toggle = async (id) => {
     const bill = bills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
-    try { await billsApi.update(id, { paid: updated.paid }); } catch { /* noop */ }
+    try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="grid-3 mb-4">
         <div className="card">
           <div className="card-title">Due This Month</div>
@@ -1663,7 +1705,7 @@ function BillsPage() {
             <div className="section-title">Upcoming Bills</div>
             <button className="btn btn-primary btn-sm">+ Add Bill</button>
           </div>
-          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No upcoming bills.</p></div> : unpaid.map(b => (
+          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No bills yet. Add your first bill.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
               <div className="bill-info">
@@ -1703,8 +1745,10 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       <div className="portfolio-placeholder mb-4">
         <div style={{fontSize:32, marginBottom:12}}>🔗</div>
         <h3>Connect Your Brokerage</h3>
@@ -1793,7 +1837,7 @@ Be concise, specific. Use emojis sparingly.`;
         setMessages(m => [...m, { role: "assistant", content: fallbackReply }]);
       }
     } catch {
-      setMessages(m => [...m, { role: "assistant", content: "Connection issue. Please try again." }]);
+      setMessages(m => [...m, { role: "assistant", content: FRIENDLY_ERRORS.ai }]);
     }
     setLoading(false);
   };
@@ -1865,7 +1909,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
       await new Promise(r => setTimeout(r, 800));
       setLinkToken("link-sandbox-demo-token");
     } catch (e) {
-      setError(e.message || "Failed to initialize Plaid");
+      setError(FRIENDLY_ERRORS.plaidConnect);
     } finally { setLoading(false); }
   }, []);
 
@@ -1928,8 +1972,12 @@ function SettingsPage({ addToast }) {
   };
 
   const handleSync = async () => {
-    await plaid.sync();
-    addToast && addToast("Accounts synced ✓", "success");
+    try {
+      await plaid.sync();
+      addToast && addToast("Accounts synced ✓", "success");
+    } catch {
+      addToast && addToast(FRIENDLY_ERRORS.plaidSync, "error");
+    }
   };
 
   return (
@@ -2214,9 +2262,12 @@ function CalendarPage({ addToast }) {
   const [activeFilters, setFilters] = useState([]);
   const BLANK = { title:"", amount:"", type:"bill", dueDate:toISO(now), status:"upcoming", autopay:false, recurring:"monthly", notes:"" };
   const [form, setForm] = useState(BLANK);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d); }).catch(() => {});
+    setLoading(true);
+    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d); }).catch(() => setError(FRIENDLY_ERRORS.calendar)).finally(() => setLoading(false));
   }, [mo, yr]);
 
   const todayISO = toISO(now);
@@ -2276,8 +2327,10 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Summary Cards */}
       <div className="grid-4 mb-4" style={{gap:12}}>
         {[
@@ -2702,8 +2755,10 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Top row */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:16,alignItems:"start",marginBottom:16}}>
         {/* Gauge card */}
@@ -2923,8 +2978,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:"Syne",fontWeight:800,fontSize:22,marginBottom:4}}>
@@ -3143,6 +3200,8 @@ function GoalsPage({ addToast, modeConfig }) {
   const [editing, setEditing] = useState(null);
   const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
@@ -3166,8 +3225,10 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Summary */}
       <div className="grid-3 mb-4" style={{gap:12}}>
         <div className="card" style={{borderLeft:"3px solid var(--accent)",padding:"14px 16px"}}>
@@ -3464,8 +3525,10 @@ function ReportsPage() {
   const nwEnd   = nwMonths[nwMonths.length-1].value;
   const nwGain  = nwEnd - nwStart;
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* Period toggle + header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div className="section-title">Financial Reports</div>
@@ -3565,6 +3628,7 @@ function ReportsPage() {
                   </tr>
                 );
               })}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -3760,8 +3824,10 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
     );
   };
 
+  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
+      {error && <ErrorNotice message={error} />}
       {/* ── Hero net worth ── */}
       <div style={{
         background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.06))",
@@ -4002,6 +4068,8 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [liveDataLoading, setLiveDataLoading] = useState(true);
+  const [liveDataError, setLiveDataError] = useState("");
   const [liveData, setLiveData] = useState({
     accounts: [],
     bills: [],
@@ -4013,6 +4081,8 @@ export default function WealthPilotOS() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLiveDataLoading(true);
+      setLiveDataError("");
       const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
       const accounts = await safe(async () => {
         const res = await fetch("/api/accounts");
@@ -4024,9 +4094,9 @@ export default function WealthPilotOS() {
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
-      const bills = pickCollection(await safe(() => billsApi.list(), []), ["bills"], []);
-      const transactions = pickCollection(await safe(() => txApi.list(), []), ["transactions"], []);
-      const budgets = pickCollection(await safe(() => budgetsApi.list(currentMonth, currentYear), []), ["budgets", "budget"], []);
+      const bills = ensureArray(await safe(() => billsApi.list(), []), []);
+      const transactions = ensureArray(await safe(() => txApi.list(), []), []);
+      const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
