@@ -1321,7 +1321,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
   return (
-    <div style={{display:"grid",gap:16}}>
+    <div style={{display:"grid",gap:16,paddingBottom:8}}>
       <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div>
@@ -1336,7 +1336,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         </div>
       </div>
 
-      <div className="card" style={{padding:16,background:"linear-gradient(135deg, rgba(16,185,129,0.1), rgba(79,142,247,0.06))"}}>
+      <div className="card" style={{padding:16,background:"linear-gradient(135deg, rgba(16,185,129,0.1), rgba(79,142,247,0.06))",borderRadius:18}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
           <div><div className="card-title">AI Insight</div><div style={{fontSize:13,color:"var(--text2)"}}>Spending signal detected</div></div>
           <span className="badge badge-blue">Actionable</span>
@@ -1345,36 +1345,45 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
-        <div className="card" style={{padding:16,borderRadius:18}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
           <div className="card-title">Net Worth</div><div className="card-value" style={{fontSize:30}}>{fmtK(netWorth)}</div>
           <div className="change-badge pos">↑ {fmt(portfolio?.dayChange || 0)} today</div>
         </div>
-        <div className="card" style={{padding:16,borderRadius:18}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(163,230,53,0.08), rgba(16,185,129,0.04))"}}>
           <div className="card-title">Cash Flow</div><div className="card-value">{fmtK(income - spending)}</div>
           <div className="card-sub">Income {fmtK(income)} · Spend {fmtK(spending)} ({spendPct}% of income)</div>
         </div>
-        <div className="card" style={{padding:16,borderRadius:18}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03))"}}>
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
-        <div className="card" style={{padding:16}}>
+        <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
             <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
             <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
           </div>
+          <div style={{marginTop:8}}>
+            {budget.slice(0,4).map(b => (
+              <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
+                <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
+                <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
+              </div>
+            ))}
+            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+          </div>
         </div>
-        <div className="card" style={{padding:16}}>
+        <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
           {upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills</p></div>}
         </div>
       </div>
 
-      <div className="card" style={{padding:"14px 20px"}}>
+      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
@@ -1388,7 +1397,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>{accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}</div>
       </div>
 
-      <div className="card mt-4">
+      <div className="card mt-4" style={{borderRadius:18}}>
         <div className="section-header">
           <div className="section-title">Recent Transactions</div>
           <button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View All →</button>
