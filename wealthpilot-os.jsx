@@ -2083,6 +2083,37 @@ function SettingsPage({ addToast }) {
           ))}
           <button className="btn btn-danger btn-sm" style={{marginTop:12}}>Cancel Subscription</button>
         </div>
+
+        <div className="card" style={{marginTop:16}}>
+          <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:14}}>Legal & Support</h3>
+          <div style={{display:"grid",gap:8}}>
+            {[
+              { href:"/privacy", label:"Privacy Policy" },
+              { href:"/terms", label:"Terms of Use" },
+              { href:"/disclaimer", label:"Disclaimer" },
+              { href:"/contact", label:"Contact Support" },
+              { href:"/delete-account", label:"Delete Account" },
+            ].map(link => (
+              <a
+                key={link.href}
+                href={link.href}
+                style={{
+                  color:"#cbd5e1",
+                  textDecoration:"none",
+                  border:"1px solid rgba(255,255,255,0.1)",
+                  borderRadius:10,
+                  padding:"10px 12px",
+                  background:"#111318",
+                  display:"flex",
+                  justifyContent:"space-between",
+                }}
+              >
+                <span>{link.label}</span>
+                <span style={{color:"#4f8ef7"}}>↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
