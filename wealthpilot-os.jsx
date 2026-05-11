@@ -1311,7 +1311,7 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts = [], totalCash = 0, creditDebt = 0, syncing = false, lastSync = null, onRefresh = () => {}, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
   const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
@@ -4000,9 +4000,13 @@ export default function WealthPilotOS() {
         const payload = await res.json();
         return payload?.data || [];
       }, acct.accounts);
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
       const bills = await safe(() => billsApi.list(), []);
       const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(), []);
+      const budgets = await safe(() => budgetsApi.list(currentMonth, currentYear), []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
@@ -4069,12 +4073,32 @@ export default function WealthPilotOS() {
     }
   };
 
-  return (
-    <>
-      <style>{css}</style>
-      <Toast toasts={toasts} />
+ return (
+  <>
+    <style>{css}</style>
 
-      <div className="app">
+    <div
+  style={{
+    position: "fixed",
+    top: "12px",
+    right: "12px",
+    zIndex: 2147483647,
+    background: "red",
+    color: "white",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    fontWeight: 900,
+    border: "2px solid white",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
+  }}
+>
+  UI VERSION: 2026-05-11-3
+</div>
+
+    <Toast toasts={toasts} />
+
+    <div className="app">
         {/* ── Desktop Sidebar ── */}
         <nav className={`sidebar ${collapsed ? "collapsed" : ""}`}>
           <div className="sidebar-logo" style={{cursor:"pointer"}} onClick={() => setCollapsed(c => !c)}>
@@ -4167,6 +4191,25 @@ export default function WealthPilotOS() {
                 )}
               </button>
               <div className="avatar">AC</div>
+              <div
+  style={{
+    position: "fixed",
+    top: 12,
+    right: 70,
+    zIndex: 9999,
+    background: "rgba(17,24,39,0.95)",
+    color: "#60a5fa",
+    padding: "6px 12px",
+    borderRadius: 10,
+    fontSize: 11,
+    fontWeight: 700,
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+    backdropFilter: "blur(10px)"
+  }}
+>
+  UI VERSION: 2026-05-11-1
+</div>
             </div>
           </div>
 
