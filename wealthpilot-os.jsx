@@ -1311,14 +1311,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh }) {
-  const netWorth   = totalCash + creditDebt + MOCK.portfolio.totalValue;
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const netWorth   = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const safe       = (() => {
-    const upcomingBills = MOCK.bills.filter(b => !b.paid).reduce((s, b) => s + b.amount, 0);
-    return Math.max(0, totalCash - upcomingBills - (MOCK.spending / 30) * daysLeft * 0.5);
+    const upcomingBills = bills.filter(b => !b.paid).reduce((s, b) => s + b.amount, 0);
+    const monthlySpending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    return Math.max(0, totalCash - upcomingBills - (monthlySpending / 30) * daysLeft * 0.5);
   })();
-  const upcomingBills = MOCK.bills.filter(b => !b.paid);
-  const spendPct      = Math.round((MOCK.spending / MOCK.income) * 100);
+  const upcomingBills = bills.filter(b => !b.paid);
+  const totalSpent = budget.reduce((s,b)=>s+(b.spent||0),0);
 
   return (
     <div>
@@ -1397,7 +1398,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
             <div className="section-title">Budget Progress</div>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button>
           </div>
-          {MOCK.budget.slice(0, 5).map(b => {
+          {budget.slice(0, 5).map(b => {
             const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
             return (
               <div key={b.category} style={{marginBottom:12}}>
@@ -1449,11 +1450,11 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           <div style={{height:6,borderRadius:99,background:"var(--bg3)",overflow:"hidden",margin:"14px 0 10px",display:"flex"}}>
             {[
               {val:totalCash,       color:"var(--accent)"},
-              {val:MOCK.portfolio.totalValue, color:"var(--green)"},
+              {val:portfolio.totalValue || 0, color:"var(--green)"},
               {val:Math.abs(creditDebt),      color:"var(--red)"},
             ].map((s,i) => (
               <div key={i} style={{
-                flex: s.val / (totalCash + MOCK.portfolio.totalValue + Math.abs(creditDebt)),
+                flex: s.val / Math.max(1, (totalCash + (portfolio.totalValue || 0) + Math.abs(creditDebt))),
                 background: s.color, height:"100%"
               }}/>
             ))}
@@ -1461,7 +1462,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
 
           {[
             {label:"Cash & Savings", val:totalCash,                    color:"var(--accent)"},
-            {label:"Investments",    val:MOCK.portfolio.totalValue,     color:"var(--green)"},
+            {label:"Investments",    val:portfolio.totalValue || 0,     color:"var(--green)"},
             {label:"Credit Debt",    val:creditDebt,                    color:"var(--red)"},
           ].map(r => (
             <div key={r.label} className="flex justify-between items-center" style={{marginBottom:5}}>
@@ -1478,14 +1479,14 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div className="card">
           <div className="card-title">Spending Breakdown</div>
           <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={MOCK.budget.map(b => ({value:b.spent,color:b.color}))} size={130} thickness={22} />
+            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({value:Math.max(0,b.spent||0),color:b.color || "var(--border)"}))} size={130} thickness={22} />
             <div className="donut-center">
               <div style={{fontSize:11,color:"var(--text3)"}}>Total</div>
-              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(MOCK.spending)}</div>
+              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div>
             </div>
           </div>
           <div style={{marginTop:8}}>
-            {MOCK.budget.slice(0,4).map(b => (
+            {budget.slice(0,4).map(b => (
               <div key={b.category} className="flex items-center gap-2" style={{marginBottom:4}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:b.color,flexShrink:0}}/>
                 <span className="text-xs text-muted" style={{flex:1}}>{b.category}</span>
@@ -1498,7 +1499,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         {/* Portfolio Preview */}
         <div className="card">
           <div className="card-title">Portfolio</div>
-          {!MOCK.portfolio.connected ? (
+          {!portfolio?.connected ? (
             <div className="portfolio-placeholder" style={{padding:"20px 16px",marginTop:8}}>
               <div style={{fontSize:28,marginBottom:8}}>📊</div>
               <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Connect Webull</div>
@@ -1507,8 +1508,8 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
             </div>
           ) : (
             <>
-              <div className="card-value">{fmtK(MOCK.portfolio.totalValue)}</div>
-              <span className="change-badge pos">↑ {fmt(MOCK.portfolio.dayChange)} today</span>
+              <div className="card-value">{fmtK(portfolio.totalValue || 0)}</div>
+              <span className="change-badge pos">↑ {fmt(portfolio.dayChange || 0)} today</span>
             </>
           )}
         </div>
@@ -1529,7 +1530,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {MOCK.transactions.slice(0, 6).map(t => (
+              {transactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1555,9 +1556,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   );
 }
 
-function BudgetPage({ modeConfig }) {
-  const totalLimit = MOCK.budget.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = MOCK.budget.reduce((s, b) => s + b.spent, 0);
+function BudgetPage({ modeConfig, budgets = [] }) {
+  const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
+  const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
   return (
     <div>
@@ -1606,7 +1607,7 @@ function BudgetPage({ modeConfig }) {
           <div className="section-title">Category Budgets</div>
           <button className="btn btn-primary btn-sm">+ Add Category</button>
         </div>
-        {MOCK.budget.map(b => {
+        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budgets yet. Add your first category budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
           const over = remaining < 0;
@@ -1643,10 +1644,10 @@ function BudgetPage({ modeConfig }) {
   );
 }
 
-function TransactionsPage() {
+function TransactionsPage({ transactions = [] }) {
   const [filter, setFilter] = useState("All");
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
-  const filtered = filter === "All" ? MOCK.transactions : MOCK.transactions.filter(t => t.category === filter);
+  const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
 
   return (
     <div>
@@ -1705,7 +1706,7 @@ function TransactionsPage() {
 }
 
 function BillsPage() {
-  const [bills, setBills] = useState(MOCK.bills);
+  const [bills, setBills] = useState([]);
   const unpaid = bills.filter(b => !b.paid);
   const paid = bills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
@@ -1749,7 +1750,7 @@ function BillsPage() {
             <div className="section-title">Upcoming Bills</div>
             <button className="btn btn-primary btn-sm">+ Add Bill</button>
           </div>
-          {unpaid.map(b => (
+          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No upcoming bills.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
               <div className="bill-info">
@@ -1787,8 +1788,8 @@ function BillsPage() {
   );
 }
 
-function PortfolioPage() {
-  const { totalValue, dayChange, dayChangePct, holdings } = MOCK.portfolio;
+function PortfolioPage({ portfolioData = MOCK.portfolio }) {
+  const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
   return (
     <div>
       <div className="portfolio-placeholder mb-4">
@@ -1810,12 +1811,12 @@ function PortfolioPage() {
           <div className="card-value" style={{fontSize:32}}>{fmt(totalValue)}</div>
           <span className="change-badge pos">↑ {fmt(dayChange)} (+{dayChangePct}%)</span>
         </div>
-        <div className="text-xs text-muted" style={{marginTop:4}}>Demo data only — connect your account for live data</div>
+        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Demo data only — connect your account for live data"}</div>
       </div>
 
       <div className="card">
         <div className="section-title mb-4">Holdings Preview</div>
-        {holdings.map(h => (
+        {holdings.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No holdings found.</p></div> : holdings.map(h => (
           <div key={h.ticker} className="ticker-row">
             <div style={{width:36,height:36,borderRadius:10,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--accent)",flexShrink:0}}>{h.ticker}</div>
             <div className="ticker-sym" style={{marginLeft:10}}>{h.ticker}</div>
@@ -2757,8 +2758,11 @@ function ScoreLineChart({ history }) {
   );
 }
 
-function CreditScorePage({ addToast }) {
-  const [history, setHistory] = useState(SCORE_HISTORY);
+function CreditScorePage({ addToast, initialScore }) {
+  const [history, setHistory] = useState(() => {
+    if (initialScore?.score) return [...SCORE_HISTORY.slice(0, -1), { score: initialScore.score, date: toISO(new Date()), provider: initialScore.provider || "api" }];
+    return SCORE_HISTORY;
+  });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
   const latest  = history[history.length - 1];
@@ -4085,6 +4089,40 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [liveData, setLiveData] = useState({
+    accounts: [],
+    bills: [],
+    transactions: [],
+    budgets: [],
+    portfolio: MOCK.portfolio,
+    creditScore: null,
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
+      const accounts = await safe(async () => {
+        const res = await fetch("/api/accounts");
+        if (!res.ok) throw new Error("accounts unavailable");
+        const payload = await res.json();
+        return payload?.data || [];
+      }, acct.accounts);
+      const bills = await safe(() => billsApi.list(), []);
+      const transactions = await safe(() => txApi.list(), []);
+      const budgets = await safe(() => budgetsApi.list(), []);
+      const portfolio = await safe(async () => {
+        const p = await portfolioApi.list();
+        if (Array.isArray(p)) {
+          const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
+          return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
+        }
+        return p || MOCK.portfolio;
+      }, MOCK.portfolio);
+      const creditScore = await safe(() => creditScoreApi.get(), null);
+      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+    };
+    fetchData();
+  }, [acct.accounts]);
 
   const addToast = (msg, type="info") => {
     const id = Date.now();
@@ -4094,11 +4132,11 @@ export default function WealthPilotOS() {
 
   // Alert engine — uses live account + bill + budget data
   const alertEngine = useAlerts({
-    accounts:     acct.accounts,
-    bills:        MOCK.bills,
-    budget:       MOCK.budget,
-    transactions: MOCK.transactions,
-    portfolio:    MOCK.portfolio,
+    accounts:     liveData.accounts.length ? liveData.accounts : acct.accounts,
+    bills:        liveData.bills,
+    budget:       liveData.budgets,
+    transactions: liveData.transactions,
+    portfolio:    liveData.portfolio,
     goals:        INIT_GOALS,
     mode,
   });
@@ -4121,15 +4159,15 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
-      case "budget":       return <BudgetPage modeConfig={modeConfig} />;
-      case "transactions": return <TransactionsPage />;
+      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
+      case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
-      case "portfolio":    return <PortfolioPage />;
+      case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
-      case "credit-score": return <CreditScorePage addToast={addToast} />;
+      case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
