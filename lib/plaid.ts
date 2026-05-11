@@ -19,3 +19,17 @@ export const plaidClient = new PlaidApi(config)
 export const PLAID_PRODUCTS    = [Products.Transactions, Products.Auth] as Products[]
 export const PLAID_COUNTRIES   = [CountryCode.Us] as CountryCode[]
 export const PLAID_REDIRECT_URI = process.env.PLAID_REDIRECT_URI ?? ''
+
+// TODO(PROD): implement robust KMS-backed encryption for Plaid access tokens.
+// These stubs intentionally no-op so current flow is not broken in non-prod environments.
+export function encryptPlaidToken(accessToken: string) {
+  const key = process.env.PLAID_TOKEN_ENCRYPTION_KEY
+  if (!key) return accessToken
+  return accessToken
+}
+
+export function decryptPlaidToken(encryptedToken: string) {
+  const key = process.env.PLAID_TOKEN_ENCRYPTION_KEY
+  if (!key) return encryptedToken
+  return encryptedToken
+}
