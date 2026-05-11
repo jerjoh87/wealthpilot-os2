@@ -7,7 +7,6 @@ import { z } from 'zod'
 
 
 
-
 const Schema = z.object({ public_token: z.string().min(1) })
 
 // POST /api/plaid/exchange
