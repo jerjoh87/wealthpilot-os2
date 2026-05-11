@@ -1887,19 +1887,59 @@ function usePlaidConnect({ onSuccess, onExit }) {
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 function SettingsPage({ addToast }) {
   const [toggles, setToggles] = useState({
-    notifications: true, autopay: true, weeklyReport: true, twoFactor: false,
+    notifications: true,
+    autopay: true,
+    weeklyReport: true,
+    twoFactor: false,
+    saveChatHistory: true,
+    dailyAiSummary: true,
+    weeklyAiReview: true,
+    billReminders: true,
+    lowBalanceAlerts: true,
+    overspendingAlerts: true,
+    largeTransactionAlerts: true,
+    portfolioAlerts: true,
+    weeklySummaryEmail: true,
+    autoCategorize: true,
+    rolloverBudget: false,
+    privacyMode: false,
+    darkMode: true,
+    compactMode: false,
+    hideNetWorthWidget: false,
+    hideBudgetWidget: false,
+    hidePortfolioWidget: false,
   });
-  const toggle = (k) => setToggles(t => ({...t, [k]: !t[k]}));
+
+  const [form, setForm] = useState({
+    fullName: MOCK.user.name,
+    email: MOCK.user.email,
+    password: '••••••••',
+    monthlyIncome: '7200',
+    paySchedule: 'Biweekly',
+    financialGoal: 'Build emergency fund',
+    riskTolerance: 'Moderate',
+    financialMode: 'Balanced Growth',
+    emergencyFundTarget: '10000',
+    aiTone: 'Balanced',
+    adviceDepth: 'Detailed',
+    budgetResetDay: '1',
+    spendingSensitivity: 'Medium',
+    budgetMethod: '50/30/20',
+    sessionTimeout: '30 minutes',
+    accentColor: 'Electric Blue',
+    currentPlan: MOCK.user.plan,
+  });
+
+  const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+  const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const plaid = usePlaidConnect({
-    onSuccess: async (publicToken) => {
-      // Real: await plaidApi.exchange(publicToken) then plaidApi.sync()
-      addToast && addToast("Bank connected successfully!", "success");
+    onSuccess: async () => {
+      addToast && addToast('Bank connected successfully!', 'success');
     },
     onExit: () => {},
   });
 
-  // Auto-fetch link token on mount
   useEffect(() => { plaid.fetchLinkToken(); }, []);
 
   const handlePlaidConnect = () => {
@@ -1909,179 +1949,133 @@ function SettingsPage({ addToast }) {
 
   const handleSync = async () => {
     await plaid.sync();
-    addToast && addToast("Accounts synced ✓", "success");
+    addToast && addToast('Accounts synced ✓', 'success');
   };
 
-  return (
-    <div className="grid-2">
-      {/* LEFT */}
+  const renderToggleRow = (key, label, desc) => (
+    <div key={key} className="setting-row">
       <div>
-        <div className="card settings-section">
-          <h3>Profile</h3>
-          {[
-            { label: "Full Name",          value: MOCK.user.name },
-            { label: "Email",              value: MOCK.user.email },
-            { label: "Subscription Plan",  value: MOCK.user.plan },
-          ].map(r => (
-            <div key={r.label} className="setting-row">
-              <div>
-                <div className="setting-label">{r.label}</div>
-                <div className="setting-desc">{r.value}</div>
-              </div>
-              <button className="btn btn-ghost btn-sm">Edit</button>
-            </div>
-          ))}
-        </div>
-
-        <div className="card settings-section">
-          <h3>Preferences</h3>
-          {[
-            { key:"notifications", label:"Push Notifications",  desc:"Bill reminders and alerts" },
-            { key:"autopay",       label:"Autopay Reminders",   desc:"Notify before autopay charges" },
-            { key:"weeklyReport",  label:"Weekly Summary",      desc:"Email report every Sunday" },
-            { key:"twoFactor",     label:"Two-Factor Auth",     desc:"Extra security on login" },
-          ].map(r => (
-            <div key={r.key} className="setting-row">
-              <div>
-                <div className="setting-label">{r.label}</div>
-                <div className="setting-desc">{r.desc}</div>
-              </div>
-              <div className={`toggle ${toggles[r.key] ? "on" : ""}`} onClick={() => toggle(r.key)} />
-            </div>
-          ))}
-        </div>
+        <div className="setting-label">{label}</div>
+        <div className="setting-desc">{desc}</div>
       </div>
+      <div className={`toggle ${toggles[key] ? 'on' : ''}`} onClick={() => toggle(key)} />
+    </div>
+  );
 
-      {/* RIGHT */}
-      <div>
-        {/* ── PLAID CONNECT CARD ── */}
-        <div className="card mb-4">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>🏦 Bank Accounts</h3>
-            {plaid.connected && (
-              <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-ghost btn-sm" onClick={handleSync} disabled={plaid.syncing}>
-                  {plaid.syncing ? "Syncing…" : "↻ Sync"}
-                </button>
-                <button className="btn btn-danger btn-sm" onClick={plaid.disconnect}>Disconnect</button>
+  const renderSelectRow = (label, desc, key, options) => (
+    <div className="setting-row" key={key}>
+      <div style={{flex:1}}>
+        <div className="setting-label">{label}</div>
+        <div className="setting-desc">{desc}</div>
+      </div>
+      <select
+        value={form[key]}
+        onChange={(e) => updateField(key, e.target.value)}
+        style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:150}}
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="grid-2" style={{alignItems:'start'}}>
+        <div>
+          <div className="card settings-section">
+            <h3>1. Account</h3>
+            {[
+              ['Full name','Manage your legal account name','fullName'],
+              ['Email','Used for login and billing updates','email'],
+              ['Password','Update your account password','password'],
+            ].map(([label,desc,key]) => (
+              <div className="setting-row" key={key}>
+                <div style={{flex:1}}><div className="setting-label">{label}</div><div className="setting-desc">{desc}</div></div>
+                <input value={form[key]} onChange={(e)=>updateField(key,e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} />
               </div>
-            )}
+            ))}
+            {renderToggleRow('twoFactor','Two-factor auth','Require a verification step at login.')}
+            <button className="btn btn-danger btn-sm" style={{marginTop:8}}>Delete Account</button>
           </div>
 
-          {/* Not connected state */}
-          {!plaid.connected && (
-            <div style={{
-              background:"linear-gradient(135deg,rgba(79,142,247,0.08),rgba(99,102,241,0.05))",
-              border:"1px dashed rgba(79,142,247,0.3)", borderRadius:12, padding:20, textAlign:"center"
-            }}>
-              <div style={{fontSize:32,marginBottom:8}}>🔗</div>
-              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:6}}>Connect Your Bank</div>
-              <div style={{fontSize:12,color:"var(--text2)",marginBottom:16}}>
-                Securely sync accounts via Plaid. Read-only access. 256-bit encryption.
-              </div>
-              {plaid.error && (
-                <div style={{fontSize:12,color:"var(--red)",marginBottom:12,padding:"6px 10px",background:"rgba(244,63,94,0.1)",borderRadius:8}}>
-                  {plaid.error}
-                </div>
-              )}
-              <button
-                className="btn btn-primary"
-                onClick={handlePlaidConnect}
-                disabled={plaid.loading}
-                style={{width:"100%",justifyContent:"center"}}
-              >
-                {plaid.loading ? "Initializing…" : "Connect with Plaid"}
-              </button>
-              <div style={{marginTop:10,fontSize:10,color:"var(--text3)"}}>
-                Powered by Plaid · Bank-level security · Never stores credentials
-              </div>
-            </div>
-          )}
-
-          {/* Connected — show accounts */}
-          {plaid.connected && (
-            <>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14}}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>
-                <span style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Connected</span>
-                <span style={{fontSize:12,color:"var(--text3)"}}>· {plaid.accounts.length} accounts</span>
-              </div>
-
-              {plaid.accounts.map(a => (
-                <div key={a.id} className="integration-card" style={{marginBottom:8}}>
-                  <div className="int-icon">
-                    {a.type === "checking" ? "🏦" : a.type === "savings" ? "💰" : "💳"}
-                  </div>
-                  <div className="int-info">
-                    <div className="int-name">{a.name}</div>
-                    <div className="int-status">
-                      {a.institution} · ••••{a.last4} ·{" "}
-                      <span style={{textTransform:"capitalize"}}>{a.type}</span>
-                    </div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{
-                      fontFamily:"Syne",fontWeight:700,fontSize:14,
-                      color: a.balance < 0 ? "var(--red)" : "var(--text)"
-                    }}>
-                      {fmt(a.balance)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={handlePlaidConnect}
-                style={{marginTop:8,width:"100%",justifyContent:"center"}}
-              >
-                + Add Another Bank
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Other integrations */}
-        <div className="card mb-4">
-          <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:14}}>Other Integrations</h3>
-          {[
-            { icon:"📊", name:"Webull",    desc:"Portfolio sync",          status:"Not connected", cls:"badge-gray",   action:"Connect" },
-            { icon:"🔄", name:"SnapTrade", desc:"Multi-brokerage sync",    status:"Coming soon",   cls:"badge-yellow", action:null },
-            { icon:"💳", name:"Stripe",    desc:"Subscription billing",    status:"Active",        cls:"badge-green",  action:null },
-          ].map(int => (
-            <div key={int.name} className="integration-card" style={{marginBottom:8}}>
-              <div className="int-icon">{int.icon}</div>
-              <div className="int-info">
-                <div className="int-name">{int.name}</div>
-                <div className="int-status">{int.desc}</div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span className={`badge ${int.cls}`}>{int.status}</span>
-                {int.action && (
-                  <button className="btn btn-ghost btn-sm" style={{padding:"3px 10px",fontSize:11}}>
-                    {int.action}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Subscription */}
-        <div className="card">
-          <h3 style={{fontFamily:"Syne",fontWeight:700,fontSize:15,marginBottom:14}}>Subscription</h3>
-          <div style={{background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.1))",border:"1px solid rgba(79,142,247,0.2)",borderRadius:12,padding:16,marginBottom:14}}>
-            <div style={{fontSize:11,color:"var(--accent)",fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>WealthPilot Pro</div>
-            <div style={{fontFamily:"Syne",fontWeight:700,fontSize:24,marginTop:4}}>$9.99 <span style={{fontSize:14,fontWeight:400,color:"var(--text2)"}}>/ month</span></div>
-            <div className="text-xs text-muted" style={{marginTop:4}}>Next billing: June 9, 2026</div>
+          <div className="card settings-section">
+            <h3>2. Financial Profile</h3>
+            <div className="setting-row"><div><div className="setting-label">Monthly income</div><div className="setting-desc">Net monthly household income.</div></div><input value={form.monthlyIncome} onChange={(e)=>updateField('monthlyIncome', e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:120}} /></div>
+            {renderSelectRow('Pay schedule','How often your primary paycheck arrives.','paySchedule',['Weekly','Biweekly','Semi-monthly','Monthly'])}
+            {renderSelectRow('Main financial goal','Primary objective for recommendations.','financialGoal',['Build emergency fund','Pay down debt','Grow investments','Save for home'])}
+            {renderSelectRow('Risk tolerance','Used for portfolio and cash flow suggestions.','riskTolerance',['Conservative','Moderate','Aggressive'])}
+            {renderSelectRow('Financial mode selector','Controls AI strategy and spending posture.','financialMode',['Conservative Defense','Balanced Growth','Aggressive Acceleration'])}
+            <div className="setting-row"><div><div className="setting-label">Emergency fund target</div><div className="setting-desc">Recommended 3-6 months of expenses.</div></div><input value={form.emergencyFundTarget} onChange={(e)=>updateField('emergencyFundTarget',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:120}} /></div>
           </div>
-          {["Unlimited bank accounts","AI Coach access","Advanced analytics","Priority support"].map(f => (
-            <div key={f} className="flex items-center gap-2" style={{marginBottom:8}}>
-              <span style={{color:"var(--green)"}}>✓</span>
-              <span className="text-sm">{f}</span>
+
+          <div className="card settings-section">
+            <h3>3. Connected Accounts</h3>
+            <div style={{fontSize:11,color:'var(--text3)',textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>Plaid Bank Connection</div>
+            <div className="mb-4">{/* keep plaid card working */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                <h3 style={{fontFamily:'Syne',fontWeight:700,fontSize:15}}>🏦 Bank Accounts</h3>
+                {plaid.connected && <div style={{display:'flex',gap:8}}><button className="btn btn-ghost btn-sm" onClick={handleSync} disabled={plaid.syncing}>{plaid.syncing ? 'Syncing…' : 'Sync now'}</button><button className="btn btn-danger btn-sm" onClick={plaid.disconnect}>Disconnect account</button></div>}
+              </div>
+              {!plaid.connected ? <button className="btn btn-primary" onClick={handlePlaidConnect} disabled={plaid.loading} style={{width:'100%',justifyContent:'center'}}>{plaid.loading ? 'Initializing…' : 'Connect with Plaid'}</button> : <>{plaid.accounts.map(a => <div key={a.id} className="integration-card" style={{marginBottom:8}}><div className="int-icon">{a.type === 'checking' ? '🏦' : a.type === 'savings' ? '💰' : '💳'}</div><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.institution} · ••••{a.last4}</div></div><div style={{fontFamily:'Syne',fontWeight:700,fontSize:14}}>{fmt(a.balance)}</div></div>)}</>}
             </div>
-          ))}
-          <button className="btn btn-danger btn-sm" style={{marginTop:12}}>Cancel Subscription</button>
+            <div className="integration-card"><div className="int-icon">📊</div><div className="int-info"><div className="int-name">Webull / SnapTrade</div><div className="int-status">Brokerage sync placeholder</div></div><span className="badge badge-yellow">Coming soon</span></div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>4. AI Coach Preferences</h3>
+            {renderSelectRow('AI tone','Voice and accountability style.','aiTone',['Strict','Balanced','Encouraging'])}
+            {renderSelectRow('Advice depth','Complexity level for insights.','adviceDepth',['Simple','Detailed','Advanced'])}
+            {renderToggleRow('saveChatHistory','Save chat history','Store prior AI conversations for context.')}
+            {renderToggleRow('dailyAiSummary','Daily AI summary','Deliver a quick daily financial briefing.')}
+            {renderToggleRow('weeklyAiReview','Weekly AI review','Receive a weekly strategy recap every Sunday.')}
+          </div>
+
+          <div className="card settings-section">
+            <h3>5. Notifications</h3>
+            {renderToggleRow('billReminders','Bill due reminders','Remind you before due dates.')}
+            {renderToggleRow('lowBalanceAlerts','Low balance alerts','Alert when account balances fall below threshold.')}
+            {renderToggleRow('overspendingAlerts','Overspending alerts','Detect category and monthly budget overages.')}
+            {renderToggleRow('largeTransactionAlerts','Large transaction alerts','Flag unusual high-value spending events.')}
+            {renderToggleRow('portfolioAlerts','Portfolio alerts','Notify on significant market movement.')}
+            {renderToggleRow('weeklySummaryEmail','Weekly summary email','Send your full weekly financial digest.')}
+          </div>
+        </div>
+
+        <div>
+          <div className="card settings-section">
+            <h3>6. Budget Preferences</h3>
+            <div className="setting-row"><div><div className="setting-label">Monthly budget reset day</div><div className="setting-desc">Calendar day to reset budget tracking.</div></div><input value={form.budgetResetDay} onChange={(e)=>updateField('budgetResetDay',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:70}} /></div>
+            {renderToggleRow('autoCategorize','Auto-categorize transactions','Apply smart categories to new transactions.')}
+            {renderToggleRow('rolloverBudget','Rollover unused budget','Carry remaining funds into next month.')}
+            {renderSelectRow('Spending alert sensitivity','Threshold level for spend warnings.','spendingSensitivity',['Low','Medium','High'])}
+            {renderSelectRow('Budget method selector','Framework for allocations.','budgetMethod',['50/30/20','Zero-based','Envelope','Pay Yourself First'])}
+          </div>
+
+          <div className="card settings-section">
+            <h3>7. Privacy & Security</h3>
+            {renderToggleRow('privacyMode','Privacy mode / hide balances','Mask balances and sensitive amounts on screen.')}
+            {renderSelectRow('Session timeout selector','Auto sign-out period when inactive.','sessionTimeout',['15 minutes','30 minutes','1 hour','4 hours'])}
+            <div className="setting-row"><div><div className="setting-label">Export my data</div><div className="setting-desc">Download your account records as CSV/JSON.</div></div><button className="btn btn-ghost btn-sm">Export</button></div>
+            <div className="setting-row"><div><div className="setting-label">Delete my data</div><div className="setting-desc">Permanently remove stored financial profile data.</div></div><button className="btn btn-danger btn-sm">Delete Data</button></div>
+            <div className="setting-row"><div><div className="setting-label">Connected data permissions</div><div className="setting-desc">Review what data each integration can access.</div></div><button className="btn btn-ghost btn-sm">Review</button></div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>8. Appearance</h3>
+            {renderToggleRow('darkMode','Dark mode toggle','Premium low-glare experience for night usage.')}
+            {renderSelectRow('Accent color selector','Set your interface highlight color.','accentColor',['Electric Blue','Emerald','Violet','Rose'])}
+            {renderToggleRow('compactMode','Compact mode toggle','Reduce spacing to fit more content.')}
+            {renderToggleRow('hideNetWorthWidget','Show/hide dashboard widgets · Net Worth','Control Net Worth card visibility.')}
+            {renderToggleRow('hideBudgetWidget','Show/hide dashboard widgets · Budget','Control Budget card visibility.')}
+            {renderToggleRow('hidePortfolioWidget','Show/hide dashboard widgets · Portfolio','Control Portfolio card visibility.')}
+          </div>
+
+          <div className="card settings-section">
+            <h3>9. Billing</h3>
+            <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · $9.99 / month</div></div><span className="badge badge-green">Active</span></div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm">Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
+            <div style={{marginTop:14,padding:12,border:'1px dashed var(--border2)',borderRadius:12,color:'var(--text2)',fontSize:12}}>Billing history placeholder · Invoice download and payment history will appear here.</div>
+          </div>
         </div>
       </div>
     </div>
