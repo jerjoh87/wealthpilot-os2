@@ -49,9 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // 3. Upsert added transactions
       if (added.length) {
+        const accountIds = Array.from(new Set(added.map((t) => t.account_id).filter(Boolean)))
+        const { data: accountRows } = await db
+          .from('accounts')
+          .select('id, plaid_account_id')
+          .eq('user_id', user.id)
+          .in('plaid_account_id', accountIds)
+
+        const accountMap = new Map((accountRows ?? []).map((a: any) => [a.plaid_account_id, a.id]))
+
         const rows = added.map(t => ({
           user_id:     user.id,
-          account_id:  null,            // join by plaid account_id if needed
+          account_id:  accountMap.get(t.account_id) ?? null,
           name:        t.name,
           amount:      -t.amount,       // Plaid: positive = debit; we store negative = expense
           category:    t.personal_finance_category?.primary ?? t.category?.[0] ?? 'Uncategorized',
@@ -90,8 +99,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const a of accRes.data.accounts) {
         await db.from('accounts')
           .update({ balance: a.balances.current ?? 0 })
-          .eq('plaid_item_id', item.item_id)
-          .eq('last4', a.mask ?? '')
+          .eq('user_id', user.id)
+          .eq('plaid_account_id', a.account_id)
       }
       results.accounts += accRes.data.accounts.length
 
