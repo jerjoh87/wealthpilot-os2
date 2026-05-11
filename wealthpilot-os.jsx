@@ -4000,9 +4000,13 @@ export default function WealthPilotOS() {
         const payload = await res.json();
         return payload?.data || [];
       }, acct.accounts);
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
       const bills = await safe(() => billsApi.list(), []);
       const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(), []);
+      const budgets = await safe(() => budgetsApi.list(currentMonth, currentYear), []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
