@@ -139,13 +139,24 @@ function useAuth() {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const data = await authApi.login(email, password);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
 
   const signup = useCallback(async (email, password, name) => {
-    const data = await authApi.signup(email, password, name);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    if (error) throw error;
+
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
