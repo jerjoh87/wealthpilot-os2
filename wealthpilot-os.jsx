@@ -1311,7 +1311,9 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+function Dashboard({ setPage, accounts, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, status = {} }) {
+  const totalCash = accounts.filter(a => a.type !== "credit").reduce((s, a) => s + Number(a.balance || 0), 0);
+  const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + Number(a.balance || 0), 0);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
   const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
@@ -1374,17 +1376,23 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet — create budget.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
-          {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills</p></div>}
+          {status.bills?.loading && <div className="text-sm text-muted">Loading bills...</div>}
+          {status.bills?.error && <div className="text-sm text-muted">Could not load data. Try refreshing.</div>}
+          {!status.bills?.loading && !status.bills?.error && upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
+          {!status.bills?.loading && !status.bills?.error && upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills — add bill.</p></div>}
         </div>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
+          <div className="text-sm text-muted">{portfolio?.connected ? `Portfolio preview: ${portfolio.holdings?.length || 0} holdings` : "Portfolio preview/demo only"}</div>
+        </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
@@ -1396,9 +1404,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+          {status.accounts?.loading ? <div className="text-sm text-muted">Loading accounts...</div> : status.accounts?.error ? <div className="text-sm text-muted">Could not load data. Try refreshing.</div> : accounts.length === 0 ? (
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet — connect bank.</p></div>
+          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4 || "••••"}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1416,7 +1424,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 6).map(t => (
+              {status.transactions?.loading && <tr><td colSpan={5}><div className="text-sm text-muted">Loading transactions...</div></td></tr>}
+              {status.transactions?.error && <tr><td colSpan={5}><div className="text-sm text-muted">Could not load data. Try refreshing.</div></td></tr>}
+              {!status.transactions?.loading && !status.transactions?.error && transactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1434,10 +1444,10 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {!status.transactions?.loading && !status.transactions?.error && transactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions — sync account.</p></div>
                   </td>
                 </tr>
               )}
@@ -3987,32 +3997,47 @@ export default function WealthPilotOS() {
     bills: [],
     transactions: [],
     budgets: [],
+    calendarEvents: [],
     portfolio: MOCK.portfolio,
     creditScore: null,
+  });
+  const [liveStatus, setLiveStatus] = useState({
+    accounts: { loading: true, error: false },
+    transactions: { loading: true, error: false },
+    bills: { loading: true, error: false },
+    budgets: { loading: true, error: false },
+    calendarEvents: { loading: true, error: false },
+    creditScore: { loading: true, error: false },
+    portfolio: { loading: true, error: false },
   });
 
   useEffect(() => {
     const fetchData = async () => {
-      const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
-      const accounts = await safe(async () => {
-        const res = await fetch("/api/accounts");
-        if (!res.ok) throw new Error("accounts unavailable");
-        const payload = await res.json();
-        return payload?.data || [];
-      }, acct.accounts);
-      const bills = await safe(() => billsApi.list(), []);
-      const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(), []);
-      const portfolio = await safe(async () => {
-        const p = await portfolioApi.list();
-        if (Array.isArray(p)) {
-          const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
-          return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
-        }
-        return p || MOCK.portfolio;
-      }, MOCK.portfolio);
-      const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+      const mark = (key, loading, error = false) => setLiveStatus(prev => ({ ...prev, [key]: { loading, error } }));
+      const safe = async (key, fn, fallback) => {
+        try { const data = await fn(); mark(key, false); return data; }
+        catch { mark(key, false, true); return fallback; }
+      };
+      const mapBills = (rows = []) => rows.map(b => ({ ...b, dueDay: b.dueDay ?? b.due_day ?? 1, paid: Boolean(b.paid) }));
+      const mapBudgets = (rows = []) => rows.map((b, i) => ({ ...b, spent: Number(b.spent || 0), color: b.color || ["#6366f1","#10b981","#f59e0b","#3b82f6","#ec4899"][i % 5] }));
+      const mapPortfolio = (data) => {
+        const holdings = data?.holdings || [];
+        const summary = data?.summary || {};
+        const totalValue = Number(summary.totalValue || 0);
+        const dayChangePct = Number(summary.dayChangePct || 0);
+        return { ...MOCK.portfolio, connected: Boolean(data?.connected) || holdings.length > 0, holdings, totalValue, dayChangePct, dayChange: totalValue * dayChangePct / 100 };
+      };
+
+      Object.keys(liveStatus).forEach((k) => mark(k, true, false));
+      await safe("accounts", async () => { await plaidApi.sync(); await acct.refresh(); return acct.accounts; }, acct.accounts);
+      const accounts = acct.accounts;
+      const bills = mapBills(await safe("bills", () => billsApi.list(), []));
+      const transactions = await safe("transactions", () => txApi.list(), []);
+      const budgets = mapBudgets(await safe("budgets", () => budgetsApi.list(), []));
+      const calendarEvents = await safe("calendarEvents", () => calApi.list(today.getMonth() + 1, today.getFullYear()), []);
+      const portfolio = mapPortfolio(await safe("portfolio", () => portfolioApi.list(), null));
+      const creditScore = await safe("creditScore", () => creditScoreApi.get(), null);
+      setLiveData({ accounts, bills, transactions, budgets, calendarEvents, portfolio, creditScore });
     };
     fetchData();
   }, [acct.accounts]);
@@ -4052,7 +4077,7 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
