@@ -4,6 +4,7 @@ import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { encryptPlaidToken } from '../../../lib/plaid-crypto'
 import { z } from 'zod'
+import { encryptPlaidToken } from '../../../lib/crypto'
 
 const Schema = z.object({ public_token: z.string().min(1) })
 
@@ -29,10 +30,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
     const { access_token, item_id } = exchangeRes.data
 
-    // 2. Encrypt and store the access token
-    const encryptedAccessToken = encryptPlaidToken(access_token)
+    // 2. Store the item.
+    // TODO(PROD): access_token is stored plaintext today; add encryption using PLAID_TOKEN_ENCRYPTION_KEY before production rollout.
     await db.from('plaid_items').upsert(
-      { user_id: user.id, item_id, access_token: encryptedAccessToken, status: 'active' },
+      { user_id: user.id, item_id, access_token: encryptPlaidToken(access_token), status: 'active' },
       { onConflict: 'item_id' }
     )
 
@@ -41,6 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const accountRows = accountsRes.data.accounts.map(a => ({
       user_id:       user.id,
       plaid_item_id: item_id,
+      plaid_account_id: a.account_id,
       name:          a.name,
       type:          a.type,
       balance:       a.balances.current ?? 0,
@@ -48,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       last4:         a.mask ?? '',
     }))
 
-    await db.from('accounts').upsert(accountRows, { onConflict: 'user_id,plaid_item_id' })
+    await db.from('accounts').upsert(accountRows, { onConflict: 'user_id,plaid_account_id' })
 
     return ok(res, {
       item_id,

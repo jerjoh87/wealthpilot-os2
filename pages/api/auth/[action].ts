@@ -3,6 +3,12 @@ import { supabase } from '../../../lib/supabase'
 import { ok, err, methodNotAllowed, getUser } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { SignupSchema, LoginSchema } from '../../../lib/schemas'
+import { z } from 'zod'
+
+
+const LogoutSchema = z.object({
+  refresh_token: z.string().min(1).optional(),
+})
 
 // POST /api/auth/signup
 export async function signup(req: NextApiRequest, res: NextApiResponse) {
@@ -34,20 +40,21 @@ export async function login(req: NextApiRequest, res: NextApiResponse) {
   return ok(res, { user: data.user, session: data.session })
 }
 
+
 // POST /api/auth/logout
 export async function logout(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
 
-  const token = req.headers.authorization?.replace('Bearer ', '').trim()
-  if (token) {
-    const user = await getUser(req)
-    if (!user) return err(res, 'Unauthorized', 401)
+  const parsed = LogoutSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
-    const { error } = await supabaseAdmin().auth.admin.signOut(token)
-    if (error) return err(res, error.message)
+  const refreshToken = parsed.data.refresh_token
+  if (refreshToken) {
+    const { error } = await supabase.auth.refreshSession({ refresh_token: refreshToken })
+    if (!error) await supabase.auth.signOut()
   }
 
-  return ok(res, { success: true })
+  return ok(res, { logged_out: true })
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
