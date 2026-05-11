@@ -139,13 +139,24 @@ function useAuth() {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const data = await authApi.login(email, password);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
 
   const signup = useCallback(async (email, password, name) => {
-    const data = await authApi.signup(email, password, name);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    if (error) throw error;
+
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
@@ -262,12 +273,13 @@ function AuthGate({ onAuth }) {
 
 
         <button onClick={async () => {
-          await supabase.auth.signInWithOAuth({
+          const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: window.location.origin
+              redirectTo: `${window.location.origin}/auth/callback`,
             }
           });
+          if (error) throw error;
         }} disabled={busy} style={{
           width:"100%",padding:"11px",borderRadius:10,border:"1px solid var(--border2)",cursor:"pointer",
           background:"var(--bg3)",color:"var(--text)",
@@ -276,6 +288,10 @@ function AuthGate({ onAuth }) {
         }}>
           Continue with Google
         </button>
+
+        <div style={{marginTop:8,fontSize:11,color:"var(--text3)",lineHeight:1.4}}>
+          Google OAuth requires Supabase + Google Console redirect URIs to include your project callback URL.
+        </div>
 
         <div style={{textAlign:"center",marginTop:16,fontSize:13,color:"var(--text2)"}}>
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
