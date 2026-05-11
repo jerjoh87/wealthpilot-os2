@@ -4236,6 +4236,25 @@ export default function WealthPilotOS() {
                 )}
               </button>
               <div className="avatar">AC</div>
+              <div
+  style={{
+    position: "fixed",
+    top: 12,
+    right: 70,
+    zIndex: 9999,
+    background: "rgba(17,24,39,0.95)",
+    color: "#60a5fa",
+    padding: "6px 12px",
+    borderRadius: 10,
+    fontSize: 11,
+    fontWeight: 700,
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+    backdropFilter: "blur(10px)"
+  }}
+>
+  UI VERSION: 2026-05-11-1
+</div>
             </div>
           </div>
 
