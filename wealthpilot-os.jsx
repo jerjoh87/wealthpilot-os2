@@ -1311,211 +1311,98 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh }) {
-  const netWorth   = totalCash + creditDebt + MOCK.portfolio.totalValue;
-  const safe       = (() => {
-    const upcomingBills = MOCK.bills.filter(b => !b.paid).reduce((s, b) => s + b.amount, 0);
-    return Math.max(0, totalCash - upcomingBills - (MOCK.spending / 30) * daysLeft * 0.5);
-  })();
-  const upcomingBills = MOCK.bills.filter(b => !b.paid);
-  const spendPct      = Math.round((MOCK.spending / MOCK.income) * 100);
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
+  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const upcomingBills = bills.filter(b => !b.paid);
+  const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
+  const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
+  const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
   return (
-    <div>
-      {/* ── Stat Cards ── */}
-      <div className="grid-4 mb-4">
-        <div className="card stat-card" style={{"--accent-color":"var(--accent)"}}>
-          <div className="stat-icon">💵</div>
-          <div className="card-title">Total Cash</div>
-          <div className="card-value">{fmtK(totalCash)}</div>
-          <div className="change-badge pos">↑ 3.2% this month</div>
+    <div style={{display:"grid",gap:16,paddingBottom:8}}>
+      <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)",borderRadius:20,boxShadow:"0 14px 45px rgba(2,8,23,0.45)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
+            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Good morning, Kenny!</div>
+            <div style={{fontSize:13,color:"var(--text2)",marginTop:6}}>AI is monitoring your cash flow, portfolio risk, and upcoming obligations in real time.</div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
         </div>
-        <div className="card stat-card" style={{"--accent-color":"var(--green)"}}>
-          <div className="stat-icon">📈</div>
-          <div className="card-title">Monthly Income</div>
-          <div className="card-value">{fmtK(MOCK.income)}</div>
-          <div className="card-sub">2 paychecks received</div>
+        <div style={{marginTop:14,background:"rgba(8,10,14,0.7)",border:"1px solid var(--border2)",borderRadius:14,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14,opacity:.75}}>⌕</span>
+          <input placeholder="Search anything..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:"var(--text)",fontSize:14,fontFamily:"inherit"}} />
         </div>
-        <div className="card stat-card" style={{"--accent-color":"var(--red)"}}>
-          <div className="stat-icon">🛍️</div>
-          <div className="card-title">Monthly Spending</div>
-          <div className="card-value">{fmtK(MOCK.spending)}</div>
-          <span className="change-badge neg">↑ {spendPct}% of income</span>
+      </div>
+
+      <div className="card" style={{padding:16,background:"linear-gradient(135deg, rgba(16,185,129,0.1), rgba(79,142,247,0.06))",borderRadius:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+          <div><div className="card-title">AI Insight</div><div style={{fontSize:13,color:"var(--text2)"}}>Spending signal detected</div></div>
+          <span className="badge badge-blue">Actionable</span>
         </div>
-        <div className="safe-to-spend-card">
-          <div className="card-title" style={{color:"var(--green)"}}>Safe to Spend</div>
-          <div className="card-value text-green">{fmtK(safe)}</div>
+        <div style={{marginTop:10,fontSize:14,lineHeight:1.5}}>Dining spend is trending <b style={{color:"#fbbf24"}}>18% above</b> your 30-day baseline. Move $120 from Shopping to Dining to stay on plan and keep safe-to-spend above target.</div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
+          <div className="card-title">Net Worth</div><div className="card-value" style={{fontSize:30}}>{fmtK(netWorth)}</div>
+          <div className="change-badge pos">↑ {fmt(portfolio?.dayChange || 0)} today</div>
+        </div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(163,230,53,0.08), rgba(16,185,129,0.04))"}}>
+          <div className="card-title">Cash Flow</div><div className="card-value">{fmtK(income - spending)}</div>
+          <div className="card-sub">Income {fmtK(income)} · Spend {fmtK(spending)} ({spendPct}% of income)</div>
+        </div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03))"}}>
+          <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
       </div>
 
-      {/* ── Connected Accounts Strip ── */}
-      <div className="card mb-4" style={{padding:"14px 20px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
+        <div className="card" style={{padding:18,borderRadius:18}}>
+          <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
+          <div className="donut-wrap" style={{marginTop:8}}>
+            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
+            <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
+          </div>
+          <div style={{marginTop:8}}>
+            {budget.slice(0,4).map(b => (
+              <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
+                <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
+                <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
+              </div>
+            ))}
+            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+          </div>
+        </div>
+        <div className="card" style={{padding:18,borderRadius:18}}>
+          <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
+          {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills</p></div>}
+        </div>
+      </div>
+
+      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
-            {lastSync && (
-              <span style={{fontSize:10,color:"var(--text3)"}}>
-                · synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}
-              </span>
-            )}
+            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}
-              style={{padding:"4px 10px",fontSize:11}}>
-              {syncing ? "Syncing…" : "↻ Refresh"}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}
-              style={{padding:"4px 10px",fontSize:11}}>+ Add Account</button>
+            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.map(a => (
-            <div key={a.id} style={{
-              background:"var(--bg3)", borderRadius:12, padding:"12px 14px",
-              border:"1px solid var(--border)",
-              borderLeft: `3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`
-            }}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span>
-                <span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span>
-              </div>
-              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,
-                color: a.balance < 0 ? "var(--red)" : "var(--text)"}}>
-                {fmt(a.balance)}
-              </div>
-              <div style={{fontSize:11,color:"var(--text2)",marginTop:2}}>{a.name}</div>
-            </div>
-          ))}
+          {accounts.length === 0 ? (
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
+          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
-      <div className="grid-2-1 mb-4">
-        {/* Budget Progress */}
-        <div className="card">
-          <div className="section-header">
-            <div className="section-title">Budget Progress</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button>
-          </div>
-          {MOCK.budget.slice(0, 5).map(b => {
-            const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
-            return (
-              <div key={b.category} style={{marginBottom:12}}>
-                <div className="flex justify-between items-center" style={{marginBottom:4}}>
-                  <span className="text-sm">{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
-                  <span className="text-sm text-muted">{fmt(b.spent)} / {fmt(b.limit)}</span>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{width:`${pct}%`,background:pct>90?"var(--red)":pct>70?"var(--yellow)":b.color}} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Upcoming Bills */}
-        <div className="card">
-          <div className="section-header">
-            <div className="section-title">Upcoming Bills</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button>
-          </div>
-          {upcomingBills.slice(0, 4).map(b => (
-            <div key={b.id} className="bill-item">
-              <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
-              <div className="bill-info">
-                <div className="bill-name">{b.name}</div>
-                <div className="bill-due">Due day {b.dueDay} {b.autopay && <span className="badge badge-blue" style={{marginLeft:4}}>Auto</span>}</div>
-              </div>
-              <div className="bill-amount">{fmt(b.amount)}</div>
-            </div>
-          ))}
-          <div style={{marginTop:12,padding:"10px 0",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between"}}>
-            <span className="text-sm text-muted">Total unpaid</span>
-            <span className="text-sm font-bold">{fmt(upcomingBills.reduce((s,b)=>s+b.amount,0))}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid-3">
-        {/* ── Net Worth ── */}
-        <div className="card">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-            <div className="card-title">Net Worth</div>
-            <span className="change-badge pos" style={{marginTop:0}}>↑ 2.4%</span>
-          </div>
-          <div className="card-value font-syne" style={{fontSize:28}}>{fmtK(netWorth)}</div>
-
-          {/* Mini breakdown bar */}
-          <div style={{height:6,borderRadius:99,background:"var(--bg3)",overflow:"hidden",margin:"14px 0 10px",display:"flex"}}>
-            {[
-              {val:totalCash,       color:"var(--accent)"},
-              {val:MOCK.portfolio.totalValue, color:"var(--green)"},
-              {val:Math.abs(creditDebt),      color:"var(--red)"},
-            ].map((s,i) => (
-              <div key={i} style={{
-                flex: s.val / (totalCash + MOCK.portfolio.totalValue + Math.abs(creditDebt)),
-                background: s.color, height:"100%"
-              }}/>
-            ))}
-          </div>
-
-          {[
-            {label:"Cash & Savings", val:totalCash,                    color:"var(--accent)"},
-            {label:"Investments",    val:MOCK.portfolio.totalValue,     color:"var(--green)"},
-            {label:"Credit Debt",    val:creditDebt,                    color:"var(--red)"},
-          ].map(r => (
-            <div key={r.label} className="flex justify-between items-center" style={{marginBottom:5}}>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{width:7,height:7,borderRadius:"50%",background:r.color,flexShrink:0}}/>
-                <span className="text-sm text-muted">{r.label}</span>
-              </div>
-              <span className="text-sm" style={{color:r.color,fontWeight:600}}>{fmt(r.val)}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Spending Breakdown */}
-        <div className="card">
-          <div className="card-title">Spending Breakdown</div>
-          <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={MOCK.budget.map(b => ({value:b.spent,color:b.color}))} size={130} thickness={22} />
-            <div className="donut-center">
-              <div style={{fontSize:11,color:"var(--text3)"}}>Total</div>
-              <div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(MOCK.spending)}</div>
-            </div>
-          </div>
-          <div style={{marginTop:8}}>
-            {MOCK.budget.slice(0,4).map(b => (
-              <div key={b.category} className="flex items-center gap-2" style={{marginBottom:4}}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:b.color,flexShrink:0}}/>
-                <span className="text-xs text-muted" style={{flex:1}}>{b.category}</span>
-                <span className="text-xs">{fmt(b.spent)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Portfolio Preview */}
-        <div className="card">
-          <div className="card-title">Portfolio</div>
-          {!MOCK.portfolio.connected ? (
-            <div className="portfolio-placeholder" style={{padding:"20px 16px",marginTop:8}}>
-              <div style={{fontSize:28,marginBottom:8}}>📊</div>
-              <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Connect Webull</div>
-              <div style={{fontSize:11,color:"var(--text2)",marginBottom:12}}>Sync via Webull or SnapTrade</div>
-              <button className="btn btn-primary btn-sm" onClick={() => setPage("portfolio")}>Connect →</button>
-            </div>
-          ) : (
-            <>
-              <div className="card-value">{fmtK(MOCK.portfolio.totalValue)}</div>
-              <span className="change-badge pos">↑ {fmt(MOCK.portfolio.dayChange)} today</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="card mt-4">
+      <div className="card mt-4" style={{borderRadius:18}}>
         <div className="section-header">
           <div className="section-title">Recent Transactions</div>
           <button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View All →</button>
@@ -1529,7 +1416,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {MOCK.transactions.slice(0, 6).map(t => (
+              {transactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1547,6 +1434,13 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={5}>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1555,9 +1449,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   );
 }
 
-function BudgetPage({ modeConfig }) {
-  const totalLimit = MOCK.budget.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = MOCK.budget.reduce((s, b) => s + b.spent, 0);
+function BudgetPage({ modeConfig, budgets = [] }) {
+  const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
+  const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
   return (
     <div>
@@ -1606,7 +1500,7 @@ function BudgetPage({ modeConfig }) {
           <div className="section-title">Category Budgets</div>
           <button className="btn btn-primary btn-sm">+ Add Category</button>
         </div>
-        {MOCK.budget.map(b => {
+        {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budgets yet. Add your first category budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
           const over = remaining < 0;
@@ -1643,10 +1537,10 @@ function BudgetPage({ modeConfig }) {
   );
 }
 
-function TransactionsPage() {
+function TransactionsPage({ transactions = [] }) {
   const [filter, setFilter] = useState("All");
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
-  const filtered = filter === "All" ? MOCK.transactions : MOCK.transactions.filter(t => t.category === filter);
+  const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
 
   return (
     <div>
@@ -1705,7 +1599,7 @@ function TransactionsPage() {
 }
 
 function BillsPage() {
-  const [bills, setBills] = useState(MOCK.bills);
+  const [bills, setBills] = useState([]);
   const unpaid = bills.filter(b => !b.paid);
   const paid = bills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
@@ -1749,7 +1643,7 @@ function BillsPage() {
             <div className="section-title">Upcoming Bills</div>
             <button className="btn btn-primary btn-sm">+ Add Bill</button>
           </div>
-          {unpaid.map(b => (
+          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No upcoming bills.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
               <div className="bill-info">
@@ -1787,8 +1681,8 @@ function BillsPage() {
   );
 }
 
-function PortfolioPage() {
-  const { totalValue, dayChange, dayChangePct, holdings } = MOCK.portfolio;
+function PortfolioPage({ portfolioData = MOCK.portfolio }) {
+  const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
   return (
     <div>
       <div className="portfolio-placeholder mb-4">
@@ -1810,12 +1704,12 @@ function PortfolioPage() {
           <div className="card-value" style={{fontSize:32}}>{fmt(totalValue)}</div>
           <span className="change-badge pos">↑ {fmt(dayChange)} (+{dayChangePct}%)</span>
         </div>
-        <div className="text-xs text-muted" style={{marginTop:4}}>Demo data only — connect your account for live data</div>
+        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Demo data only — connect your account for live data"}</div>
       </div>
 
       <div className="card">
         <div className="section-title mb-4">Holdings Preview</div>
-        {holdings.map(h => (
+        {holdings.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No holdings found.</p></div> : holdings.map(h => (
           <div key={h.ticker} className="ticker-row">
             <div style={{width:36,height:36,borderRadius:10,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--accent)",flexShrink:0}}>{h.ticker}</div>
             <div className="ticker-sym" style={{marginLeft:10}}>{h.ticker}</div>
@@ -2757,8 +2651,11 @@ function ScoreLineChart({ history }) {
   );
 }
 
-function CreditScorePage({ addToast }) {
-  const [history, setHistory] = useState(SCORE_HISTORY);
+function CreditScorePage({ addToast, initialScore }) {
+  const [history, setHistory] = useState(() => {
+    if (initialScore?.score) return [...SCORE_HISTORY.slice(0, -1), { score: initialScore.score, date: toISO(new Date()), provider: initialScore.provider || "api" }];
+    return SCORE_HISTORY;
+  });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
   const latest  = history[history.length - 1];
@@ -4085,6 +3982,40 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [liveData, setLiveData] = useState({
+    accounts: [],
+    bills: [],
+    transactions: [],
+    budgets: [],
+    portfolio: MOCK.portfolio,
+    creditScore: null,
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
+      const accounts = await safe(async () => {
+        const res = await fetch("/api/accounts");
+        if (!res.ok) throw new Error("accounts unavailable");
+        const payload = await res.json();
+        return payload?.data || [];
+      }, acct.accounts);
+      const bills = await safe(() => billsApi.list(), []);
+      const transactions = await safe(() => txApi.list(), []);
+      const budgets = await safe(() => budgetsApi.list(), []);
+      const portfolio = await safe(async () => {
+        const p = await portfolioApi.list();
+        if (Array.isArray(p)) {
+          const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
+          return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
+        }
+        return p || MOCK.portfolio;
+      }, MOCK.portfolio);
+      const creditScore = await safe(() => creditScoreApi.get(), null);
+      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+    };
+    fetchData();
+  }, [acct.accounts]);
 
   const addToast = (msg, type="info") => {
     const id = Date.now();
@@ -4094,11 +4025,11 @@ export default function WealthPilotOS() {
 
   // Alert engine — uses live account + bill + budget data
   const alertEngine = useAlerts({
-    accounts:     acct.accounts,
-    bills:        MOCK.bills,
-    budget:       MOCK.budget,
-    transactions: MOCK.transactions,
-    portfolio:    MOCK.portfolio,
+    accounts:     liveData.accounts.length ? liveData.accounts : acct.accounts,
+    bills:        liveData.bills,
+    budget:       liveData.budgets,
+    transactions: liveData.transactions,
+    portfolio:    liveData.portfolio,
     goals:        INIT_GOALS,
     mode,
   });
@@ -4121,15 +4052,15 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
-      case "budget":       return <BudgetPage modeConfig={modeConfig} />;
-      case "transactions": return <TransactionsPage />;
+      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
+      case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
-      case "portfolio":    return <PortfolioPage />;
+      case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
-      case "credit-score": return <CreditScorePage addToast={addToast} />;
+      case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
