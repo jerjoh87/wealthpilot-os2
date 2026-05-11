@@ -1835,43 +1835,83 @@ function usePlaidConnect({ onSuccess, onExit }) {
   const [connected, setConnected]   = useState(false);
   const [syncing, setSyncing]       = useState(false);
   const [accounts, setAccounts]     = useState([]);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+
+  const ensurePlaidScript = useCallback(() => new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("Plaid unavailable"));
+    if (window.Plaid?.create) return resolve(window.Plaid);
+    const existing = document.querySelector('script[data-plaid-link="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Plaid), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Failed to load Plaid Link")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+    script.async = true;
+    script.dataset.plaidLink = "true";
+    script.onload = () => resolve(window.Plaid);
+    script.onerror = () => reject(new Error("Failed to load Plaid Link"));
+    document.body.appendChild(script);
+  }), []);
 
   // Load link token from backend
   const fetchLinkToken = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      // Real call: const data = await plaidApi.getLinkToken()
-      // Demo: simulate a token
-      await new Promise(r => setTimeout(r, 800));
-      setLinkToken("link-sandbox-demo-token");
+      const data = await plaidApi.getLinkToken();
+      if (!data?.link_token) throw new Error("Missing Plaid link token");
+      setLinkToken(data.link_token);
     } catch (e) {
       setError(e.message || "Failed to initialize Plaid");
     } finally { setLoading(false); }
   }, []);
 
-  const open = useCallback(() => {
+  const open = useCallback(async () => {
     if (!linkToken) return;
-
-    // Real implementation loads Plaid Link via CDN script:
-    // const handler = window.Plaid.create({ token: linkToken, onSuccess, onExit })
-    // handler.open()
-    //
-    // Demo: simulate successful connection after 1.5s
-    setLoading(true);
-    setTimeout(() => {
+    setLoading(true); setError(null);
+    try {
+      await ensurePlaidScript();
+      const handler = window.Plaid.create({
+        token: linkToken,
+        onSuccess: async (publicToken, metadata) => {
+          try {
+            await onSuccess?.(publicToken, metadata);
+            const syncedAccounts = await plaidApi.sync();
+            setAccounts(Array.isArray(syncedAccounts?.accounts) ? syncedAccounts.accounts : accounts);
+            setConnected(true);
+            setLastSyncedAt(new Date());
+          } catch (e) {
+            setError(e.message || "Could not complete bank connection");
+          } finally {
+            setLoading(false);
+          }
+        },
+        onExit: (err, metadata) => {
+          if (err?.display_message || err?.error_message) setError(err.display_message || err.error_message);
+          setLoading(false);
+          onExit?.(err, metadata);
+        },
+      });
+      handler.open();
+    } catch (e) {
+      setError(e.message || "Failed to open Plaid Link");
       setLoading(false);
-      setConnected(true);
-      setAccounts(MOCK.accounts);
-      onSuccess && onSuccess("public-token-sandbox-demo");
-    }, 1500);
-  }, [linkToken, onSuccess, onExit]);
+    }
+  }, [accounts, ensurePlaidScript, linkToken, onExit, onSuccess]);
 
   const sync = useCallback(async () => {
     setSyncing(true);
     try {
-      // Real call: await plaidApi.sync()
-      await new Promise(r => setTimeout(r, 1200));
-      setAccounts(MOCK.accounts);
+      const data = await plaidApi.sync();
+      if (Array.isArray(data?.accounts)) setAccounts(data.accounts);
+      setLastSyncedAt(new Date());
+      setConnected(true);
+      setError(null);
+      return data;
+    } catch (e) {
+      setError(e.message || "Failed to sync accounts");
+      throw e;
     } finally { setSyncing(false); }
   }, []);
 
@@ -1879,9 +1919,10 @@ function usePlaidConnect({ onSuccess, onExit }) {
     setConnected(false);
     setLinkToken(null);
     setAccounts([]);
+    setLastSyncedAt(null);
   }, []);
 
-  return { linkToken, loading, error, connected, syncing, accounts, fetchLinkToken, open, sync, disconnect };
+  return { linkToken, loading, error, connected, syncing, accounts, lastSyncedAt, fetchLinkToken, open, sync, disconnect };
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
@@ -1893,7 +1934,7 @@ function SettingsPage({ addToast }) {
 
   const plaid = usePlaidConnect({
     onSuccess: async (publicToken) => {
-      // Real: await plaidApi.exchange(publicToken) then plaidApi.sync()
+      await plaidApi.exchange(publicToken);
       addToast && addToast("Bank connected successfully!", "success");
     },
     onExit: () => {},
@@ -2005,6 +2046,11 @@ function SettingsPage({ addToast }) {
                 <span style={{width:7,height:7,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>
                 <span style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Connected</span>
                 <span style={{fontSize:12,color:"var(--text3)"}}>· {plaid.accounts.length} accounts</span>
+                {plaid.lastSyncedAt && (
+                  <span style={{fontSize:12,color:"var(--text3)"}}>
+                    · Last synced {plaid.lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
               </div>
 
               {plaid.accounts.map(a => (
