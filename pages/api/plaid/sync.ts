@@ -30,6 +30,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   for (const item of items) {
     const accessToken = decryptPlaidToken(item.access_token)
     try {
+      const accessToken = decryptPlaidToken(item.access_token)
+
       // 2. Sync transactions (cursor-based, incremental)
       let cursor  = item.cursor ?? undefined
       let hasMore = true

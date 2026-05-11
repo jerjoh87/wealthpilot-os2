@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { encryptPlaidToken } from '../../../lib/plaid-crypto'
 import { z } from 'zod'
 import { encryptPlaidToken } from '../../../lib/crypto'
 

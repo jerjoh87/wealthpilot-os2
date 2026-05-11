@@ -52,6 +52,7 @@ const del    = (path)         => request(path, { method: 'DELETE' });
 export const auth = {
   signup: (email, password, name) => post('/auth/signup', { email, password, name }),
   login:  (email, password)       => post('/auth/login',  { email, password }),
+  logout: ()                      => post('/auth/logout', {}),
   me:     ()                      => get('/users/me'),
   logout: ()                      => post('/auth/logout', {}),
 };

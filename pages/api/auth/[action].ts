@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '../../../lib/supabase'
-import { ok, err, methodNotAllowed } from '../../../lib/api'
+import { ok, err, methodNotAllowed, getUser } from '../../../lib/api'
+import { supabaseAdmin } from '../../../lib/supabase'
 import { SignupSchema, LoginSchema } from '../../../lib/schemas'
 import { z } from 'zod'
 
