@@ -1322,7 +1322,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
 
   return (
     <div style={{display:"grid",gap:16,paddingBottom:8}}>
-      <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)"}}>
+      <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)",borderRadius:20,boxShadow:"0 14px 45px rgba(2,8,23,0.45)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div>
             <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
@@ -1331,7 +1331,8 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
         </div>
-        <div style={{marginTop:14,background:"rgba(8,10,14,0.7)",border:"1px solid var(--border2)",borderRadius:14,padding:"10px 12px"}}>
+        <div style={{marginTop:14,background:"rgba(8,10,14,0.7)",border:"1px solid var(--border2)",borderRadius:14,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14,opacity:.75}}>⌕</span>
           <input placeholder="Search anything..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:"var(--text)",fontSize:14,fontFamily:"inherit"}} />
         </div>
       </div>
@@ -1359,7 +1360,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
@@ -1394,7 +1395,11 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
             <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>{accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          {accounts.length === 0 ? (
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
+          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+        </div>
       </div>
 
       <div className="card mt-4" style={{borderRadius:18}}>
@@ -1429,6 +1434,13 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={5}>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
