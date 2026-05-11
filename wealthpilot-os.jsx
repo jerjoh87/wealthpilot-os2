@@ -91,6 +91,21 @@ const MOCK = {
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = (n, opts = {}) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, ...opts }).format(n);
 const fmtK = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : fmt(n);
+const ensureArray = (value, fallback = []) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.accounts)) return value.accounts;
+  if (Array.isArray(value?.items)) return value.items;
+  return fallback;
+};
+const pickCollection = (value, keys = [], fallback = []) => {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) {
+    if (Array.isArray(value?.[key])) return value[key];
+    if (Array.isArray(value?.data?.[key])) return value.data[key];
+  }
+  return ensureArray(value, fallback);
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -328,10 +343,11 @@ function useAccounts() {
     } finally { setSyncing(false); }
   }, []);
 
-  const totalCash  = accounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
-  const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
+  const safeAccounts = ensureArray(accounts, MOCK.accounts);
+  const totalCash  = safeAccounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
+  const creditDebt = safeAccounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
 
-  return { accounts, totalCash, creditDebt, syncing, lastSync, refresh };
+  return { accounts: safeAccounts, totalCash, creditDebt, syncing, lastSync, refresh };
 }
 
 // ─── ALERT ENGINE ─────────────────────────────────────────────────────────────
@@ -1312,11 +1328,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
 function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const safeAccounts = pickCollection(accounts, ["accounts"], []);
+  const safeBills = pickCollection(bills, ["bills"], []);
+  const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
+  const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
-  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
-  const upcomingBills = bills.filter(b => !b.paid);
-  const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
+  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const upcomingBills = safeBills.filter(b => !b.paid);
+  const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
@@ -1364,17 +1384,17 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
+            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
             <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
           </div>
           <div style={{marginTop:8}}>
-            {budget.slice(0,4).map(b => (
+            {safeBudget.slice(0,4).map(b => (
               <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
                 <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
@@ -1396,9 +1416,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.length === 0 ? (
+          {safeAccounts.length === 0 ? (
             <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1416,7 +1436,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 6).map(t => (
+              {safeTransactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1434,7 +1454,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {safeTransactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
                     <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
@@ -3998,15 +4018,15 @@ export default function WealthPilotOS() {
         const res = await fetch("/api/accounts");
         if (!res.ok) throw new Error("accounts unavailable");
         const payload = await res.json();
-        return payload?.data || [];
+        return ensureArray(payload?.data ?? payload, []);
       }, acct.accounts);
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
-      const bills = await safe(() => billsApi.list(), []);
-      const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(currentMonth, currentYear), []);
+      const bills = pickCollection(await safe(() => billsApi.list(), []), ["bills"], []);
+      const transactions = pickCollection(await safe(() => txApi.list(), []), ["transactions"], []);
+      const budgets = pickCollection(await safe(() => budgetsApi.list(currentMonth, currentYear), []), ["budgets", "budget"], []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
@@ -4016,7 +4036,14 @@ export default function WealthPilotOS() {
         return p || MOCK.portfolio;
       }, MOCK.portfolio);
       const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+      setLiveData({
+        accounts: ensureArray(accounts, acct.accounts),
+        bills,
+        transactions,
+        budgets,
+        portfolio,
+        creditScore
+      });
     };
     fetchData();
   }, [acct.accounts]);
