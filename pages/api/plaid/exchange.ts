@@ -4,6 +4,7 @@ import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { encryptPlaidToken } from '../../../lib/plaid-crypto'
 import { z } from 'zod'
+import { encryptPlaidToken } from '../../../lib/crypto'
 
 
 
