@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
-import { decryptPlaidToken } from '../../../lib/crypto'
+import { decryptPlaidToken } from '../../../lib/plaid-crypto'
 
 // POST /api/plaid/sync
 // Syncs all Plaid items for the user using the /transactions/sync endpoint.
@@ -25,10 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (itemsErr) return err(res, itemsErr.message)
   if (!items?.length) return ok(res, { synced: 0, message: 'No connected accounts' })
 
-  const results = { accounts: 0, added: 0, modified: 0, removed: 0 }
+  const results = { accounts: 0, added: 0, modified: 0, removed: 0, last_synced_at: new Date().toISOString() }
 
   for (const item of items) {
-    const accessToken = decryptPlaidToken(item.access_token)
     try {
       const accessToken = decryptPlaidToken(item.access_token)
 
@@ -123,5 +122,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  return ok(res, results)
+  const { data: accountRows } = await db
+    .from('accounts')
+    .select('id, name, type, balance, institution, last4, plaid_account_id')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+
+  return ok(res, { ...results, accounts: accountRows ?? [] })
 }
