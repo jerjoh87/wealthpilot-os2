@@ -91,6 +91,21 @@ const MOCK = {
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = (n, opts = {}) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, ...opts }).format(n);
 const fmtK = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : fmt(n);
+const ensureArray = (value, fallback = []) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.accounts)) return value.accounts;
+  if (Array.isArray(value?.items)) return value.items;
+  return fallback;
+};
+const pickCollection = (value, keys = [], fallback = []) => {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) {
+    if (Array.isArray(value?.[key])) return value[key];
+    if (Array.isArray(value?.data?.[key])) return value.data[key];
+  }
+  return ensureArray(value, fallback);
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -328,10 +343,11 @@ function useAccounts() {
     } finally { setSyncing(false); }
   }, []);
 
-  const totalCash  = accounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
-  const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
+  const safeAccounts = ensureArray(accounts, MOCK.accounts);
+  const totalCash  = safeAccounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
+  const creditDebt = safeAccounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
 
-  return { accounts, totalCash, creditDebt, syncing, lastSync, refresh };
+  return { accounts: safeAccounts, totalCash, creditDebt, syncing, lastSync, refresh };
 }
 
 // ─── ALERT ENGINE ─────────────────────────────────────────────────────────────
@@ -345,6 +361,11 @@ function useAccounts() {
 //               or use web-push when service worker is registered.
 
 function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, mode }) {
+  const safeAccounts = ensureArray(accounts, []);
+  const safeBills = ensureArray(bills, []);
+  const safeBudget = ensureArray(budget, []);
+  const safeTransactions = ensureArray(transactions, []);
+  const safeGoals = ensureArray(goals, []);
   // Mode-adjusted thresholds — Survival escalates everything, Wealth relaxes low-balance
   const T = {
     LOW_BALANCE_CRITICAL:    mode === "survival" ? 1000  : mode === "wealth" ? 200   : 500,
@@ -363,7 +384,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   const push   = (a) => alerts.push({ ...a, ts: now.toISOString(), dismissed: false });
 
   // 1. LOW BALANCE
-  accounts.filter(a => a.type === "checking").forEach(a => {
+  safeAccounts.filter(a => a.type === "checking").forEach(a => {
     if (a.balance < T.LOW_BALANCE_CRITICAL) {
       push({ id:`low-bal-crit-${a.id}`, type:"low_balance", severity:"critical",
         icon:"⚠️", title:`Critical: Low Balance — ${a.name}`,
@@ -376,7 +397,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 2. OVERSPENDING
-  budget.forEach(b => {
+  safeBudget.forEach(b => {
     const pct = b.spent / b.limit;
     if (pct >= T.OVERSPEND_CRITICAL) {
       push({ id:`overspend-crit-${b.category}`, type:"overspending", severity:"critical",
@@ -390,7 +411,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 3. LARGE TRANSACTION
-  transactions.filter(t => t.amount < 0).forEach(t => {
+  safeTransactions.filter(t => t.amount < 0).forEach(t => {
     const abs = Math.abs(t.amount);
     if (abs >= T.LARGE_TX_CRITICAL) {
       push({ id:`large-tx-crit-${t.id}`, type:"large_transaction", severity:"critical",
@@ -404,7 +425,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 4. UPCOMING BILL
-  bills.filter(b => !b.paid).forEach(b => {
+  safeBills.filter(b => !b.paid).forEach(b => {
     const dueDate = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
     if (dueDate < now) dueDate.setMonth(dueDate.getMonth() + 1);
     const daysUntil = Math.ceil((dueDate - now) / (1000*60*60*24));
@@ -416,7 +437,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   });
 
   // 5. SAVINGS GOAL BEHIND
-  goals.forEach(g => {
+  safeGoals.forEach(g => {
     if (g.current >= g.target) return;
     const pct = g.current / g.target;
     if (!g.deadline) return;
@@ -441,7 +462,7 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
         body:`Down ${Math.abs(portfolio.dayChangePct).toFixed(2)}% today (${fmt(Math.abs(portfolio.dayChange))}).` });
     }
   } else {
-    const totalCash = accounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
+    const totalCash = safeAccounts.filter(a=>a.type!=="credit").reduce((s,a)=>s+a.balance,0);
     if (totalCash > 5000 && mode !== "survival") {
       push({ id:"funding-readiness", type:"funding_readiness", severity:"info",
         icon:"📈", title:"Investing Opportunity",
@@ -450,8 +471,8 @@ function buildAlerts({ accounts, bills, budget, transactions, portfolio, goals, 
   }
 
   // 7. SUBSCRIPTION INCREASE
-  bills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
-    const recentTx = transactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
+  safeBills.filter(b => b.category === "Entertainment" || b.autopay).forEach(b => {
+    const recentTx = safeTransactions.find(t => t.name.toLowerCase().includes(b.name.toLowerCase()) && t.amount < 0);
     if (recentTx && Math.abs(recentTx.amount) > b.amount * 1.05) {
       push({ id:`sub-increase-${b.id}`, type:"subscription_increase", severity:"info",
         icon:"🔔", title:`Price Increase: ${b.name}`,
@@ -1312,11 +1333,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
 function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+  const safeAccounts = pickCollection(accounts, ["accounts"], []);
+  const safeBills = pickCollection(bills, ["bills"], []);
+  const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
+  const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
-  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
-  const upcomingBills = bills.filter(b => !b.paid);
-  const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
+  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const upcomingBills = safeBills.filter(b => !b.paid);
+  const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
 
@@ -1364,17 +1389,17 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(budget.length ? budget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
+            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
             <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
           </div>
           <div style={{marginTop:8}}>
-            {budget.slice(0,4).map(b => (
+            {safeBudget.slice(0,4).map(b => (
               <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
                 <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
@@ -1396,9 +1421,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {accounts.length === 0 ? (
+          {safeAccounts.length === 0 ? (
             <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1416,7 +1441,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 6).map(t => (
+              {safeTransactions.slice(0, 6).map(t => (
                 <tr key={t.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -1434,7 +1459,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {safeTransactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
                     <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
@@ -1538,9 +1563,10 @@ function BudgetPage({ modeConfig, budgets = [] }) {
 }
 
 function TransactionsPage({ transactions = [] }) {
+  const safeTransactions = ensureArray(transactions, []);
   const [filter, setFilter] = useState("All");
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
-  const filtered = filter === "All" ? transactions : transactions.filter(t => t.category === filter);
+  const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
   return (
     <div>
@@ -1600,18 +1626,19 @@ function TransactionsPage({ transactions = [] }) {
 
 function BillsPage() {
   const [bills, setBills] = useState([]);
-  const unpaid = bills.filter(b => !b.paid);
-  const paid = bills.filter(b => b.paid);
+  const safeBills = ensureArray(bills, []);
+  const unpaid = safeBills.filter(b => !b.paid);
+  const paid = safeBills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
   const totalPaid = paid.reduce((s, b) => s + b.amount, 0);
 
   // Load from API on mount; fallback to MOCK if backend not connected
   useEffect(() => {
-    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => {});
+    billsApi.list().then(data => { if (data) setBills(ensureArray(data, [])); }).catch(() => {});
   }, []);
 
   const toggle = async (id) => {
-    const bill = bills.find(b => b.id === id);
+    const bill = safeBills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
     try { await billsApi.update(id, { paid: updated.paid }); } catch { /* noop */ }
@@ -1632,8 +1659,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {bills.length} total bills</div>
+          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {safeBills.length} total bills</div>
         </div>
       </div>
 
@@ -3998,15 +4025,15 @@ export default function WealthPilotOS() {
         const res = await fetch("/api/accounts");
         if (!res.ok) throw new Error("accounts unavailable");
         const payload = await res.json();
-        return payload?.data || [];
+        return ensureArray(payload?.data ?? payload, []);
       }, acct.accounts);
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
-      const bills = await safe(() => billsApi.list(), []);
-      const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(currentMonth, currentYear), []);
+      const bills = pickCollection(await safe(() => billsApi.list(), []), ["bills"], []);
+      const transactions = pickCollection(await safe(() => txApi.list(), []), ["transactions"], []);
+      const budgets = pickCollection(await safe(() => budgetsApi.list(currentMonth, currentYear), []), ["budgets", "budget"], []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
@@ -4016,7 +4043,14 @@ export default function WealthPilotOS() {
         return p || MOCK.portfolio;
       }, MOCK.portfolio);
       const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
+      setLiveData({
+        accounts: ensureArray(accounts, acct.accounts),
+        bills,
+        transactions,
+        budgets,
+        portfolio,
+        creditScore
+      });
     };
     fetchData();
   }, [acct.accounts]);
