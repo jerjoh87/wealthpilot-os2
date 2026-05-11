@@ -5,9 +5,8 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi } from './api-client';
 //
-// Live API client enabled.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
@@ -142,19 +141,24 @@ function useAuth() {
   const login = useCallback(async (email, password) => {
     const data = await authApi.login(email, password);
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
-    setUser(data?.user || MOCK.user);   // fallback to mock when backend not wired
+    setUser(data?.user || false);
   }, []);
 
   const signup = useCallback(async (email, password, name) => {
     const data = await authApi.signup(email, password, name);
     if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
-    setUser(data?.user || MOCK.user);
+    setUser(data?.user || false);
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem('wp_token');
-    setUser(false);
+    try {
+      if (typeof authApi.logout === "function") await authApi.logout();
+    } catch (_) {
+      // ignore API logout errors; local token cleanup below is source of truth for now
+    } finally {
+      localStorage.removeItem('wp_token');
+      setUser(false);
+    }
   }, []);
 
   return { user, loading, login, signup, logout };
@@ -176,8 +180,6 @@ function AuthGate({ onAuth }) {
     try {
       await onAuth(mode, email, password, name);
     } catch (e) {
-      // Backend not connected — bypass with mock user so UI stays usable
-      if (e.message === "Backend not connected") { onAuth("mock"); return; }
       setError(e.message || "Something went wrong.");
     } finally { setBusy(false); }
   };
@@ -285,7 +287,7 @@ function AuthGate({ onAuth }) {
 
         <div style={{marginTop:20,padding:"10px 12px",background:"rgba(79,142,247,0.08)",borderRadius:8,border:"1px solid rgba(79,142,247,0.15)"}}>
           <div style={{fontSize:11,color:"var(--accent)",fontWeight:600,marginBottom:3}}>ℹ DEMO MODE</div>
-          <div style={{fontSize:11,color:"var(--text2)"}}>Backend not required — click Sign In with any input to explore with mock data.</div>
+          <div style={{fontSize:11,color:"var(--text2)"}}>Sign in with a valid account to continue.</div>
         </div>
       </div>
     </div>
@@ -4087,7 +4089,6 @@ export default function WealthPilotOS() {
 
   // Auth handler for AuthGate
   const handleAuth = async (mode, email, password, name) => {
-    if (mode === "mock") return;   // demo bypass — useAuth will use MOCK.user fallback
     if (mode === "login")  await login(email, password);
     if (mode === "signup") await signup(email, password, name);
   };

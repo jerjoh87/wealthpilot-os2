@@ -22,9 +22,23 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Request failed');
-  return json.data;
+  const text = await res.text();
+  let payload = null;
+
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error(`Expected JSON response but received: ${text.slice(0, 200) || 'empty body'}`);
+    }
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid API response format: missing JSON object payload');
+  }
+
+  if (!res.ok) throw new Error(payload.error || `Request failed with status ${res.status}`);
+  return payload.data;
 }
 
 const get    = (path)         => request(path);
@@ -36,6 +50,7 @@ const del    = (path)         => request(path, { method: 'DELETE' });
 export const auth = {
   signup: (email, password, name) => post('/auth/signup', { email, password, name }),
   login:  (email, password)       => post('/auth/login',  { email, password }),
+  logout: ()                      => post('/auth/logout', {}),
   me:     ()                      => get('/users/me'),
 };
 
