@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { decryptPlaidToken } from '../../../lib/crypto'
 
 // POST /api/plaid/sync
 // Syncs all Plaid items for the user using the /transactions/sync endpoint.
@@ -27,6 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const results = { accounts: 0, added: 0, modified: 0, removed: 0 }
 
   for (const item of items) {
+    const accessToken = decryptPlaidToken(item.access_token)
     try {
       // 2. Sync transactions (cursor-based, incremental)
       let cursor  = item.cursor ?? undefined
@@ -37,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       while (hasMore) {
         const txRes = await plaidClient.transactionsSync({
-          access_token: item.access_token,
+          access_token: accessToken,
           ...(cursor ? { cursor } : {}),
         })
         added.push(...txRes.data.added)
@@ -86,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // 6. Refresh account balances
-      const accRes = await plaidClient.accountsGet({ access_token: item.access_token })
+      const accRes = await plaidClient.accountsGet({ access_token: accessToken })
       for (const a of accRes.data.accounts) {
         await db.from('accounts')
           .update({ balance: a.balances.current ?? 0 })
