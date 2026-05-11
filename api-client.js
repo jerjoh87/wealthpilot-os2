@@ -29,15 +29,15 @@ async function request(path, options = {}) {
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new Error(`Expected JSON response but received: ${text.slice(0, 200) || 'empty body'}`);
+      throw new Error('Unexpected server response. Please try again.');
     }
   }
 
   if (!payload || typeof payload !== 'object') {
-    throw new Error('Invalid API response format: missing JSON object payload');
+    throw new Error('Invalid server response. Please try again.');
   }
 
-  if (!res.ok) throw new Error(payload.error || `Request failed with status ${res.status}`);
+  if (!res.ok) throw new Error('Request failed. Please try again.');
   return payload.data;
 }
 
