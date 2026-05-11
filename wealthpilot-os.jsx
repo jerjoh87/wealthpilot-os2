@@ -91,6 +91,13 @@ const MOCK = {
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = (n, opts = {}) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, ...opts }).format(n);
 const fmtK = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : fmt(n);
+const ensureArray = (value, fallback = []) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.accounts)) return value.accounts;
+  if (Array.isArray(value?.items)) return value.items;
+  return fallback;
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -367,10 +374,11 @@ function useAccounts() {
     } finally { setSyncing(false); }
   }, []);
 
-  const totalCash  = accounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
-  const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
+  const safeAccounts = ensureArray(accounts, MOCK.accounts);
+  const totalCash  = safeAccounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
+  const creditDebt = safeAccounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
 
-  return { accounts, totalCash, creditDebt, syncing, lastSync, refresh };
+  return { accounts: safeAccounts, totalCash, creditDebt, syncing, lastSync, refresh };
 }
 
 // ─── ALERT ENGINE ─────────────────────────────────────────────────────────────
@@ -4076,11 +4084,15 @@ export default function WealthPilotOS() {
         const res = await fetch("/api/accounts");
         if (!res.ok) throw new Error("accounts unavailable");
         const payload = await res.json();
-        return payload?.data || [];
+        return ensureArray(payload?.data ?? payload, []);
       }, acct.accounts);
-      const bills = await safe(() => billsApi.list(), []);
-      const transactions = await safe(() => txApi.list(), []);
-      const budgets = await safe(() => budgetsApi.list(), []);
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const bills = ensureArray(await safe(() => billsApi.list(), []), []);
+      const transactions = ensureArray(await safe(() => txApi.list(), []), []);
+      const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
       const portfolio = await safe(async () => {
         const p = await portfolioApi.list();
         if (Array.isArray(p)) {
@@ -4090,9 +4102,14 @@ export default function WealthPilotOS() {
         return p || MOCK.portfolio;
       }, MOCK.portfolio);
       const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({ accounts, bills, transactions, budgets, portfolio, creditScore });
-      if (!accounts.length && !bills.length && !transactions.length && !budgets.length) setLiveDataError(FRIENDLY_ERRORS.dashboard);
-      setLiveDataLoading(false);
+      setLiveData({
+        accounts: ensureArray(accounts, acct.accounts),
+        bills,
+        transactions,
+        budgets,
+        portfolio,
+        creditScore
+      });
     };
     fetchData();
   }, [acct.accounts]);
