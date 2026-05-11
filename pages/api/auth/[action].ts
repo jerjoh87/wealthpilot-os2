@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '../../../lib/supabase'
-import { ok, err, methodNotAllowed } from '../../../lib/api'
+import { ok, err, methodNotAllowed, getUser } from '../../../lib/api'
+import { supabaseAdmin } from '../../../lib/supabase'
 import { SignupSchema, LoginSchema } from '../../../lib/schemas'
 
 // POST /api/auth/signup
@@ -33,9 +34,26 @@ export async function login(req: NextApiRequest, res: NextApiResponse) {
   return ok(res, { user: data.user, session: data.session })
 }
 
+// POST /api/auth/logout
+export async function logout(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
+
+  const token = req.headers.authorization?.replace('Bearer ', '').trim()
+  if (token) {
+    const user = await getUser(req)
+    if (!user) return err(res, 'Unauthorized', 401)
+
+    const { error } = await supabaseAdmin().auth.admin.signOut(token)
+    if (error) return err(res, error.message)
+  }
+
+  return ok(res, { success: true })
+}
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const { action } = req.query
   if (action === 'signup') return signup(req, res)
   if (action === 'login')  return login(req, res)
+  if (action === 'logout') return logout(req, res)
   return err(res, 'Not found', 404)
 }

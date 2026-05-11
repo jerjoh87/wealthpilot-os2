@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { plaidClient } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { encryptPlaidToken } from '../../../lib/plaid-crypto'
 import { z } from 'zod'
 
 const Schema = z.object({ public_token: z.string().min(1) })
@@ -28,9 +29,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
     const { access_token, item_id } = exchangeRes.data
 
-    // 2. Store the item (access_token encrypted at rest by Supabase/Postgres)
+    // 2. Encrypt and store the access token
+    const encryptedAccessToken = encryptPlaidToken(access_token)
     await db.from('plaid_items').upsert(
-      { user_id: user.id, item_id, access_token, status: 'active' },
+      { user_id: user.id, item_id, access_token: encryptedAccessToken, status: 'active' },
       { onConflict: 'item_id' }
     )
 

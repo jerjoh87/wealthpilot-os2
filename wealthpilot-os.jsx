@@ -153,9 +153,15 @@ function useAuth() {
     setUser(data?.user || MOCK.user);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('wp_token');
-    setUser(false);
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch (_) {
+      // Always clear local token even when remote logout fails
+    } finally {
+      localStorage.removeItem('wp_token');
+      setUser(false);
+    }
   }, []);
 
   return { user, loading, login, signup, logout };
