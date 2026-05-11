@@ -58,7 +58,9 @@ export async function logout(req: NextApiRequest, res: NextApiResponse) {
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { action } = req.query
+  const rawAction = req.query.action
+  const action = Array.isArray(rawAction) ? rawAction[0] : rawAction
+
   if (action === 'signup') return signup(req, res)
   if (action === 'login')  return login(req, res)
   if (action === 'logout') return logout(req, res)
