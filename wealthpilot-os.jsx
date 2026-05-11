@@ -11,11 +11,11 @@ import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiA
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK = {
-  user: { name: "Alex Chen", email: "alex@example.com", plan: "Pro" },
+  user: { name: "WealthPilot User", email: "", plan: "Pro" },
   accounts: [
-    { id: 1, name: "Chase Checking", type: "checking", balance: 8420.55, institution: "Chase", last4: "4821", connected: true },
-    { id: 2, name: "Chase Savings", type: "savings", balance: 22100.00, institution: "Chase", last4: "9932", connected: true },
-    { id: 3, name: "Apple Card", type: "credit", balance: -1240.80, institution: "Apple", last4: "3301", connected: true },
+    { id: 1, name: "Checking Account", type: "checking", balance: 8420.55, institution: "Chase", last4: "4821", connected: true },
+    { id: 2, name: "Savings Account", type: "savings", balance: 22100.00, institution: "Chase", last4: "9932", connected: true },
+    { id: 3, name: "Credit Card", type: "credit", balance: -1240.80, institution: "Apple", last4: "3301", connected: true },
   ],
   income: 7200,
   spending: 4318.42,
@@ -48,18 +48,18 @@ const MOCK = {
     { id: 7, name: "Gym", amount: 45, dueDay: 28, category: "Health", paid: false, autopay: true },
   ],
   transactions: [
-    { id: 1, name: "Whole Foods Market", amount: -89.43, date: "2026-05-08", category: "Groceries", account: "Chase Checking" },
-    { id: 2, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-07", category: "Income", account: "Chase Checking" },
-    { id: 3, name: "Uber Eats", amount: -34.20, date: "2026-05-07", category: "Dining", account: "Apple Card" },
-    { id: 4, name: "Shell Gas Station", amount: -58.10, date: "2026-05-06", category: "Transport", account: "Chase Checking" },
-    { id: 5, name: "Amazon", amount: -127.99, date: "2026-05-05", category: "Shopping", account: "Apple Card" },
-    { id: 6, name: "Starbucks", amount: -7.85, date: "2026-05-05", category: "Dining", account: "Apple Card" },
-    { id: 7, name: "Target", amount: -62.40, date: "2026-05-04", category: "Shopping", account: "Chase Checking" },
-    { id: 8, name: "Planet Fitness", amount: -25.00, date: "2026-05-03", category: "Health", account: "Apple Card" },
-    { id: 9, name: "Netflix", amount: -15.99, date: "2026-05-02", category: "Entertainment", account: "Apple Card" },
-    { id: 10, name: "Chipotle", amount: -13.50, date: "2026-05-02", category: "Dining", account: "Apple Card" },
-    { id: 11, name: "CVS Pharmacy", amount: -28.75, date: "2026-05-01", category: "Health", account: "Chase Checking" },
-    { id: 12, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-01", category: "Income", account: "Chase Checking" },
+    { id: 1, name: "Whole Foods Market", amount: -89.43, date: "2026-05-08", category: "Groceries", account: "Checking Account" },
+    { id: 2, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-07", category: "Income", account: "Checking Account" },
+    { id: 3, name: "Uber Eats", amount: -34.20, date: "2026-05-07", category: "Dining", account: "Credit Card" },
+    { id: 4, name: "Shell Gas Station", amount: -58.10, date: "2026-05-06", category: "Transport", account: "Checking Account" },
+    { id: 5, name: "Amazon", amount: -127.99, date: "2026-05-05", category: "Shopping", account: "Credit Card" },
+    { id: 6, name: "Starbucks", amount: -7.85, date: "2026-05-05", category: "Dining", account: "Credit Card" },
+    { id: 7, name: "Target", amount: -62.40, date: "2026-05-04", category: "Shopping", account: "Checking Account" },
+    { id: 8, name: "Planet Fitness", amount: -25.00, date: "2026-05-03", category: "Health", account: "Credit Card" },
+    { id: 9, name: "Netflix", amount: -15.99, date: "2026-05-02", category: "Entertainment", account: "Credit Card" },
+    { id: 10, name: "Chipotle", amount: -13.50, date: "2026-05-02", category: "Dining", account: "Credit Card" },
+    { id: 11, name: "CVS Pharmacy", amount: -28.75, date: "2026-05-01", category: "Health", account: "Checking Account" },
+    { id: 12, name: "Direct Deposit - Employer", amount: 3600.00, date: "2026-05-01", category: "Income", account: "Checking Account" },
   ],
   budget: [
     { category: "Housing", limit: 1900, spent: 1850, color: "#6366f1" },
@@ -241,7 +241,7 @@ function AuthGate({ onAuth }) {
             <label style={{fontSize:11,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Name</label>
             <input value={name} onChange={e=>setName(e.target.value)}
               style={{width:"100%",background:"var(--bg3)",border:"1px solid var(--border2)",color:"var(--text)",borderRadius:10,padding:"9px 12px",fontSize:14,outline:"none",fontFamily:"inherit"}}
-              placeholder="Alex Chen" />
+              placeholder="Your full name" />
           </div>
         )}
 
@@ -1313,8 +1313,8 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
-  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const spending = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const upcomingBills = bills.filter(b => !b.paid);
   const totalSpent = budget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
@@ -1326,7 +1326,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div>
             <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
-            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Good morning, Kenny!</div>
+            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Welcome back.</div>
             <div style={{fontSize:13,color:"var(--text2)",marginTop:6}}>AI is monitoring your cash flow, portfolio risk, and upcoming obligations in real time.</div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
@@ -1374,13 +1374,13 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                 <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
               </div>
             ))}
-            {budget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {budget.length===0 && <div className="text-sm text-muted">Create your first budget</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">✅</div><p className="text-sm">No upcoming bills</p></div>}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div>}
         </div>
       </div>
 
@@ -1397,7 +1397,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
           {accounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">Connect your bank to get started</p></div>
           ) : accounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
@@ -1437,7 +1437,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
               {transactions.length === 0 && (
                 <tr>
                   <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No recent transactions.</p></div>
+                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet</p></div>
                   </td>
                 </tr>
               )}
@@ -1643,7 +1643,7 @@ function BillsPage() {
             <div className="section-title">Upcoming Bills</div>
             <button className="btn btn-primary btn-sm">+ Add Bill</button>
           </div>
-          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No upcoming bills.</p></div> : unpaid.map(b => (
+          {unpaid.length === 0 ? <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
               <div className="bill-info">
@@ -1704,7 +1704,7 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           <div className="card-value" style={{fontSize:32}}>{fmt(totalValue)}</div>
           <span className="change-badge pos">↑ {fmt(dayChange)} (+{dayChangePct}%)</span>
         </div>
-        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Demo data only — connect your account for live data"}</div>
+        <div className="text-xs text-muted" style={{marginTop:4}}>{connected ? "Live portfolio data" : "Preview data — Connect your account for live data"}</div>
       </div>
 
       <div className="card">
@@ -1885,7 +1885,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast }) {
+function SettingsPage({ addToast, user }) {
   const [toggles, setToggles] = useState({
     notifications: true, autopay: true, weeklyReport: true, twoFactor: false,
   });
@@ -1919,8 +1919,8 @@ function SettingsPage({ addToast }) {
         <div className="card settings-section">
           <h3>Profile</h3>
           {[
-            { label: "Full Name",          value: MOCK.user.name },
-            { label: "Email",              value: MOCK.user.email },
+            { label: "Full Name",          value: user?.user_metadata?.name || user?.name || "WealthPilot User" },
+            { label: "Email",              value: user?.email || "—" },
             { label: "Subscription Plan",  value: MOCK.user.plan },
           ].map(r => (
             <div key={r.label} className="setting-row">
@@ -2561,12 +2561,7 @@ function CalendarPage({ addToast }) {
 
 // ─── STUB PAGES ───────────────────────────────────────────────────────────────
 // ─── CREDIT SCORE PAGE ────────────────────────────────────────────────────────
-const SCORE_HISTORY = [
-  { score:682, date:"2025-11-01" }, { score:690, date:"2025-12-01" },
-  { score:695, date:"2026-01-01" }, { score:701, date:"2026-02-01" },
-  { score:698, date:"2026-03-01" }, { score:712, date:"2026-04-01" },
-  { score:724, date:"2026-05-01" },
-];
+const SCORE_HISTORY = [];
 
 const SCORE_BANDS = [
   { label:"Poor",      min:300, max:579,  color:"#f43f5e" },
@@ -2654,14 +2649,15 @@ function ScoreLineChart({ history }) {
 function CreditScorePage({ addToast, initialScore }) {
   const [history, setHistory] = useState(() => {
     if (initialScore?.score) return [...SCORE_HISTORY.slice(0, -1), { score: initialScore.score, date: toISO(new Date()), provider: initialScore.provider || "api" }];
-    return SCORE_HISTORY;
+    return [];
   });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
-  const latest  = history[history.length - 1];
-  const prev    = history[history.length - 2];
-  const trend   = latest.score - prev.score;
-  const color   = scoreColor(latest.score);
+  const hasHistory = history.length > 0;
+  const latest  = hasHistory ? history[history.length - 1] : null;
+  const prev    = history.length > 1 ? history[history.length - 2] : null;
+  const trend   = hasHistory && prev ? latest.score - prev.score : 0;
+  const color   = hasHistory ? scoreColor(latest.score) : "#8892a4";
 
   const submit = async () => {
     const s = parseInt(form.score);
@@ -2689,14 +2685,12 @@ function CreditScorePage({ addToast, initialScore }) {
         {/* Gauge card */}
         <div className="card" style={{textAlign:"center",minWidth:200}}>
           <div className="card-title" style={{textAlign:"left"}}>Credit Score</div>
-          <ScoreGauge score={latest.score} />
+          {hasHistory ? <ScoreGauge score={latest.score} /> : <div className="empty-state"><div className="icon">⭐</div><p className="text-sm">Log your first credit score</p></div>}
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--text3)",marginTop:4,padding:"0 4px"}}>
             <span>300</span><span>850</span>
           </div>
           <div style={{marginTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            <span className={`change-badge ${trend>=0?"pos":"neg"}`}>
-              {trend>=0?"↑":"↓"} {Math.abs(trend)} pts vs last month
-            </span>
+            {hasHistory && prev ? <span className={`change-badge ${trend>=0?"pos":"neg"}`}>{trend>=0?"↑":"↓"} {Math.abs(trend)} pts vs last month</span> : <span className="badge badge-gray">No score history yet</span>}
           </div>
           <button className="btn btn-primary" style={{width:"100%",marginTop:14,justifyContent:"center"}}
             onClick={()=>setShowForm(s=>!s)}>
@@ -2735,7 +2729,7 @@ function CreditScorePage({ addToast, initialScore }) {
               <span style={{fontSize:11,color:"var(--text3)"}}>Last {history.length} months</span>
             </div>
             <div style={{padding:"4px 0 8px"}}>
-              <ScoreLineChart history={history} />
+              {hasHistory ? <ScoreLineChart history={history} /> : <div className="empty-state"><div className="icon">📈</div><p className="text-sm">Log your first credit score</p></div>}
             </div>
             {/* X-axis labels */}
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
@@ -3987,7 +3981,7 @@ export default function WealthPilotOS() {
     bills: [],
     transactions: [],
     budgets: [],
-    portfolio: MOCK.portfolio,
+    portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
   });
 
@@ -4064,7 +4058,7 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} />;
       default:             return <Dashboard setPage={showPage} />;
     }
   };
@@ -4120,7 +4114,7 @@ export default function WealthPilotOS() {
           <div className="sidebar-bottom">
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
-              <span style={{fontSize:13,fontWeight:500}}>{user?.name || MOCK.user.name}</span>
+              <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
             </div>
             <div className="plan-badge">✦ Pro Plan</div>
             <div className="nav-item" style={{marginTop:4,color:"var(--red)"}} onClick={logout}>
