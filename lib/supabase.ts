@@ -1,39 +1,38 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.VITE_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  ''
+function normalizeSupabaseUrl(url: string) {
+  const trimmed = url.trim()
+  if (!trimmed) return ''
 
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.VITE_SUPABASE_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_KEY ||
-  ''
+  try {
+    const parsed = new URL(trimmed)
+    // Supabase client expects project base URL (https://<project>.supabase.co),
+    // not endpoint paths like /auth/v1 or /rest/v1.
+    return parsed.origin
+  } catch {
+    return trimmed.replace(/\/$/, '')
+  }
+}
 
-const supabaseServiceRoleKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SERVICE_KEY ||
-  ''
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl)
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-// Browser/public Supabase client.
-// This keeps compatibility with files that import: { supabase }
+if (!supabaseUrl) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL')
+if (!supabaseAnonKey) throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY')
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Same browser client, but as a function for newer code.
 export function supabaseBrowser() {
   return supabase
 }
 
-// Admin/server Supabase client.
-// Used inside API routes.
 export function supabaseAdmin() {
+  if (!supabaseServiceRoleKey) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
+  }
+
   return createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,

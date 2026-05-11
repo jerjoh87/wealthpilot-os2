@@ -15,6 +15,7 @@ create table public.accounts (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.users(id) on delete cascade,
   plaid_item_id text,
+  plaid_account_id text,
   name          text not null,
   type          text not null,   -- checking | savings | credit
   balance       numeric not null default 0,
@@ -161,8 +162,9 @@ alter table public.plaid_items enable row level security;
 create policy "owner" on public.plaid_items for all using (user_id = auth.uid());
 
 -- accounts: add unique constraint for plaid upsert (user_id + plaid_item_id)
-alter table public.accounts add constraint accounts_user_item_unique unique (user_id, plaid_item_id);
+alter table public.accounts add constraint accounts_user_plaid_account_unique unique (user_id, plaid_account_id);
 
+-- TODO(PROD): plaid_items.access_token is plaintext text currently. Encrypt at rest before production using PLAID_TOKEN_ENCRYPTION_KEY + KMS/Vault.
 -- Recommended: encrypt access_token column using pgcrypto or Vault
 -- alter table public.plaid_items alter column access_token set data type bytea
 --   using pgp_sym_encrypt(access_token, current_setting('app.encryption_key'))::bytea;
