@@ -1649,7 +1649,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
-            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
+            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -2795,7 +2795,8 @@ function CreditScorePage({ addToast, initialScore }) {
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
   const trend   = hasHistory && prev ? latest.score - prev.score : 0;
-  const color   = hasHistory ? scoreColor(latest.score) : "#8892a4";
+  const latestScore = hasHistory ? latest.score : null;
+  const color   = hasHistory ? scoreColor(latestScore) : "#8892a4";
 
   const submit = async () => {
     const s = parseInt(form.score);
@@ -2885,8 +2886,8 @@ function CreditScorePage({ addToast, initialScore }) {
           <div className="card" style={{padding:14}}>
             <div className="section-title" style={{marginBottom:10}}>Score Ranges</div>
             {SCORE_BANDS.map(b=>{
-              const active = latest.score >= b.min && latest.score <= b.max;
-              const pct = Math.min(100, Math.max(0, (latest.score - b.min) / (b.max - b.min) * 100));
+              const active = latestScore !== null && latestScore >= b.min && latestScore <= b.max;
+              const pct = latestScore === null ? 0 : Math.min(100, Math.max(0, (latestScore - b.min) / (b.max - b.min) * 100));
               return (
                 <div key={b.label} style={{marginBottom:8,
                   padding: active?"8px 10px":"4px 10px",
@@ -3687,7 +3688,7 @@ function ReportsPage() {
                   </tr>
                 );
               })}
-            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
+            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
             </tbody>
           </table>
         </div>
