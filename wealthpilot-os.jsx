@@ -238,6 +238,8 @@ function useAuth() {
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
+const AUTH_DISABLED_MESSAGE = "Login is temporarily disabled while we stabilize the dashboard. Please try again soon.";
+
 function AuthGate({ onAuth }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
   const [email, setEmail]     = useState("");
@@ -247,14 +249,8 @@ function AuthGate({ onAuth }) {
   const [busy, setBusy]       = useState(false);
 
   const submit = async () => {
-    if (!email || !password) return setError("Email and password required.");
-    if (mode === "signup" && !name) return setError("Name required.");
-    setError(""); setBusy(true);
-    try {
-      await onAuth(mode, email, password, name);
-    } catch (e) {
-      setError(FRIENDLY_ERRORS.auth);
-    } finally { setBusy(false); }
+    setError(AUTH_DISABLED_MESSAGE);
+    return;
   };
 
   return (
@@ -296,6 +292,9 @@ function AuthGate({ onAuth }) {
         </div>
         <div style={{fontSize:13,color:"var(--text2)",marginBottom:24}}>
           {mode === "login" ? "Sign in to your account" : "Start managing your finances"}
+        </div>
+        <div style={{fontSize:12,color:"#fbbf24",marginBottom:16,border:"1px solid rgba(251,191,36,0.35)",background:"rgba(251,191,36,0.08)",borderRadius:10,padding:"10px 12px"}}>
+          {AUTH_DISABLED_MESSAGE}
         </div>
 
         {mode === "signup" && (
