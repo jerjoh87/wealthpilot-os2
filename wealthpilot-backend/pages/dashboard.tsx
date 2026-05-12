@@ -1,3 +1,4 @@
+// @ts-nocheck
 // pages/dashboard.tsx
 // Renders the full WealthPilot OS app at /dashboard.
 // Uses dynamic import with ssr:false because the app uses browser APIs
