@@ -1388,14 +1388,14 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [] }) {
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
   const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const manualMonthlyIncome = manualIncomeEntries.reduce((sum, i) => sum + incomeToMonthly(i), 0);
+  const manualMonthlyIncome = (manualIncomeEntries || []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
   const income = bankIncome + manualMonthlyIncome || MOCK.income;
   const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
   const upcomingBills = safeBills.filter(b => !b.paid);
@@ -4249,9 +4249,14 @@ export default function WealthPilotOS() {
 
   useEffect(() => {
     try {
-      setManualIncomeEntries(JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]'));
-      setManualAccounts(JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]'));
-    } catch {}
+      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]');
+      const savedAccounts = JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]');
+      setManualIncomeEntries(Array.isArray(savedIncome) ? savedIncome : []);
+      setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
+    } catch {
+      setManualIncomeEntries([]);
+      setManualAccounts([]);
+    }
   }, []);
 
   useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
@@ -4330,7 +4335,7 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
@@ -4344,7 +4349,7 @@ export default function WealthPilotOS() {
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
-      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
     }
   };
 
