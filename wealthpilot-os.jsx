@@ -1371,7 +1371,7 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null }) {
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
@@ -1388,59 +1388,49 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
 
   return (
-    <div style={{display:"grid",gap:16,paddingBottom:8}}>
-      <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)",borderRadius:20,boxShadow:"0 14px 45px rgba(2,8,23,0.45)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-          <div>
-            <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
-            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Welcome back.</div>
-            <div style={{fontSize:13,color:"var(--text2)",marginTop:6}}>AI is monitoring your cash flow, portfolio risk, and upcoming obligations in real time.</div>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
-        </div>
-        <div style={{marginTop:14,background:"rgba(8,10,14,0.7)",border:"1px solid var(--border2)",borderRadius:14,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:14,opacity:.75}}>⌕</span>
-          <input placeholder="Search anything..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:"var(--text)",fontSize:14,fontFamily:"inherit"}} />
-        </div>
-      </div>
-
-      <div className="card" style={{padding:16,background:"linear-gradient(135deg, rgba(16,185,129,0.1), rgba(79,142,247,0.06))",borderRadius:18}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <div><div className="card-title">AI Insight</div><div style={{fontSize:13,color:"var(--text2)"}}>Spending signal detected</div></div>
-          <span className="badge badge-blue">Actionable</span>
-        </div>
-        <div style={{marginTop:10,fontSize:14,lineHeight:1.5}}>Dining spend is trending <b style={{color:"#fbbf24"}}>18% above</b> your 30-day baseline. Move $120 from Shopping to Dining to stay on plan and keep safe-to-spend above target.</div>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
+    <div style={{display:"grid",gap:14,paddingBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
-          <div className="card-title">Net Worth</div><div className="card-value" style={{fontSize:30}}>{fmtK(netWorth)}</div>
-          <div className="change-badge pos">↑ {fmt(portfolio?.dayChange || 0)} today</div>
+          <div className="card-title">Total Cash</div><div className="card-value" style={{fontSize:34}}>{fmtK(totalCash)}</div>
+          <div className="card-sub">Linked cash accounts</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(163,230,53,0.08), rgba(16,185,129,0.04))"}}>
-          <div className="card-title">Cash Flow</div><div className="card-value">{fmtK(income - spending)}</div>
-          <div className="card-sub">Income {fmtK(income)} · Spend {fmtK(spending)} ({spendPct}% of income)</div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
+          <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
+          <div className="card-sub">Cash inflow this cycle</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03))"}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
+          <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
+          <div className="card-sub">{spendPct}% of income</div>
+        </div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.03))"}}>
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
-          <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
-            <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
+      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
+            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
           </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          {safeAccounts.length === 0 ? (
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
+        <div className="card" style={{padding:18,borderRadius:18}}>
+          <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
-            {safeBudget.slice(0,4).map(b => (
-              <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
-                <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
-                <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
-              </div>
-            ))}
+            {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
             {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
@@ -1452,11 +1442,6 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(79,142,247,0.1), rgba(79,142,247,0.02))"}}>
-          <div className="card-title">Bank Sync / Plaid</div>
-          <div className="card-sub">{syncing ? "Connection syncing..." : "All linked institutions healthy"}</div>
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "Sync Now"}</button>
-        </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
           <div className="card-title">Webull / Portfolio</div>
           <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
@@ -1472,28 +1457,6 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           <div className="card-value">{upcomingBills.length}</div>
           <div className="card-sub">{fmt(billRunway)} due this cycle</div>
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
-        </div>
-      </div>
-
-      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
-          <div className="text-sm text-muted">{portfolio?.connected ? `Portfolio preview: ${portfolio.holdings?.length || 0} holdings` : "Portfolio preview/demo only"}</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
-            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
-          </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {safeAccounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1548,10 +1511,8 @@ function BudgetPage({ modeConfig, budgets = [] }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       {/* Mode suggestions banner */}
       {suggestions.length > 0 && (
         <div className="card mb-4" style={{padding:"12px 16px",background:modeConfig.bg,border:`1px solid ${modeConfig.border}`}}>
@@ -1640,10 +1601,8 @@ function TransactionsPage({ transactions = [] }) {
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
   const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="card mb-4" style={{padding:"12px 16px"}}>
         <div className="flex items-center gap-3" style={{flexWrap:"wrap"}}>
           <span className="text-sm text-muted">Filter:</span>
@@ -1715,16 +1674,14 @@ function BillsPage() {
   }, []);
 
   const toggle = async (id) => {
-    const bill = safeBills.find(b => b.id === id);
+    const bill = bills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="grid-3 mb-4">
         <div className="card">
           <div className="card-title">Due This Month</div>
@@ -1738,8 +1695,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {safeBills.length} total bills</div>
+          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {bills.length} total bills</div>
         </div>
       </div>
 
@@ -1789,10 +1746,8 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="portfolio-placeholder mb-4">
         <div style={{fontSize:32, marginBottom:12}}>🔗</div>
         <h3>Connect Your Brokerage</h3>
@@ -2437,10 +2392,10 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary Cards */}
       <div className="grid-4 mb-4" style={{gap:12}}>
         {[
@@ -2861,10 +2816,10 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Top row */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:16,alignItems:"start",marginBottom:16}}>
         {/* Gauge card */}
@@ -3082,10 +3037,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:"Syne",fontWeight:800,fontSize:22,marginBottom:4}}>
@@ -3329,10 +3284,10 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary */}
       <div className="grid-3 mb-4" style={{gap:12}}>
         <div className="card" style={{borderLeft:"3px solid var(--accent)",padding:"14px 16px"}}>
@@ -3629,10 +3584,10 @@ function ReportsPage() {
   const nwEnd   = nwMonths[nwMonths.length-1].value;
   const nwGain  = nwEnd - nwStart;
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Period toggle + header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div className="section-title">Financial Reports</div>
@@ -3928,10 +3883,10 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
     );
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* ── Hero net worth ── */}
       <div style={{
         background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.06))",
@@ -4339,6 +4294,7 @@ export default function WealthPilotOS() {
                   <span className="plaid-sync-text" style={{whiteSpace:"nowrap"}}>Plaid synced 2m ago</span>
                 </div>
               )}
+              <div className="badge badge-red" style={{fontWeight:700}}>UI VERSION: 2026-05-11-3</div>
               {/* Mode selector */}
               <div style={{position:"relative"}}>
                 {modeOpen && <div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setModeOpen(false)}/>}
