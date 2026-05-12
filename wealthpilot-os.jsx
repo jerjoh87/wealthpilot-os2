@@ -105,6 +105,23 @@ const pickCollection = (value, keys = [], fallback = []) => {
   }
   return ensureArray(value, fallback);
 };
+
+const incomeToMonthly = (entry) => {
+  const amount = Number(entry?.amount || 0);
+  switch ((entry?.frequency || '').toLowerCase()) {
+    case 'weekly': return amount * 4.33;
+    case 'bi-weekly': return amount * 2.17;
+    case 'twice per month': return amount * 2;
+    case 'monthly': return amount;
+    case 'one-time': {
+      const d = entry?.next_pay_date ? new Date(entry.next_pay_date) : null;
+      const now = new Date();
+      return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() ? amount : 0;
+    }
+    case 'custom': return Number(entry?.monthly_estimate || 0);
+    default: return amount;
+  }
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -155,7 +172,7 @@ const LoadingCard = ({ message="Loading…" }) => (
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser]       = useState(null);   // null = loading, false = logged out
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -1371,13 +1388,15 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [], manualAccounts = [] }) {
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
   const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const manualMonthlyIncome = manualIncomeEntries.reduce((sum, i) => sum + incomeToMonthly(i), 0);
+  const income = bankIncome + manualMonthlyIncome || MOCK.income;
   const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
   const upcomingBills = safeBills.filter(b => !b.paid);
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
@@ -1388,59 +1407,49 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
 
   return (
-    <div style={{display:"grid",gap:16,paddingBottom:8}}>
-      <div className="card" style={{padding:20,background:"linear-gradient(135deg, rgba(79,142,247,0.22), rgba(99,102,241,0.08) 45%, rgba(16,185,129,0.08))",border:"1px solid rgba(99,102,241,0.3)",borderRadius:20,boxShadow:"0 14px 45px rgba(2,8,23,0.45)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-          <div>
-            <div style={{fontSize:12,color:"var(--text2)",letterSpacing:".06em",textTransform:"uppercase"}}>Wealth Command Center</div>
-            <div style={{fontFamily:"Syne",fontSize:30,fontWeight:800,marginTop:2}}>Welcome back.</div>
-            <div style={{fontSize:13,color:"var(--text2)",marginTop:6}}>AI is monitoring your cash flow, portfolio risk, and upcoming obligations in real time.</div>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setPage("ai-coach")}>Open AI Coach ✦</button>
-        </div>
-        <div style={{marginTop:14,background:"rgba(8,10,14,0.7)",border:"1px solid var(--border2)",borderRadius:14,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:14,opacity:.75}}>⌕</span>
-          <input placeholder="Search anything..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:"var(--text)",fontSize:14,fontFamily:"inherit"}} />
-        </div>
-      </div>
-
-      <div className="card" style={{padding:16,background:"linear-gradient(135deg, rgba(16,185,129,0.1), rgba(79,142,247,0.06))",borderRadius:18}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <div><div className="card-title">AI Insight</div><div style={{fontSize:13,color:"var(--text2)"}}>Spending signal detected</div></div>
-          <span className="badge badge-blue">Actionable</span>
-        </div>
-        <div style={{marginTop:10,fontSize:14,lineHeight:1.5}}>Dining spend is trending <b style={{color:"#fbbf24"}}>18% above</b> your 30-day baseline. Move $120 from Shopping to Dining to stay on plan and keep safe-to-spend above target.</div>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>
+    <div style={{display:"grid",gap:14,paddingBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
-          <div className="card-title">Net Worth</div><div className="card-value" style={{fontSize:30}}>{fmtK(netWorth)}</div>
-          <div className="change-badge pos">↑ {fmt(portfolio?.dayChange || 0)} today</div>
+          <div className="card-title">Total Cash</div><div className="card-value" style={{fontSize:34}}>{fmtK(totalCash)}</div>
+          <div className="card-sub">Linked cash accounts</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(163,230,53,0.08), rgba(16,185,129,0.04))"}}>
-          <div className="card-title">Cash Flow</div><div className="card-value">{fmtK(income - spending)}</div>
-          <div className="card-sub">Income {fmtK(income)} · Spend {fmtK(spending)} ({spendPct}% of income)</div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
+          <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
+          <div className="card-sub">{bankIncome > 0 && manualMonthlyIncome > 0 ? "Bank + manual income active" : bankIncome > 0 ? "Bank income synced" : manualMonthlyIncome > 0 ? "Manual income active" : "Cash inflow this cycle"}</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03))"}}>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
+          <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
+          <div className="card-sub">{spendPct}% of income</div>
+        </div>
+        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.03))"}}>
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Spending Breakdown</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
-          <div className="donut-wrap" style={{marginTop:8}}>
-            <DonutChart data={(safeBudget.length ? safeBudget : [{ spent: 0, color: "var(--border)" }]).map(b => ({ value: Math.max(0, b.spent || 0), color: b.color || "var(--border)" }))} size={130} thickness={22} />
-            <div className="donut-center"><div style={{fontSize:11,color:"var(--text3)"}}>Total</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:16}}>{fmtK(totalSpent)}</div></div>
+      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
+            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
           </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          {safeAccounts.length === 0 ? (
+            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
+          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
+        <div className="card" style={{padding:18,borderRadius:18}}>
+          <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
-            {safeBudget.slice(0,4).map(b => (
-              <div key={b.category} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}>
-                <span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span>
-                <span style={{color:"var(--text)"}}>{fmt(b.spent || 0)}</span>
-              </div>
-            ))}
+            {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
             {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
           </div>
         </div>
@@ -1452,11 +1461,6 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(79,142,247,0.1), rgba(79,142,247,0.02))"}}>
-          <div className="card-title">Bank Sync / Plaid</div>
-          <div className="card-sub">{syncing ? "Connection syncing..." : "All linked institutions healthy"}</div>
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "Sync Now"}</button>
-        </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
           <div className="card-title">Webull / Portfolio</div>
           <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
@@ -1472,28 +1476,6 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
           <div className="card-value">{upcomingBills.length}</div>
           <div className="card-sub">{fmt(billRunway)} due this cycle</div>
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
-        </div>
-      </div>
-
-      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
-          <div className="text-sm text-muted">{portfolio?.connected ? `Portfolio preview: ${portfolio.holdings?.length || 0} holdings` : "Portfolio preview/demo only"}</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
-            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
-          </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {safeAccounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
@@ -1548,10 +1530,8 @@ function BudgetPage({ modeConfig, budgets = [] }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       {/* Mode suggestions banner */}
       {suggestions.length > 0 && (
         <div className="card mb-4" style={{padding:"12px 16px",background:modeConfig.bg,border:`1px solid ${modeConfig.border}`}}>
@@ -1640,10 +1620,8 @@ function TransactionsPage({ transactions = [] }) {
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
   const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="card mb-4" style={{padding:"12px 16px"}}>
         <div className="flex items-center gap-3" style={{flexWrap:"wrap"}}>
           <span className="text-sm text-muted">Filter:</span>
@@ -1715,16 +1693,14 @@ function BillsPage() {
   }, []);
 
   const toggle = async (id) => {
-    const bill = safeBills.find(b => b.id === id);
+    const bill = bills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="grid-3 mb-4">
         <div className="card">
           <div className="card-title">Due This Month</div>
@@ -1738,8 +1714,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {safeBills.length} total bills</div>
+          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {bills.length} total bills</div>
         </div>
       </div>
 
@@ -1789,10 +1765,8 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="portfolio-placeholder mb-4">
         <div style={{fontSize:32, marginBottom:12}}>🔗</div>
         <h3>Connect Your Brokerage</h3>
@@ -2034,7 +2008,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user }) {
+function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2078,6 +2052,50 @@ function SettingsPage({ addToast, user }) {
     accentColor: 'Electric Blue',
     currentPlan: MOCK.user.plan,
   });
+
+
+  const [incomeFormOpen, setIncomeFormOpen] = useState(false);
+  const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState(null);
+  const [editingAccountId, setEditingAccountId] = useState(null);
+  const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
+  const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
+
+  const saveIncome = () => {
+    const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
+    if (editingIncomeId) setManualIncomeEntries((manualIncomeEntries||[]).map(x => x.id === editingIncomeId ? entry : x));
+    else setManualIncomeEntries([...(manualIncomeEntries||[]), entry]);
+    setIncomeFormOpen(false);
+    setEditingIncomeId(null);
+    setIncomeForm({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
+  };
+
+
+  const addIncomeToManualAccount = (accountId) => {
+    const raw = window.prompt('Enter income amount to add to this account balance:');
+    const amt = Number(raw || 0);
+    if (!amt || amt <= 0) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: Number(a.balance||0) + amt } : a));
+    addToast && addToast(`Added ${fmt(amt)} to account balance`, 'success');
+  };
+
+  const updateManualAccountBalance = (accountId) => {
+    const account = (manualAccounts||[]).find(a => a.id === accountId);
+    const raw = window.prompt('Set new balance for this account:', String(account?.balance || 0));
+    const next = Number(raw || 0);
+    if (Number.isNaN(next)) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: next } : a));
+    addToast && addToast('Account balance updated', 'success');
+  };
+  const saveManualAccount = () => {
+    const acc = { id: editingAccountId || Date.now(), name: accountForm.account_name, type: (accountForm.account_type||'other').toLowerCase(), balance: Number(accountForm.starting_balance||0), institution: 'Manual', last4: '0000', manual: true };
+    const income = { id: Date.now()+1, user_id: user?.id || 'local-user', source_name: accountForm.income_source_name || accountForm.account_name, amount: Number(accountForm.income_amount||0), frequency: accountForm.income_frequency, next_pay_date: accountForm.next_pay_date, payment_method: accountForm.payment_method, notes: accountForm.notes, monthly_estimate: 0, created_at: new Date().toISOString() };
+    if (editingAccountId) setManualAccounts((manualAccounts||[]).map(x => x.id === editingAccountId ? acc : x));
+    else setManualAccounts([...(manualAccounts||[]), acc]);
+    if (income.amount > 0) setManualIncomeEntries([...(manualIncomeEntries||[]), income]);
+    setAccountFormOpen(false);
+    setEditingAccountId(null);
+  };
 
   const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
   const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -2175,6 +2193,29 @@ function SettingsPage({ addToast, user }) {
           </div>
 
           <div className="card settings-section">
+            <h3>4. Connect Your Income</h3>
+            <div className="setting-desc" style={{marginBottom:10}}>Sync your bank account for automatic tracking, or enter your income manually if you do not use a bank account.</div>
+            <div className="setting-desc" style={{marginBottom:10}}>No bank account? No problem. You can still use WealthPilot OS by entering your income manually. You can connect a bank later anytime.</div>
+            <div className="grid-2" style={{gap:10}}>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Securely connect your bank account to automatically track income, spending, and bills.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">✍️</div><div className="int-info"><div className="int-name">Manual Income Entry</div><div className="int-status">Enter your income yourself. Great for cash income, gig work, self-employed users, or anyone without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeFormOpen(v=>!v)}>Enter Manually</button></div>
+            </div>
+            {incomeFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Income source name" value={incomeForm.source_name} onChange={e=>setIncomeForm(f=>({...f,source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={incomeForm.amount} onChange={e=>setIncomeForm(f=>({...f,amount:e.target.value}))}/><select className="form-select" value={incomeForm.frequency} onChange={e=>setIncomeForm(f=>({...f,frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select>{incomeForm.frequency==='Custom' && <input className="form-input" placeholder="Custom monthly estimate" value={incomeForm.monthly_estimate} onChange={e=>setIncomeForm(f=>({...f,monthly_estimate:e.target.value}))}/>}<input className="form-input" type="date" value={incomeForm.next_pay_date} onChange={e=>setIncomeForm(f=>({...f,next_pay_date:e.target.value}))}/><select className="form-select" value={incomeForm.payment_method} onChange={e=>setIncomeForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Notes" value={incomeForm.notes} onChange={e=>setIncomeForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveIncome}>Save Income</button></div>}
+            <div style={{marginTop:10}}>{(manualIncomeEntries||[]).map(i=><div key={i.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{i.source_name}</div><div className="int-status">{fmt(i.amount)} · {i.frequency} · Est monthly {fmt(incomeToMonthly(i))} · {i.payment_method}</div></div><div style={{display:'flex',gap:6}}><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingIncomeId(i.id);setIncomeForm({ source_name:i.source_name||'', amount:String(i.amount||''), frequency:i.frequency||'Weekly', next_pay_date:i.next_pay_date||'', payment_method:i.payment_method||'Cash', notes:i.notes||'', monthly_estimate:String(i.monthly_estimate||'') });setIncomeFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualIncomeEntries((manualIncomeEntries||[]).filter(x=>x.id!==i.id))}>Delete</button></div></div>)}</div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>5. Add Another Account</h3>
+            <div className="setting-desc" style={{marginBottom:10}}>Connect a bank account or add one manually.</div>
+            <div className="grid-2" style={{gap:10}}>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Connect another bank account for automatic income, spending, bills, and balance tracking.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)}>Add Manual Account</button></div>
+            </div>
+            {accountFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Account name" value={accountForm.account_name} onChange={e=>setAccountForm(f=>({...f,account_name:e.target.value}))}/><select className="form-select" value={accountForm.account_type} onChange={e=>setAccountForm(f=>({...f,account_type:e.target.value}))}>{['Cash','Checking','Savings','Prepaid Card','Gig Work','Business Income','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Starting balance" value={accountForm.starting_balance} onChange={e=>setAccountForm(f=>({...f,starting_balance:e.target.value}))}/><input className="form-input" placeholder="Income source name" value={accountForm.income_source_name} onChange={e=>setAccountForm(f=>({...f,income_source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={accountForm.income_amount} onChange={e=>setAccountForm(f=>({...f,income_amount:e.target.value}))}/><select className="form-select" value={accountForm.income_frequency} onChange={e=>setAccountForm(f=>({...f,income_frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select><select className="form-select" value={accountForm.payment_method} onChange={e=>setAccountForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" type="date" value={accountForm.next_pay_date} onChange={e=>setAccountForm(f=>({...f,next_pay_date:e.target.value}))}/><input className="form-input" placeholder="Notes" value={accountForm.notes} onChange={e=>setAccountForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveManualAccount}>Save Account</button></div>}
+            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>)}</div>
+          </div>
+
+<div className="card settings-section">
             <h3>4. AI Coach Preferences</h3>
             {renderSelectRow('AI tone','Voice and accountability style.','aiTone',['Strict','Balanced','Encouraging'])}
             {renderSelectRow('Advice depth','Complexity level for insights.','adviceDepth',['Simple','Detailed','Advanced'])}
@@ -2437,10 +2478,10 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary Cards */}
       <div className="grid-4 mb-4" style={{gap:12}}>
         {[
@@ -2840,7 +2881,8 @@ function CreditScorePage({ addToast, initialScore }) {
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
   const trend   = hasHistory && prev ? latest.score - prev.score : 0;
-  const color   = hasHistory ? scoreColor(latest.score) : "#8892a4";
+  const latestScore = hasHistory ? latest.score : null;
+  const color   = hasHistory ? scoreColor(latestScore) : "#8892a4";
 
   const submit = async () => {
     const s = parseInt(form.score);
@@ -2861,10 +2903,10 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Top row */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:16,alignItems:"start",marginBottom:16}}>
         {/* Gauge card */}
@@ -2930,8 +2972,8 @@ function CreditScorePage({ addToast, initialScore }) {
           <div className="card" style={{padding:14}}>
             <div className="section-title" style={{marginBottom:10}}>Score Ranges</div>
             {SCORE_BANDS.map(b=>{
-              const active = latest.score >= b.min && latest.score <= b.max;
-              const pct = Math.min(100, Math.max(0, (latest.score - b.min) / (b.max - b.min) * 100));
+              const active = latestScore !== null && latestScore >= b.min && latestScore <= b.max;
+              const pct = latestScore === null ? 0 : Math.min(100, Math.max(0, (latestScore - b.min) / (b.max - b.min) * 100));
               return (
                 <div key={b.label} style={{marginBottom:8,
                   padding: active?"8px 10px":"4px 10px",
@@ -3082,10 +3124,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:"Syne",fontWeight:800,fontSize:22,marginBottom:4}}>
@@ -3304,7 +3346,7 @@ function GoalsPage({ addToast, modeConfig }) {
   const [editing, setEditing] = useState(null);
   const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
@@ -3329,10 +3371,10 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary */}
       <div className="grid-3 mb-4" style={{gap:12}}>
         <div className="card" style={{borderLeft:"3px solid var(--accent)",padding:"14px 16px"}}>
@@ -3629,10 +3671,10 @@ function ReportsPage() {
   const nwEnd   = nwMonths[nwMonths.length-1].value;
   const nwGain  = nwEnd - nwStart;
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Period toggle + header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div className="section-title">Financial Reports</div>
@@ -3732,7 +3774,7 @@ function ReportsPage() {
                   </tr>
                 );
               })}
-            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
+            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -3928,10 +3970,10 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
     );
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* ── Hero net worth ── */}
       <div style={{
         background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.06))",
@@ -4182,6 +4224,8 @@ export default function WealthPilotOS() {
     portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
   });
+  const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
+  const [manualAccounts, setManualAccounts] = useState([]);
   const [liveStatus, setLiveStatus] = useState({
     accounts: { loading: true, error: false },
     transactions: { loading: true, error: false },
@@ -4192,6 +4236,16 @@ export default function WealthPilotOS() {
     portfolio: { loading: true, error: false },
   });
 
+
+  useEffect(() => {
+    try {
+      setManualIncomeEntries(JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]'));
+      setManualAccounts(JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]'));
+    } catch {}
+  }, []);
+
+  useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
+  useEffect(() => { try { localStorage.setItem('wp_manual_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
   useEffect(() => {
     const fetchData = async () => {
       setLiveDataLoading(true);
@@ -4266,20 +4320,21 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
+      case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
       case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} />;
-      default:             return <Dashboard setPage={showPage} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
+      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
     }
   };
 
@@ -4339,6 +4394,7 @@ export default function WealthPilotOS() {
                   <span className="plaid-sync-text" style={{whiteSpace:"nowrap"}}>Plaid synced 2m ago</span>
                 </div>
               )}
+              <div className="badge badge-red" style={{fontWeight:700}}>UI VERSION: 2026-05-11-3</div>
               {/* Mode selector */}
               <div style={{position:"relative"}}>
                 {modeOpen && <div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setModeOpen(false)}/>}
