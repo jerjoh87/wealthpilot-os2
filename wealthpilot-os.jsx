@@ -747,20 +747,20 @@ const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0a0b0e;
-    --bg2: #111318;
-    --bg3: #181c24;
+    --bg: #07090f;
+    --bg2: #101522;
+    --bg3: #151c2c;
     --border: rgba(255,255,255,0.07);
     --border2: rgba(255,255,255,0.12);
     --text: #f0f2f7;
     --text2: #8892a4;
     --text3: #525d72;
-    --accent: #4f8ef7;
+    --accent: #5ea2ff;
     --accent2: #6366f1;
     --green: #10b981;
     --red: #f43f5e;
     --yellow: #f59e0b;
-    --card-glow: 0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,0.4);
+    --card-glow: 0 0 0 1px var(--border), 0 10px 30px rgba(3,8,20,0.45);
     --radius: 16px;
     --radius-sm: 10px;
   }
@@ -822,7 +822,7 @@ const css = `
   .topbar {
     padding: 16px 24px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
-    background: var(--bg2); position: sticky; top: 0; z-index: 10; flex-shrink: 0;
+    background: rgba(16,21,34,0.74); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 10; flex-shrink: 0;
   }
   .page-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; }
   .topbar-right { display: flex; align-items: center; gap: 12px; }
@@ -837,7 +837,7 @@ const css = `
   /* CARDS */
   .card {
     background: var(--bg2); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px;
+    border-radius: 18px; padding: 20px;
     box-shadow: var(--card-glow);
   }
   .card-sm { padding: 16px; }
@@ -1039,10 +1039,11 @@ const css = `
     }
 
     /* Show bottom nav bar */
-    .bottom-nav {
+  .bottom-nav {
       display: flex !important;
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-      background: var(--bg2);
+      background: rgba(16,21,34,0.85);
+      backdrop-filter: blur(12px);
       border-top: 1px solid var(--border);
       padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
       justify-content: space-around;
@@ -1382,6 +1383,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
+  const creditScoreValue = creditScore?.latest?.score || 742;
+  const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
+  const portfolioPnl = portfolio?.dayChangePct ?? 0;
 
   return (
     <div style={{display:"grid",gap:16,paddingBottom:8}}>
@@ -1447,6 +1451,30 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         </div>
       </div>
 
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(79,142,247,0.1), rgba(79,142,247,0.02))"}}>
+          <div className="card-title">Bank Sync / Plaid</div>
+          <div className="card-sub">{syncing ? "Connection syncing..." : "All linked institutions healthy"}</div>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "Sync Now"}</button>
+        </div>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
+          <div className="card-title">Webull / Portfolio</div>
+          <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
+          <div className="card-sub">Day performance · {portfolio?.connected ? "Connected" : "Demo mode"}</div>
+        </div>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
+          <div className="card-title">Credit Score Tracker</div>
+          <div className="card-value">{creditScoreValue}</div>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
+        </div>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
+          <div className="card-title">Bill Calendar</div>
+          <div className="card-value">{upcomingBills.length}</div>
+          <div className="card-sub">{fmt(billRunway)} due this cycle</div>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
+        </div>
+      </div>
+
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
           <div className="text-sm text-muted">{creditScore?.latest?.score ? `Credit Score: ${creditScore.latest.score}` : "Credit Score preview unavailable"}</div>
@@ -1508,7 +1536,6 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
                   </td>
                 </tr>
               )}
-            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -4260,25 +4287,6 @@ export default function WealthPilotOS() {
   <>
     <style>{css}</style>
 
-    <div
-  style={{
-    position: "fixed",
-    top: "12px",
-    right: "12px",
-    zIndex: 2147483647,
-    background: "red",
-    color: "white",
-    padding: "10px 14px",
-    borderRadius: "10px",
-    fontSize: "13px",
-    fontWeight: 900,
-    border: "2px solid white",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.6)"
-  }}
->
-  UI VERSION: 2026-05-11-3
-</div>
-
     <Toast toasts={toasts} />
 
     <div className="app">
@@ -4374,25 +4382,6 @@ export default function WealthPilotOS() {
                 )}
               </button>
               <div className="avatar">AC</div>
-              <div
-  style={{
-    position: "fixed",
-    top: 12,
-    right: 70,
-    zIndex: 9999,
-    background: "rgba(17,24,39,0.95)",
-    color: "#60a5fa",
-    padding: "6px 12px",
-    borderRadius: 10,
-    fontSize: 11,
-    fontWeight: 700,
-    border: "1px solid rgba(255,255,255,0.08)",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-    backdropFilter: "blur(10px)"
-  }}
->
-  UI VERSION: 2026-05-11-1
-</div>
             </div>
           </div>
 
