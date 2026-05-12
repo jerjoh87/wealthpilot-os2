@@ -105,6 +105,23 @@ const pickCollection = (value, keys = [], fallback = []) => {
   }
   return ensureArray(value, fallback);
 };
+
+const incomeToMonthly = (entry) => {
+  const amount = Number(entry?.amount || 0);
+  switch ((entry?.frequency || '').toLowerCase()) {
+    case 'weekly': return amount * 4.33;
+    case 'bi-weekly': return amount * 2.17;
+    case 'twice per month': return amount * 2;
+    case 'monthly': return amount;
+    case 'one-time': {
+      const d = entry?.next_pay_date ? new Date(entry.next_pay_date) : null;
+      const now = new Date();
+      return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() ? amount : 0;
+    }
+    case 'custom': return Number(entry?.monthly_estimate || 0);
+    default: return amount;
+  }
+};
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
 
@@ -155,7 +172,7 @@ const LoadingCard = ({ message="Loading…" }) => (
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser]       = useState(null);   // null = loading, false = logged out
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -1377,7 +1394,9 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
   const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
-  const income = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0) || MOCK.income;
+  const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const manualMonthlyIncome = manualIncomeEntries.reduce((sum, i) => sum + incomeToMonthly(i), 0);
+  const income = bankIncome + manualMonthlyIncome || MOCK.income;
   const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
   const upcomingBills = safeBills.filter(b => !b.paid);
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
@@ -1989,7 +2008,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user }) {
+function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2033,6 +2052,50 @@ function SettingsPage({ addToast, user }) {
     accentColor: 'Electric Blue',
     currentPlan: MOCK.user.plan,
   });
+
+
+  const [incomeFormOpen, setIncomeFormOpen] = useState(false);
+  const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState(null);
+  const [editingAccountId, setEditingAccountId] = useState(null);
+  const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
+  const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
+
+  const saveIncome = () => {
+    const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
+    if (editingIncomeId) setManualIncomeEntries((manualIncomeEntries||[]).map(x => x.id === editingIncomeId ? entry : x));
+    else setManualIncomeEntries([...(manualIncomeEntries||[]), entry]);
+    setIncomeFormOpen(false);
+    setEditingIncomeId(null);
+    setIncomeForm({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
+  };
+
+
+  const addIncomeToManualAccount = (accountId) => {
+    const raw = window.prompt('Enter income amount to add to this account balance:');
+    const amt = Number(raw || 0);
+    if (!amt || amt <= 0) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: Number(a.balance||0) + amt } : a));
+    addToast && addToast(`Added ${fmt(amt)} to account balance`, 'success');
+  };
+
+  const updateManualAccountBalance = (accountId) => {
+    const account = (manualAccounts||[]).find(a => a.id === accountId);
+    const raw = window.prompt('Set new balance for this account:', String(account?.balance || 0));
+    const next = Number(raw || 0);
+    if (Number.isNaN(next)) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: next } : a));
+    addToast && addToast('Account balance updated', 'success');
+  };
+  const saveManualAccount = () => {
+    const acc = { id: editingAccountId || Date.now(), name: accountForm.account_name, type: (accountForm.account_type||'other').toLowerCase(), balance: Number(accountForm.starting_balance||0), institution: 'Manual', last4: '0000', manual: true };
+    const income = { id: Date.now()+1, user_id: user?.id || 'local-user', source_name: accountForm.income_source_name || accountForm.account_name, amount: Number(accountForm.income_amount||0), frequency: accountForm.income_frequency, next_pay_date: accountForm.next_pay_date, payment_method: accountForm.payment_method, notes: accountForm.notes, monthly_estimate: 0, created_at: new Date().toISOString() };
+    if (editingAccountId) setManualAccounts((manualAccounts||[]).map(x => x.id === editingAccountId ? acc : x));
+    else setManualAccounts([...(manualAccounts||[]), acc]);
+    if (income.amount > 0) setManualIncomeEntries([...(manualIncomeEntries||[]), income]);
+    setAccountFormOpen(false);
+    setEditingAccountId(null);
+  };
 
   const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
   const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -2130,6 +2193,29 @@ function SettingsPage({ addToast, user }) {
           </div>
 
           <div className="card settings-section">
+            <h3>4. Connect Your Income</h3>
+            <div className="setting-desc" style={{marginBottom:10}}>Sync your bank account for automatic tracking, or enter your income manually if you do not use a bank account.</div>
+            <div className="setting-desc" style={{marginBottom:10}}>No bank account? No problem. You can still use WealthPilot OS by entering your income manually. You can connect a bank later anytime.</div>
+            <div className="grid-2" style={{gap:10}}>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Securely connect your bank account to automatically track income, spending, and bills.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">✍️</div><div className="int-info"><div className="int-name">Manual Income Entry</div><div className="int-status">Enter your income yourself. Great for cash income, gig work, self-employed users, or anyone without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeFormOpen(v=>!v)}>Enter Manually</button></div>
+            </div>
+            {incomeFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Income source name" value={incomeForm.source_name} onChange={e=>setIncomeForm(f=>({...f,source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={incomeForm.amount} onChange={e=>setIncomeForm(f=>({...f,amount:e.target.value}))}/><select className="form-select" value={incomeForm.frequency} onChange={e=>setIncomeForm(f=>({...f,frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select>{incomeForm.frequency==='Custom' && <input className="form-input" placeholder="Custom monthly estimate" value={incomeForm.monthly_estimate} onChange={e=>setIncomeForm(f=>({...f,monthly_estimate:e.target.value}))}/>}<input className="form-input" type="date" value={incomeForm.next_pay_date} onChange={e=>setIncomeForm(f=>({...f,next_pay_date:e.target.value}))}/><select className="form-select" value={incomeForm.payment_method} onChange={e=>setIncomeForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Notes" value={incomeForm.notes} onChange={e=>setIncomeForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveIncome}>Save Income</button></div>}
+            <div style={{marginTop:10}}>{(manualIncomeEntries||[]).map(i=><div key={i.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{i.source_name}</div><div className="int-status">{fmt(i.amount)} · {i.frequency} · Est monthly {fmt(incomeToMonthly(i))} · {i.payment_method}</div></div><div style={{display:'flex',gap:6}}><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingIncomeId(i.id);setIncomeForm({ source_name:i.source_name||'', amount:String(i.amount||''), frequency:i.frequency||'Weekly', next_pay_date:i.next_pay_date||'', payment_method:i.payment_method||'Cash', notes:i.notes||'', monthly_estimate:String(i.monthly_estimate||'') });setIncomeFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualIncomeEntries((manualIncomeEntries||[]).filter(x=>x.id!==i.id))}>Delete</button></div></div>)}</div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>5. Add Another Account</h3>
+            <div className="setting-desc" style={{marginBottom:10}}>Connect a bank account or add one manually.</div>
+            <div className="grid-2" style={{gap:10}}>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Connect another bank account for automatic income, spending, bills, and balance tracking.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)}>Add Manual Account</button></div>
+            </div>
+            {accountFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Account name" value={accountForm.account_name} onChange={e=>setAccountForm(f=>({...f,account_name:e.target.value}))}/><select className="form-select" value={accountForm.account_type} onChange={e=>setAccountForm(f=>({...f,account_type:e.target.value}))}>{['Cash','Checking','Savings','Prepaid Card','Gig Work','Business Income','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Starting balance" value={accountForm.starting_balance} onChange={e=>setAccountForm(f=>({...f,starting_balance:e.target.value}))}/><input className="form-input" placeholder="Income source name" value={accountForm.income_source_name} onChange={e=>setAccountForm(f=>({...f,income_source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={accountForm.income_amount} onChange={e=>setAccountForm(f=>({...f,income_amount:e.target.value}))}/><select className="form-select" value={accountForm.income_frequency} onChange={e=>setAccountForm(f=>({...f,income_frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select><select className="form-select" value={accountForm.payment_method} onChange={e=>setAccountForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" type="date" value={accountForm.next_pay_date} onChange={e=>setAccountForm(f=>({...f,next_pay_date:e.target.value}))}/><input className="form-input" placeholder="Notes" value={accountForm.notes} onChange={e=>setAccountForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveManualAccount}>Save Account</button></div>}
+            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>)}</div>
+          </div>
+
+<div className="card settings-section">
             <h3>4. AI Coach Preferences</h3>
             {renderSelectRow('AI tone','Voice and accountability style.','aiTone',['Strict','Balanced','Encouraging'])}
             {renderSelectRow('Advice depth','Complexity level for insights.','adviceDepth',['Simple','Detailed','Advanced'])}
@@ -3260,7 +3346,7 @@ function GoalsPage({ addToast, modeConfig }) {
   const [editing, setEditing] = useState(null);
   const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
@@ -4138,6 +4224,8 @@ export default function WealthPilotOS() {
     portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
   });
+  const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
+  const [manualAccounts, setManualAccounts] = useState([]);
   const [liveStatus, setLiveStatus] = useState({
     accounts: { loading: true, error: false },
     transactions: { loading: true, error: false },
@@ -4148,6 +4236,16 @@ export default function WealthPilotOS() {
     portfolio: { loading: true, error: false },
   });
 
+
+  useEffect(() => {
+    try {
+      setManualIncomeEntries(JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]'));
+      setManualAccounts(JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]'));
+    } catch {}
+  }, []);
+
+  useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
+  useEffect(() => { try { localStorage.setItem('wp_manual_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
   useEffect(() => {
     const fetchData = async () => {
       setLiveDataLoading(true);
@@ -4222,20 +4320,21 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={liveData.accounts.length ? liveData.accounts : acct.accounts} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
+      case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
       case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} />;
-      default:             return <Dashboard setPage={showPage} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
+      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
     }
   };
 
