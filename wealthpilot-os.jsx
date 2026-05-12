@@ -148,7 +148,7 @@ const FRIENDLY_ERRORS = {
   calendar: "We couldn’t load your calendar. Please refresh.",
   transactions: "We couldn’t load your transactions. Please refresh.",
   budgets: "We couldn’t load your budgets. Please refresh.",
-  ai: "AI Coach is temporarily unavailable.",
+  ai: "I’m running in offline coach mode right now. I can still help with budget, bills, savings goals, and credit planning.",
   creditScore: "We couldn’t load your credit score. Please try again.",
   portfolio: "We couldn’t load your portfolio. Please refresh.",
   settings: "Settings update failed. Please try again.",
@@ -1388,14 +1388,14 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [] }) {
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
   const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const manualMonthlyIncome = manualIncomeEntries.reduce((sum, i) => sum + incomeToMonthly(i), 0);
+  const manualMonthlyIncome = ensureArray(manualIncomeEntries, []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
   const income = bankIncome + manualMonthlyIncome || MOCK.income;
   const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
   const upcomingBills = safeBills.filter(b => !b.paid);
@@ -1575,7 +1575,7 @@ function BudgetPage({ modeConfig, budgets = [] }) {
       <div className="card">
         <div className="section-header">
           <div className="section-title">Category Budgets</div>
-          <button className="btn btn-primary btn-sm">+ Add Category</button>
+          <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Category creation form is not configured yet in this view. Use Settings > manual entries as a temporary fallback.")}>+ Add Category</button>
         </div>
         {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
@@ -1668,7 +1668,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
-            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions found for this filter." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -1723,7 +1723,7 @@ function BillsPage() {
         <div className="card">
           <div className="section-header">
             <div className="section-title">Upcoming Bills</div>
-            <button className="btn btn-primary btn-sm">+ Add Bill</button>
+            <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Bill creation form is not configured yet in this view. Use Calendar to add recurring bill events as a temporary fallback.")}>+ Add Bill</button>
           </div>
           {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No bills yet. Add your first bill.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
@@ -1774,8 +1774,8 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           Sync your Webull, TD Ameritrade, or any SnapTrade-supported brokerage to see your portfolio here in real time.
         </p>
         <div className="flex items-center gap-3" style={{justifyContent:"center", flexWrap:"wrap"}}>
-          <button className="btn btn-primary">🔌 Connect via SnapTrade</button>
-          <button className="btn btn-ghost">📊 Connect Webull</button>
+          <button className="btn btn-primary" onClick={()=>window.alert("SnapTrade connection is not configured yet. Add your SnapTrade client ID and consumer key in environment variables to enable live brokerage sync.")}>🔌 Connect via SnapTrade</button>
+          <button className="btn btn-ghost" onClick={()=>window.alert("Webull direct sync is not available yet. You can connect supported brokerages through SnapTrade, upload a CSV, or enter holdings manually.")}>📊 Connect Webull</button>
         </div>
         <p className="text-xs text-muted" style={{marginTop:12}}>Read-only access · Bank-level encryption · Coming Q3 2026</p>
       </div>
@@ -2187,7 +2187,16 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
                 <h3 style={{fontFamily:'Syne',fontWeight:700,fontSize:15}}>🏦 Bank Accounts</h3>
                 {plaid.connected && <div style={{display:'flex',gap:8}}><button className="btn btn-ghost btn-sm" onClick={handleSync} disabled={plaid.syncing}>{plaid.syncing ? 'Syncing…' : 'Sync now'}</button><button className="btn btn-danger btn-sm" onClick={plaid.disconnect}>Disconnect account</button></div>}
               </div>
-              {!plaid.connected ? <button className="btn btn-primary" onClick={handlePlaidConnect} disabled={plaid.loading} style={{width:'100%',justifyContent:'center'}}>{plaid.loading ? 'Initializing…' : 'Connect with Plaid'}</button> : <>{plaid.accounts.map(a => <div key={a.id} className="integration-card" style={{marginBottom:8}}><div className="int-icon">{a.type === 'checking' ? '🏦' : a.type === 'savings' ? '💰' : '💳'}</div><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.institution} · ••••{a.last4}</div></div><div style={{fontFamily:'Syne',fontWeight:700,fontSize:14}}>{fmt(a.balance)}</div></div>)}</>}
+              {!plaid.connected ? (
+                <>
+                  <button className="btn btn-primary" onClick={handlePlaidConnect} disabled={plaid.loading} style={{width:'100%',justifyContent:'center'}}>
+                    {plaid.loading ? 'Initializing…' : 'Connect with Plaid'}
+                  </button>
+                  <button className='btn btn-ghost' style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>window.alert('Teller connection is not configured yet. Add your Teller application credentials and certificate setup to enable live bank syncing.')}>
+                    Connect with Teller
+                  </button>
+                </>
+              ) : <>{plaid.accounts.map(a => <div key={a.id} className="integration-card" style={{marginBottom:8}}><div className="int-icon">{a.type === 'checking' ? '🏦' : a.type === 'savings' ? '💰' : '💳'}</div><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.institution} · ••••{a.last4}</div></div><div style={{fontFamily:'Syne',fontWeight:700,fontSize:14}}>{fmt(a.balance)}</div></div>)}</>}
             </div>
             <div className="integration-card"><div className="int-icon">📊</div><div className="int-info"><div className="int-name">Webull / SnapTrade</div><div className="int-status">Brokerage sync placeholder</div></div><span className="badge badge-yellow">Coming soon</span></div>
           </div>
@@ -2478,7 +2487,7 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
-  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading calendar…" />;
   return (
     <div>
       {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
@@ -2903,7 +2912,7 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
-  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading credit score…" />;
   return (
     <div>
       {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
@@ -2923,6 +2932,7 @@ function CreditScorePage({ addToast, initialScore }) {
             onClick={()=>setShowForm(s=>!s)}>
             {showForm ? "Cancel" : "+ Log Score"}
           </button>
+          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={()=>window.alert("SmartCredit sync is not configured yet. Add SmartCredit API credentials or connection URL in the backend to enable live credit report syncing.")}>Connect SmartCredit</button>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
@@ -3124,7 +3134,7 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
-  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading goals…" />;
   return (
     <div>
       {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
@@ -3371,7 +3381,7 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
-  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading goals…" />;
   return (
     <div>
       {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
@@ -4320,7 +4330,7 @@ export default function WealthPilotOS() {
 
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
@@ -4334,7 +4344,7 @@ export default function WealthPilotOS() {
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
-      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} status={liveStatus} />;
+      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
     }
   };
 
