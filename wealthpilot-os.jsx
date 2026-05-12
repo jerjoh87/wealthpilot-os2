@@ -155,7 +155,7 @@ const LoadingCard = ({ message="Loading…" }) => (
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser]       = useState(null);   // null = loading, false = logged out
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -1649,7 +1649,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
-            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
+            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
             </tbody>
           </table>
         </div>
@@ -3260,7 +3260,7 @@ function GoalsPage({ addToast, modeConfig }) {
   const [editing, setEditing] = useState(null);
   const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
