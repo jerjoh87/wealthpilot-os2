@@ -2392,10 +2392,10 @@ function CalendarPage({ addToast }) {
 
   const selectedEvents = selected ? (byDate[selected]||[]) : [];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary Cards */}
       <div className="grid-4 mb-4" style={{gap:12}}>
         {[
@@ -2816,10 +2816,10 @@ function CreditScorePage({ addToast, initialScore }) {
     { icon:"🔀", title:"Diversify credit mix",             desc:"Installment + revolving = better score." },
   ];
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Top row */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:16,alignItems:"start",marginBottom:16}}>
         {/* Gauge card */}
@@ -3037,10 +3037,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
     // BACKEND: POST /api/profit-lock/execute { ...event }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:"Syne",fontWeight:800,fontSize:22,marginBottom:4}}>
@@ -3284,10 +3284,10 @@ function GoalsPage({ addToast, modeConfig }) {
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Summary */}
       <div className="grid-3 mb-4" style={{gap:12}}>
         <div className="card" style={{borderLeft:"3px solid var(--accent)",padding:"14px 16px"}}>
@@ -3584,10 +3584,10 @@ function ReportsPage() {
   const nwEnd   = nwMonths[nwMonths.length-1].value;
   const nwGain  = nwEnd - nwStart;
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* Period toggle + header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div className="section-title">Financial Reports</div>
@@ -3883,10 +3883,10 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
     );
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
+  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
+      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
       {/* ── Hero net worth ── */}
       <div style={{
         background:"linear-gradient(135deg,rgba(79,142,247,0.1),rgba(99,102,241,0.06))",
