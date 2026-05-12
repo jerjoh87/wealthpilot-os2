@@ -1388,7 +1388,7 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [], manualAccounts = [] }) {
+function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null }) {
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
@@ -1415,7 +1415,7 @@ function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync
         </div>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
           <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
-          <div className="card-sub">{bankIncome > 0 && manualMonthlyIncome > 0 ? "Bank + manual income active" : bankIncome > 0 ? "Bank income synced" : manualMonthlyIncome > 0 ? "Manual income active" : "Cash inflow this cycle"}</div>
+          <div className="card-sub">Cash inflow this cycle</div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
           <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
@@ -1668,7 +1668,7 @@ function TransactionsPage({ transactions = [] }) {
                   </td>
                 </tr>
               ))}
-            {filtered.length===0 && <tr><td colSpan="5"><EmptyState message="No transactions yet. Connect your bank to get started." /></td></tr>}
+            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
             </tbody>
           </table>
         </div>
