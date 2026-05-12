@@ -2056,22 +2056,45 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   const [incomeFormOpen, setIncomeFormOpen] = useState(false);
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState(null);
+  const [editingAccountId, setEditingAccountId] = useState(null);
   const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
   const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
 
   const saveIncome = () => {
-    const entry = { id: Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
-    setManualIncomeEntries([...(manualIncomeEntries||[]), entry]);
+    const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
+    if (editingIncomeId) setManualIncomeEntries((manualIncomeEntries||[]).map(x => x.id === editingIncomeId ? entry : x));
+    else setManualIncomeEntries([...(manualIncomeEntries||[]), entry]);
     setIncomeFormOpen(false);
+    setEditingIncomeId(null);
     setIncomeForm({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
   };
 
+
+  const addIncomeToManualAccount = (accountId) => {
+    const raw = window.prompt('Enter income amount to add to this account balance:');
+    const amt = Number(raw || 0);
+    if (!amt || amt <= 0) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: Number(a.balance||0) + amt } : a));
+    addToast && addToast(`Added ${fmt(amt)} to account balance`, 'success');
+  };
+
+  const updateManualAccountBalance = (accountId) => {
+    const account = (manualAccounts||[]).find(a => a.id === accountId);
+    const raw = window.prompt('Set new balance for this account:', String(account?.balance || 0));
+    const next = Number(raw || 0);
+    if (Number.isNaN(next)) return;
+    setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: next } : a));
+    addToast && addToast('Account balance updated', 'success');
+  };
   const saveManualAccount = () => {
-    const acc = { id: Date.now(), name: accountForm.account_name, type: (accountForm.account_type||'other').toLowerCase(), balance: Number(accountForm.starting_balance||0), institution: 'Manual', last4: '0000', manual: true };
+    const acc = { id: editingAccountId || Date.now(), name: accountForm.account_name, type: (accountForm.account_type||'other').toLowerCase(), balance: Number(accountForm.starting_balance||0), institution: 'Manual', last4: '0000', manual: true };
     const income = { id: Date.now()+1, user_id: user?.id || 'local-user', source_name: accountForm.income_source_name || accountForm.account_name, amount: Number(accountForm.income_amount||0), frequency: accountForm.income_frequency, next_pay_date: accountForm.next_pay_date, payment_method: accountForm.payment_method, notes: accountForm.notes, monthly_estimate: 0, created_at: new Date().toISOString() };
-    setManualAccounts([...(manualAccounts||[]), acc]);
+    if (editingAccountId) setManualAccounts((manualAccounts||[]).map(x => x.id === editingAccountId ? acc : x));
+    else setManualAccounts([...(manualAccounts||[]), acc]);
     if (income.amount > 0) setManualIncomeEntries([...(manualIncomeEntries||[]), income]);
     setAccountFormOpen(false);
+    setEditingAccountId(null);
   };
 
   const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
@@ -2178,7 +2201,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
               <div className="integration-card"><div className="int-icon">✍️</div><div className="int-info"><div className="int-name">Manual Income Entry</div><div className="int-status">Enter your income yourself. Great for cash income, gig work, self-employed users, or anyone without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeFormOpen(v=>!v)}>Enter Manually</button></div>
             </div>
             {incomeFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Income source name" value={incomeForm.source_name} onChange={e=>setIncomeForm(f=>({...f,source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={incomeForm.amount} onChange={e=>setIncomeForm(f=>({...f,amount:e.target.value}))}/><select className="form-select" value={incomeForm.frequency} onChange={e=>setIncomeForm(f=>({...f,frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select>{incomeForm.frequency==='Custom' && <input className="form-input" placeholder="Custom monthly estimate" value={incomeForm.monthly_estimate} onChange={e=>setIncomeForm(f=>({...f,monthly_estimate:e.target.value}))}/>}<input className="form-input" type="date" value={incomeForm.next_pay_date} onChange={e=>setIncomeForm(f=>({...f,next_pay_date:e.target.value}))}/><select className="form-select" value={incomeForm.payment_method} onChange={e=>setIncomeForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Notes" value={incomeForm.notes} onChange={e=>setIncomeForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveIncome}>Save Income</button></div>}
-            <div style={{marginTop:10}}>{(manualIncomeEntries||[]).map(i=><div key={i.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{i.source_name}</div><div className="int-status">{fmt(i.amount)} · {i.frequency} · Est monthly {fmt(incomeToMonthly(i))} · {i.payment_method}</div></div><button className="btn btn-danger btn-sm" onClick={()=>setManualIncomeEntries((manualIncomeEntries||[]).filter(x=>x.id!==i.id))}>Delete</button></div>)}</div>
+            <div style={{marginTop:10}}>{(manualIncomeEntries||[]).map(i=><div key={i.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{i.source_name}</div><div className="int-status">{fmt(i.amount)} · {i.frequency} · Est monthly {fmt(incomeToMonthly(i))} · {i.payment_method}</div></div><div style={{display:'flex',gap:6}}><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingIncomeId(i.id);setIncomeForm({ source_name:i.source_name||'', amount:String(i.amount||''), frequency:i.frequency||'Weekly', next_pay_date:i.next_pay_date||'', payment_method:i.payment_method||'Cash', notes:i.notes||'', monthly_estimate:String(i.monthly_estimate||'') });setIncomeFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualIncomeEntries((manualIncomeEntries||[]).filter(x=>x.id!==i.id))}>Delete</button></div></div>)}</div>
           </div>
 
           <div className="card settings-section">
@@ -2189,7 +2212,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
               <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)}>Add Manual Account</button></div>
             </div>
             {accountFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Account name" value={accountForm.account_name} onChange={e=>setAccountForm(f=>({...f,account_name:e.target.value}))}/><select className="form-select" value={accountForm.account_type} onChange={e=>setAccountForm(f=>({...f,account_type:e.target.value}))}>{['Cash','Checking','Savings','Prepaid Card','Gig Work','Business Income','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Starting balance" value={accountForm.starting_balance} onChange={e=>setAccountForm(f=>({...f,starting_balance:e.target.value}))}/><input className="form-input" placeholder="Income source name" value={accountForm.income_source_name} onChange={e=>setAccountForm(f=>({...f,income_source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={accountForm.income_amount} onChange={e=>setAccountForm(f=>({...f,income_amount:e.target.value}))}/><select className="form-select" value={accountForm.income_frequency} onChange={e=>setAccountForm(f=>({...f,income_frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select><select className="form-select" value={accountForm.payment_method} onChange={e=>setAccountForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" type="date" value={accountForm.next_pay_date} onChange={e=>setAccountForm(f=>({...f,next_pay_date:e.target.value}))}/><input className="form-input" placeholder="Notes" value={accountForm.notes} onChange={e=>setAccountForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveManualAccount}>Save Account</button></div>}
-            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div>)}</div>
+            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>)}</div>
           </div>
 
 <div className="card settings-section">
