@@ -8,8 +8,8 @@ const BASE = process.env.NEXT_PUBLIC_APP_URL
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 export const getToken  = () => (typeof window !== 'undefined' ? localStorage.getItem('wp_token') : null);
-export const setToken  = (t) => localStorage.setItem('wp_token', t);
-export const clearToken = () => localStorage.removeItem('wp_token');
+export const setToken  = (t) => { if (typeof window !== 'undefined') localStorage.setItem('wp_token', t); };
+export const clearToken = () => { if (typeof window !== 'undefined') localStorage.removeItem('wp_token'); };
 
 // ── Core fetch ────────────────────────────────────────────────────────────────
 async function request(path, options = {}) {
