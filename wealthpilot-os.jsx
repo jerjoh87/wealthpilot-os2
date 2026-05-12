@@ -4260,37 +4260,44 @@ export default function WealthPilotOS() {
     const fetchData = async () => {
       setLiveDataLoading(true);
       setLiveDataError("");
-      const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
-      const accounts = await safe(async () => {
-        const res = await fetch("/api/accounts");
-        if (!res.ok) throw new Error("accounts unavailable");
-        const payload = await res.json();
-        return ensureArray(payload?.data ?? payload, []);
-      }, acct.accounts);
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      try {
+        const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
+        const accounts = await safe(async () => {
+          const res = await fetch("/api/accounts");
+          if (!res.ok) throw new Error("accounts unavailable");
+          const payload = await res.json();
+          return ensureArray(payload?.data ?? payload, []);
+        }, acct.accounts);
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
 
-      const bills = ensureArray(await safe(() => billsApi.list(), []), []);
-      const transactions = ensureArray(await safe(() => txApi.list(), []), []);
-      const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
-      const portfolio = await safe(async () => {
-        const p = await portfolioApi.list();
-        if (Array.isArray(p)) {
-          const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
-          return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
-        }
-        return p || MOCK.portfolio;
-      }, MOCK.portfolio);
-      const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({
-        accounts: ensureArray(accounts, acct.accounts),
-        bills,
-        transactions,
-        budgets,
-        portfolio,
-        creditScore
-      });
+        const bills = ensureArray(await safe(() => billsApi.list(), []), []);
+        const transactions = ensureArray(await safe(() => txApi.list(), []), []);
+        const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
+        const portfolio = await safe(async () => {
+          const p = await portfolioApi.list();
+          if (Array.isArray(p)) {
+            const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
+            return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
+          }
+          return p || MOCK.portfolio;
+        }, MOCK.portfolio);
+        const creditScore = await safe(() => creditScoreApi.get(), null);
+        setLiveData({
+          accounts: ensureArray(accounts, acct.accounts),
+          bills,
+          transactions,
+          budgets,
+          portfolio,
+          creditScore
+        });
+      } catch (e) {
+        console.error("Live data fetch failed", e);
+        setLiveDataError("Unable to refresh live account data. Showing available data.");
+      } finally {
+        setLiveDataLoading(false);
+      }
     };
     fetchData();
   }, [acct.accounts]);
