@@ -1511,10 +1511,8 @@ function BudgetPage({ modeConfig, budgets = [] }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       {/* Mode suggestions banner */}
       {suggestions.length > 0 && (
         <div className="card mb-4" style={{padding:"12px 16px",background:modeConfig.bg,border:`1px solid ${modeConfig.border}`}}>
@@ -1603,10 +1601,8 @@ function TransactionsPage({ transactions = [] }) {
   const categories = ["All", "Income", "Groceries", "Dining", "Transport", "Shopping", "Entertainment", "Health"];
   const filtered = filter === "All" ? safeTransactions : safeTransactions.filter(t => t.category === filter);
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="card mb-4" style={{padding:"12px 16px"}}>
         <div className="flex items-center gap-3" style={{flexWrap:"wrap"}}>
           <span className="text-sm text-muted">Filter:</span>
@@ -1678,16 +1674,14 @@ function BillsPage() {
   }, []);
 
   const toggle = async (id) => {
-    const bill = safeBills.find(b => b.id === id);
+    const bill = bills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
     setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="grid-3 mb-4">
         <div className="card">
           <div className="card-title">Due This Month</div>
@@ -1701,8 +1695,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{safeBills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {safeBills.length} total bills</div>
+          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {bills.length} total bills</div>
         </div>
       </div>
 
@@ -1752,10 +1746,8 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
-  if (loading) return <LoadingCard message="Loading bills…" />;
   return (
     <div>
-      {error && <ErrorNotice message={error} />}
       <div className="portfolio-placeholder mb-4">
         <div style={{fontSize:32, marginBottom:12}}>🔗</div>
         <h3>Connect Your Brokerage</h3>
@@ -4302,6 +4294,7 @@ export default function WealthPilotOS() {
                   <span className="plaid-sync-text" style={{whiteSpace:"nowrap"}}>Plaid synced 2m ago</span>
                 </div>
               )}
+              <div className="badge badge-red" style={{fontWeight:700}}>UI VERSION: 2026-05-11-3</div>
               {/* Mode selector */}
               <div style={{position:"relative"}}>
                 {modeOpen && <div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setModeOpen(false)}/>}
