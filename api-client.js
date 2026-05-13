@@ -114,3 +114,12 @@ export const plaid = {
   exchange:      (public_token)  => post('/plaid/exchange', { public_token }),
   sync:          ()              => post('/plaid/sync', {}),
 };
+
+// ── Reminders ─────────────────────────────────────────────────────────────────
+
+export const reminders = {
+  getPreferences: () => get('/reminders/preferences'),
+  savePreferences: (data) => post('/reminders/preferences', data),
+  sendTest: () => post('/reminders/test', {}),
+  sendBudgetSummary: (userId) => post('/reminders/send-budget-summary', { userId }),
+};

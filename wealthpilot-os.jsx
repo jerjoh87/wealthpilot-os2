@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2239,6 +2239,11 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
   const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
   const MAX_ACCOUNTS = 6;
+
+  const [reminderPrefs, setReminderPrefs] = useState({ categories: [], frequency: 'both', reminderTime: '09:00', phoneNumber: '', inAppEnabled: true });
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const twilioReady = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ENABLED === 'true');
+
   const totalConnectedAccounts = (manualAccounts||[]).length + (plaid.accounts||[]).length;
 
   const saveIncome = () => {
@@ -2303,6 +2308,22 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     if (!plaid.linkToken) { plaid.fetchLinkToken(); return; }
     plaid.open();
   };
+
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await remindersApi.getPreferences();
+        if (data) setReminderPrefs({
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          frequency: data.frequency || 'both',
+          reminderTime: data.reminder_time || '09:00',
+          phoneNumber: data.phone_number || '',
+          inAppEnabled: data.in_app_enabled !== false,
+        });
+      } catch {}
+    })();
+  }, []);
 
   const handleSync = async () => {
     try {
@@ -2463,6 +2484,20 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
             {renderToggleRow('hideNetWorthWidget','Show/hide dashboard widgets · Net Worth','Control Net Worth card visibility.')}
             {renderToggleRow('hideBudgetWidget','Show/hide dashboard widgets · Budget','Control Budget card visibility.')}
             {renderToggleRow('hidePortfolioWidget','Show/hide dashboard widgets · Portfolio','Control Portfolio card visibility.')}
+          </div>
+
+
+          <div className="card settings-section">
+            <h3>10. Budget Reminders (Text + In-App)</h3>
+            {!twilioReady && <div className="setting-desc" style={{marginBottom:10}}>SMS reminders require Twilio setup. In-app reminders are active.</div>}
+            <div className="setting-row"><div><div className="setting-label">Categories (max 4)</div><div className="setting-desc">Comma-separated category names to include in reminders.</div></div><input value={reminderPrefs.categories.join(', ')} onChange={(e)=>setReminderPrefs(p=>({ ...p, categories: e.target.value.split(',').map(v=>v.trim()).filter(Boolean).slice(0,4) }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:220}} /></div>
+            <div className="setting-row"><div><div className="setting-label">Reminder schedule</div><div className="setting-desc">Daily, weekly, or both.</div></div><select value={reminderPrefs.frequency} onChange={(e)=>setReminderPrefs(p=>({ ...p, frequency: e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:140}}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="both">Both</option></select></div>
+            <div className="setting-row"><div><div className="setting-label">Reminder time</div><div className="setting-desc">24-hour HH:mm.</div></div><input type="time" value={reminderPrefs.reminderTime} onChange={(e)=>setReminderPrefs(p=>({ ...p, reminderTime:e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12}} /></div>
+            <div className="setting-row"><div><div className="setting-label">Phone number</div><div className="setting-desc">Used for SMS delivery when Twilio is configured.</div></div><input value={reminderPrefs.phoneNumber} onChange={(e)=>setReminderPrefs(p=>({ ...p, phoneNumber:e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} /></div>
+            <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+              <button className="btn btn-primary btn-sm" disabled={reminderLoading} onClick={async()=>{try{setReminderLoading(true);await remindersApi.savePreferences(reminderPrefs);addToast?.('Reminder preferences saved.','success');}catch(e){addToast?.(e?.message||'Unable to save reminder preferences.','error');}finally{setReminderLoading(false);}}}>Save Reminders</button>
+              <button className="btn btn-ghost btn-sm" disabled={reminderLoading} onClick={async()=>{try{setReminderLoading(true);const r=await remindersApi.sendTest();addToast?.(r?.notice || 'Test reminder processed.','success');}catch(e){addToast?.(e?.message||'Unable to send test reminder.','error');}finally{setReminderLoading(false);}}}>Send Test Text</button>
+            </div>
           </div>
 
           <div className="card settings-section">
