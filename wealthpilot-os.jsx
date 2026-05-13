@@ -4307,6 +4307,21 @@ function projectedDate(current, target, monthlyContrib) {
   d.setMonth(d.getMonth() + months);
   return d;
 }
+function getSavingsAutoPlan(goal) {
+  const now = new Date();
+  const deadline = goal.deadline ? new Date(goal.deadline) : null;
+  const amountRemaining = Math.max(0, Number(goal.target || 0) - Number(goal.current || 0));
+  const weeksRemaining = deadline ? Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (7 * 24 * 60 * 60 * 1000))) : null;
+  const amountNeededPerWeek = weeksRemaining && weeksRemaining > 0 ? amountRemaining / weeksRemaining : 0;
+  const freqToPaychecksPerWeek = { weekly: 1, biweekly: 0.5, semimonthly: 24 / 52, monthly: 12 / 52 };
+  const paychecksPerWeek = goal.incomeFrequency ? freqToPaychecksPerWeek[goal.incomeFrequency] : null;
+  const paydaysRemaining = paychecksPerWeek && weeksRemaining !== null ? Math.max(1, Math.ceil(weeksRemaining * paychecksPerWeek)) : null;
+  const amountNeededPerPayday = paydaysRemaining ? amountRemaining / paydaysRemaining : null;
+  let status = "on track";
+  if (amountRemaining <= 0) status = "completed";
+  else if (weeksRemaining === 0) status = "behind";
+  return { amountRemaining, weeksRemaining, amountNeededPerWeek, amountNeededPerPayday, status };
+}
 
 function GoalsPage({ addToast, modeConfig }) {
   const [goals, setGoals] = useState(INIT_GOALS);
@@ -4321,7 +4336,7 @@ function GoalsPage({ addToast, modeConfig }) {
     : goals;
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState(null);
-  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
+  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", incomeFrequency:"", notes:"" };
   const [form, setForm] = useState(BLANK);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -4336,7 +4351,7 @@ function GoalsPage({ addToast, modeConfig }) {
 
   const save = () => {
     if (!form.name.trim() || !form.target) return;
-    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0 };
+    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0, incomeFrequency: form.incomeFrequency || "" };
     if (editing) { setGoals(gs => gs.map(g => g.id===editing.id ? entry : g)); addToast&&addToast("Goal updated","success"); }
     else         { setGoals(gs => [...gs, entry]); addToast&&addToast("Goal created 🎯","success"); }
     setDrawer(false);
@@ -4420,6 +4435,7 @@ function GoalsPage({ addToast, modeConfig }) {
           const overdue  = deadline && proj && proj > deadline && !done;
           const remaining = g.target - g.current;
           const monthsLeft = g.monthlyContrib > 0 ? Math.ceil(remaining / g.monthlyContrib) : null;
+          const autoPlan = getSavingsAutoPlan(g);
 
           return (
             <div key={g.id} className="card" style={{borderLeft:`3px solid ${done?"var(--green)":color}`}}>
@@ -4462,6 +4478,15 @@ function GoalsPage({ addToast, modeConfig }) {
                     </div>
                   )}
                   {g.notes && <div style={{marginTop:4,fontSize:11,color:"var(--text3)"}}>{g.notes}</div>}
+                  <div style={{marginTop:8,padding:"8px 10px",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:10,fontSize:11,color:"var(--text2)"}}>
+                    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                      <span>Status: <b style={{color:autoPlan.status==="completed"?"var(--green)":autoPlan.status==="behind"?"var(--red)":"var(--accent)",textTransform:"capitalize"}}>{autoPlan.status}</b></span>
+                      <span>Amount remaining: <b style={{color:"var(--text)"}}>{fmt(autoPlan.amountRemaining)}</b></span>
+                      <span>Weeks remaining: <b style={{color:"var(--text)"}}>{autoPlan.weeksRemaining ?? "—"}</b></span>
+                      <span>Needed/week: <b style={{color:"var(--green)"}}>{fmt(autoPlan.amountNeededPerWeek)}</b></span>
+                      {autoPlan.amountNeededPerPayday !== null && <span>Needed/payday: <b style={{color:"var(--green)"}}>{fmt(autoPlan.amountNeededPerPayday)}</b></span>}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -4515,6 +4540,12 @@ function GoalsPage({ addToast, modeConfig }) {
               <div className="form-group">
                 <label className="form-label">Monthly Contribution ($)</label>
                 <input className="form-input" type="number" value={form.monthlyContrib} onChange={e=>setForm(f=>({...f,monthlyContrib:e.target.value}))} placeholder="500"/>
+              </div>
+              <div>
+                <label className="form-label">Income Frequency (optional)</label>
+                <select className="form-input" value={form.incomeFrequency || ""} onChange={e=>setForm(f=>({...f,incomeFrequency:e.target.value}))}>
+                  <option value="">None</option><option value="weekly">Weekly</option><option value="biweekly">Biweekly</option><option value="semimonthly">Semi-monthly</option><option value="monthly">Monthly</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Deadline</label>
