@@ -256,7 +256,7 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
   const todayDate = new Date();
   const currentDay = todayDate.getDate();
   const components = [];
-  const tips = [];
+  const weakAreas = [];
 
   const safeBudget = Array.isArray(budget) ? budget : [];
   if (safeBudget.length > 0) {
@@ -268,7 +268,12 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
       const budgetScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, avgUsage - 0.7) * 120)));
       components.push({ weight: 1.3, score: budgetScore });
       const nearMax = safeBudget.find((b) => Number(b?.limit) > 0 && (Number(b?.spent || 0) / Number(b?.limit || 1)) >= 0.9);
-      if (nearMax) tips.push(`Your ${nearMax.category || "budget"} budget is almost maxed out.`);
+      if (nearMax) {
+        weakAreas.push({
+          severity: 80,
+          tip: `Reduce spending in ${nearMax.category || "your top"} category before it exceeds your budget.`,
+        });
+      }
     }
   }
 
@@ -279,7 +284,9 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
     const onTimeRate = dueBills > 0 ? paidBills / dueBills : paidBills / safeBills.length;
     const billScore = Math.max(0, Math.min(100, Math.round(onTimeRate * 100)));
     components.push({ weight: 1.2, score: billScore });
-    if (safeBills.some((b) => !b?.paid)) tips.push("Pay upcoming bills on time to protect your score.");
+    if (safeBills.some((b) => !b?.paid)) {
+      weakAreas.push({ severity: 90, tip: "Pay upcoming bills before due dates to avoid late fees and score drops." });
+    }
   }
 
   const safeAccounts = Array.isArray(accounts) ? accounts : [];
@@ -289,8 +296,11 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
     const emergencyCoverageMonths = savingsBalance / monthlyNeed;
     const savingsProgress = Math.max(0, Math.min(100, Math.round((emergencyCoverageMonths / 6) * 100)));
     components.push({ weight: 1.1, score: savingsProgress });
-    if (emergencyCoverageMonths < 1) tips.push("Build your emergency fund to cover at least one month of expenses.");
-    else if (emergencyCoverageMonths < 3) tips.push("Keep growing savings toward a 3-month emergency fund target.");
+    if (emergencyCoverageMonths < 1) {
+      weakAreas.push({ severity: 85, tip: "Create a savings goal for at least one month of essential expenses." });
+    } else if (emergencyCoverageMonths < 3) {
+      weakAreas.push({ severity: 60, tip: "Increase automatic transfers to reach a 3-month emergency fund." });
+    }
   }
 
   const debtAmount = Math.abs(Math.min(0, Number(creditDebt || 0)));
@@ -298,14 +308,14 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
     const dti = debtAmount / Number(income);
     const dtiScore = Math.max(0, Math.min(100, Math.round(100 - dti * 180)));
     components.push({ weight: 1, score: dtiScore });
-    if (dti > 0.35) tips.push("Lower debt-to-income by paying down high-interest balances.");
+    if (dti > 0.35) weakAreas.push({ severity: 75, tip: "Reduce debt-to-income by paying extra toward your highest-interest balance." });
   }
 
   const scoreValue = Number(creditScore?.latest?.score || creditScore?.score || 0);
   if (scoreValue > 0) {
     const normalizedCredit = Math.max(0, Math.min(100, Math.round(((scoreValue - 300) / 550) * 100)));
     components.push({ weight: 0.9, score: normalizedCredit });
-    if (scoreValue < 700) tips.push("Lower credit utilization to improve your financial health.");
+    if (scoreValue < 700) weakAreas.push({ severity: 70, tip: "Reduce credit utilization below 30% before your statement closing date." });
   }
 
   if (typeof netWorth === 'number' && Number.isFinite(netWorth)) {
@@ -313,7 +323,7 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
     components.push({ weight: 0.7, score: nwScore });
   }
 
-  if (income <= 0) tips.push("Add income to improve your score accuracy.");
+  if (income <= 0) weakAreas.push({ severity: 95, tip: "Add income sources to improve your score and monthly cash flow." });
 
   const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
   const finalScore = totalWeight > 0
@@ -326,14 +336,21 @@ function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [],
     : finalScore >= 40 ? 'Needs Attention'
     : 'Critical';
 
+  const prioritizedTips = weakAreas
+    .sort((a, b) => b.severity - a.severity)
+    .map((w) => w.tip)
+    .filter((tip, idx, arr) => arr.indexOf(tip) === idx);
+
+  const fallbackTips = [
+    'Add income sources to improve your score and monthly cash flow.',
+    'Pay upcoming bills before due dates to avoid late fees and score drops.',
+    'Create a savings goal and automate weekly contributions.',
+  ];
+
   return {
     score: Math.max(0, Math.min(100, finalScore)),
     status,
-    tips: (tips.length ? tips : [
-      'Add income to improve your score accuracy.',
-      'Pay upcoming bills on time to protect your score.',
-      'Lower credit utilization to improve your financial health.',
-    ]).slice(0, 3),
+    tips: [...prioritizedTips, ...fallbackTips].slice(0, 3),
   };
 }
 const CATEGORY_ICONS = {
