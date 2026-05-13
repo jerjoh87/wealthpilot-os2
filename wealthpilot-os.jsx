@@ -1533,6 +1533,23 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("");
   const [limit, setLimit] = useState("");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
+  const startVoiceForCategory = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amount = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const cat = (text.match(/called ([a-z ]+)/i) || [])[1];
+      if (cat) setCategory(cat.trim());
+      if (amount) setLimit(amount);
+    };
+    rec.start();
+  };
   return (
     <div>
       {/* Mode suggestions banner */}
@@ -1585,9 +1602,11 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
             <input className="form-input" placeholder="Category name" value={category} onChange={(e)=>setCategory(e.target.value)} />
             <input className="form-input" placeholder="Monthly limit" value={limit} onChange={(e)=>setLimit(e.target.value)} />
             <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-ghost btn-sm" onClick={startVoiceForCategory}>🎤 Voice</button>
               <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddCategory?.({ category, limit }); if (ok) { setCategory(""); setLimit(""); setOpen(false); } }}>Save Category</button>
               <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
             </div>
+            {voiceUnsupported && <div className="text-xs" style={{color:"var(--yellow)"}}>{voiceUnsupported}</div>}
           </div>
         )}
         {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
@@ -1714,6 +1733,7 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
   const [dueDay, setDueDay] = useState("");
   const [autopay, setAutopay] = useState(false);
   const [error, setError] = useState("");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
   const normalizedBills = localBills.map(b => ({ ...b, dueDay: b.dueDay ?? b.due_day ?? 1, paid: Boolean(b.paid) }));
   const unpaid = normalizedBills.filter(b => !b.paid);
   const paid = normalizedBills.filter(b => b.paid);
@@ -1731,6 +1751,24 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
     setLocalBills(next);
     onUpdateBills?.(next);
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
+  };
+  const startVoiceForBill = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amt = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const due = (text.match(/due on (?:the )?(\d{1,2})/i) || [])[1];
+      const billName = text.replace(/add my/i, "").replace(/for.*/i, "").trim();
+      if (billName) setName(billName);
+      if (amt) setAmount(amt);
+      if (due) setDueDay(due);
+    };
+    rec.start();
   };
 
   return (
@@ -1766,9 +1804,11 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
               <input className="form-input" placeholder="Due day (1-31)" value={dueDay} onChange={(e)=>setDueDay(e.target.value)} />
               <label className="text-sm text-muted" style={{display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={autopay} onChange={(e)=>setAutopay(e.target.checked)} /> Autopay enabled</label>
               <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={startVoiceForBill}>🎤 Voice</button>
                 <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddBill?.({ name, amount, dueDay, autopay }); if (ok) { setName(""); setAmount(""); setDueDay(""); setAutopay(false); setOpen(false); } }}>Save Bill</button>
                 <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
               </div>
+              {voiceUnsupported && <div className="text-xs" style={{color:"var(--yellow)"}}>{voiceUnsupported}</div>}
             </div>
           )}
           {error && <div className="text-xs text-red" style={{marginBottom:8}}>{error}</div>}
@@ -1886,12 +1926,49 @@ function AICoachPage({ modeConfig }) {
 
   const detectVoiceIntent = (text) => {
     const t = text.toLowerCase();
-    const amt = (t.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
-    const day = (t.match(/due on (?:the )?(\d{1,2})/) || [])[1];
-    if (t.includes("add my") && t.includes("bill")) return { type:"bill", summary:"Add bill", payload:{ name:text.replace(/add my/i,"").replace(/for.*/i,"").trim(), amount:amt?Number(amt):"", dueDay:day?Number(day):"" } };
-    if (t.includes("create a goal") || t.includes("save $")) return { type:"goal", summary:"Create savings goal", payload:{ name:"New Savings Goal", target:amt?Number(amt):"" } };
-    if (t.includes("add a category")) return { type:"category", summary:"Add budget category", payload:{ name:(t.match(/called ([a-z ]+)/i)||[])[1]?.trim()||"", limit:amt?Number(amt):"" } };
+    const amount = Number(((t.match(/\$\s?(\d+(?:\.\d{1,2})?)/) || [])[1] || (t.match(/for\s+(\d+(?:\.\d{1,2})?)/) || [])[1] || 0));
+    const day = Number((t.match(/due on (?:the )?(\d{1,2})/) || [])[1] || 0);
+    const daysBefore = Number((t.match(/(\d+)\s+days?\s+before/) || [])[1] || 0);
+    if (t.includes("add my") && t.includes("bill")) return { type:"bill", summary:"Add recurring bill", payload:{ name:text.replace(/add my/i,"").replace(/for.*/i,"").trim(), amount:amount||"", dueDay:day||"", recurrence:"monthly" } };
+    if (t.includes("create a goal") || t.includes("save $")) return { type:"goal", summary:"Create savings goal", payload:{ name:(t.match(/for ([a-z ]+)/i)||[])[1]?.trim() || "New Savings Goal", target:amount||"" } };
+    if (t.includes("what") && t.includes("budget left")) return { type:"budget_left", summary:"Check remaining budget", payload:{ category:(t.match(/(?:my|what'?s my)\s+([a-z ]+)\s+budget/i)||[])[1]?.trim() || "overall" } };
+    if (t.includes("remind me") && t.includes("before it")) return { type:"bill_reminder", summary:"Create bill reminder", payload:{ billName:(t.match(/about my ([a-z ]+) bill/i)||[])[1]?.trim() || "Bill", daysBefore:daysBefore||3 } };
+    if (t.includes("add a new category") || t.includes("add a category")) return { type:"category", summary:"Add budget category", payload:{ name:(t.match(/called ([a-z ]+)/i)||[])[1]?.trim()||"", limit:amount||"", period:"monthly" } };
     return null;
+  };
+
+  const runVoiceAction = async (intent) => {
+    if (!intent) return;
+    const now = new Date();
+    if (intent.type === "bill") {
+      await billsApi.create({ name: intent.payload.name || "New Bill", amount: Number(intent.payload.amount || 0), due_day: Number(intent.payload.dueDay || 1), autopay: false });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added "${intent.payload.name}" for ${fmt(Number(intent.payload.amount || 0))} due on day ${intent.payload.dueDay || 1} each month.` }]);
+      return;
+    }
+    if (intent.type === "goal") {
+      setMessages(m => [...m, { role: "assistant", content: `Goal drafted: save ${fmt(Number(intent.payload.target || 0))} for ${intent.payload.name}. I can now build a weekly contribution plan in chat.` }]);
+      return;
+    }
+    if (intent.type === "budget_left") {
+      const category = String(intent.payload.category || "").trim().toLowerCase();
+      const target = coachContext.budgetSummary.find(b => (b.category || "").toLowerCase() === category);
+      const left = target ? Math.max(0, Number(target.limit || 0) - Number(target.spent || 0)) : coachContext.budgetSummary.reduce((sum, b) => sum + Math.max(0, Number(b.limit || 0) - Number(b.spent || 0)), 0);
+      const label = target?.category || "Overall";
+      setMessages(m => [...m, { role: "assistant", content: `${label} budget left this week (est.): ${fmt(left)}. Want me to suggest where to trim spending next?` }]);
+      return;
+    }
+    if (intent.type === "bill_reminder") {
+      const bill = coachContext.billsSummary.find(b => (b.name || "").toLowerCase().includes(String(intent.payload.billName || "").toLowerCase()));
+      const dueDay = Number(bill?.dueDay || 1);
+      const remindDay = Math.max(1, dueDay - Number(intent.payload.daysBefore || 3));
+      await calApi.create({ title: `${bill?.name || intent.payload.billName} bill reminder`, amount: 0, due_date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(remindDay).padStart(2, "0")}`, type: "reminder", status: "upcoming", autopay: false, recurring: "monthly", notes: `Reminder ${intent.payload.daysBefore || 3} days before due date.` });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added a reminder for your ${bill?.name || intent.payload.billName} bill ${intent.payload.daysBefore || 3} days before its due date.` }]);
+      return;
+    }
+    if (intent.type === "category") {
+      await budgetsApi.create({ category: intent.payload.name, limit: Number(intent.payload.limit || 0), month: now.getMonth() + 1, year: now.getFullYear() });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added a ${intent.payload.name} budget category with a ${fmt(Number(intent.payload.limit || 0))} monthly limit.` }]);
+    }
   };
 
   const send = async (text) => {
@@ -1988,7 +2065,7 @@ function AICoachPage({ modeConfig }) {
           <pre style={{margin:0,fontSize:11,whiteSpace:"pre-wrap"}}>{JSON.stringify(confirmIntent.payload, null, 2)}</pre>
           <div style={{marginTop:8,display:"flex",gap:8}}>
             <button className="btn btn-ghost btn-sm" onClick={() => setConfirmIntent(null)}>Dismiss</button>
-            <button className="btn btn-primary btn-sm" onClick={() => { setInput(`Please help me ${confirmIntent.summary.toLowerCase()} with these details: ${JSON.stringify(confirmIntent.payload)}`); setConfirmIntent(null); }}>Use in chat</button>
+            <button className="btn btn-primary btn-sm" onClick={async () => { try { await runVoiceAction(confirmIntent); } catch { setInput(`Please help me ${confirmIntent.summary.toLowerCase()} with these details: ${JSON.stringify(confirmIntent.payload)}`); } finally { setConfirmIntent(null); } }}>Run action</button>
           </div>
         </div>
       )}
@@ -3473,6 +3550,7 @@ function GoalsPage({ addToast, modeConfig }) {
   const [form, setForm] = useState(BLANK);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
@@ -3490,6 +3568,22 @@ function GoalsPage({ addToast, modeConfig }) {
   };
 
   const del = (id) => { setGoals(gs => gs.filter(g => g.id!==id)); addToast&&addToast("Goal deleted","info"); setDrawer(false); };
+  const startVoiceForGoal = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amt = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const goalName = (text.match(/for ([a-z ]+)/i) || [])[1];
+      if (goalName) setForm((f) => ({ ...f, name: goalName.trim() }));
+      if (amt) setForm((f) => ({ ...f, target: amt }));
+    };
+    rec.start();
+  };
 
   const addContrib = (id, amt) => {
     setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, g.current+amt)} : g));
@@ -3666,11 +3760,13 @@ function GoalsPage({ addToast, modeConfig }) {
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
+              <button className="btn btn-ghost" onClick={startVoiceForGoal}>🎤 Voice</button>
               <button className="btn btn-primary" style={{flex:1,justifyContent:"center"}} onClick={save}>
                 {editing ? "Save Changes" : "Create Goal"}
               </button>
               {editing && <button className="btn btn-danger" onClick={()=>del(editing.id)}>Delete</button>}
             </div>
+            {voiceUnsupported && <div className="text-xs" style={{marginTop:8,color:"var(--yellow)"}}>{voiceUnsupported}</div>}
           </div>
         </div>
       )}
