@@ -2208,9 +2208,9 @@ function AICoachPage({ modeConfig }) {
     "What should I do today?",
     "What bill is due next?",
     "How can I save money this week?",
-    "How can I improve my credit?",
+    "How do I improve my credit score?",
     "Can I afford this?",
-    "Create a savings plan.",
+    "Create a savings plan",
   ];
 
   const coachContext = {
@@ -2220,7 +2220,10 @@ function AICoachPage({ modeConfig }) {
     accountsSummary: (MOCK.accounts || []).map(a => ({ name: a.name, type: a.type, balance: Number(a.balance || 0) })),
     goalsSummary: (INIT_GOALS || []).map(g => ({ name: g.name, target: Number(g.target || 0), current: Number(g.current || 0) })),
     creditScore: 742,
+    utilization: Number(MOCK.accounts?.find(a => a.type === "credit")?.balance ? (Math.abs(Number(MOCK.accounts.find(a => a.type === "credit").balance || 0)) / 5000) * 100 : 0),
     debtSummary: { totalDebt: Number(MOCK.studentLoan || 0) + Number(MOCK.carLoan || 0) + Math.abs(Number(MOCK.accounts?.find(a=>a.type==="credit")?.balance || 0)) },
+    netWorth: Number(MOCK.netWorth || 0),
+    upcomingReminders: (MOCK.bills || []).filter(b => !b.paid).map(b => ({ title: `${b.name} bill`, dueDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(b.dueDay || 1).padStart(2, "0")}` })),
   };
 
   const detectVoiceIntent = (text) => {

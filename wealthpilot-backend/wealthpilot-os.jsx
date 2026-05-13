@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -106,6 +106,109 @@ const pickCollection = (value, keys = [], fallback = []) => {
   return ensureArray(value, fallback);
 };
 
+
+
+const getDueInDays = (bill, now = new Date()) => {
+  if (bill?.dueDate) {
+    const due = new Date(bill.dueDate);
+    if (!Number.isNaN(due.getTime())) {
+      return Math.ceil((due.setHours(0,0,0,0) - new Date(now).setHours(0,0,0,0)) / (1000*60*60*24));
+    }
+  }
+  const dueDay = Number(bill?.dueDay);
+  if (!Number.isFinite(dueDay) || dueDay <= 0) return 999;
+  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay);
+  const due = dueThisMonth >= current ? dueThisMonth : new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
+  return Math.ceil((due - current) / (1000*60*60*24));
+};
+
+const buildRuleBasedMoneyMove = ({ income, upcomingBills = [], budget = [], spending = 0, goals = [], creditScoreValue = 0, creditUtilization = null, totalCash = 0 }) => {
+  const highBudget = budget
+    .map((item) => ({ ...item, pct: (Number(item?.spent || 0) / Math.max(1, Number(item?.limit || 0))) * 100 }))
+    .filter((item) => Number(item.limit || 0) > 0)
+    .sort((a, b) => b.pct - a.pct)[0];
+  const dueSoonBill = upcomingBills
+    .map((bill) => ({ ...bill, dueInDays: getDueInDays(bill) }))
+    .filter((bill) => bill.dueInDays >= 0)
+    .sort((a, b) => a.dueInDays - b.dueInDays)[0];
+  const billTotal = upcomingBills.reduce((sum, bill) => sum + Number(bill?.amount || 0), 0);
+  const leftAfterBills = Math.max(0, income - billTotal);
+  const utilization = Number(creditUtilization);
+
+  if (Number.isFinite(utilization) && utilization >= 0.35) {
+    const paydown = Math.max(50, Math.round((utilization - 0.3) * 1000 / 10) * 10);
+    return {
+      source: 'rules',
+      main: `Your utilization is ${Math.round(utilization * 100)}%. Pay ${fmt(paydown)} before your statement date.`,
+      why: 'Lower utilization can improve your score and reduce borrowing risk.',
+      actionLabel: 'Ask AI Coach',
+      actionPage: 'ai-coach',
+    };
+  }
+
+  if (dueSoonBill && dueSoonBill.dueInDays <= 3) {
+    return {
+      source: 'rules',
+      main: `${dueSoonBill.name} is due in ${dueSoonBill.dueInDays} day${dueSoonBill.dueInDays === 1 ? '' : 's'}. Pay ${fmt(dueSoonBill.amount)} now to avoid a late fee.`,
+      why: 'Staying current on bills protects cash flow and your credit profile.',
+      actionLabel: 'Mark Bill Paid',
+      actionPage: 'bills',
+    };
+  }
+
+  if (highBudget && highBudget.pct >= 80) {
+    const daysWindow = Math.max(1, Math.min(7, daysLeft));
+    const remaining = Math.max(0, Number(highBudget.limit || 0) - Number(highBudget.spent || 0));
+    return {
+      source: 'rules',
+      main: `You spent ${Math.round(highBudget.pct)}% of your ${highBudget.category} budget. Limit spending to ${fmt(remaining / daysWindow)} for the next ${daysWindow} days.`,
+      why: 'Pacing spending now helps you avoid budget overruns before month-end.',
+      actionLabel: 'View Budget',
+      actionPage: 'budget',
+    };
+  }
+
+  if (leftAfterBills > 0) {
+    const saveAmt = Math.max(25, Math.round((leftAfterBills * 0.3) / 5) * 5);
+    const essentials = Math.max(50, Math.round((leftAfterBills * 0.45) / 5) * 5);
+    return {
+      source: 'rules',
+      main: `You have ${fmt(leftAfterBills)} left after bills. Put ${fmt(saveAmt)} toward savings and keep ${fmt(essentials)} for food and gas.`,
+      why: 'Automating a split between savings and essentials keeps progress consistent.',
+      actionLabel: goals.length ? 'Add Goal' : 'Add Goal',
+      actionPage: 'goals',
+    };
+  }
+
+  if (!upcomingBills.length) {
+    return {
+      source: 'rules',
+      main: 'No upcoming bills found. Add your recurring bills so your plan is accurate.',
+      why: 'Reliable due dates make your cash-flow guidance and reminders smarter.',
+      actionLabel: 'Add Bill',
+      actionPage: 'bills',
+    };
+  }
+
+  if (!budget.length) {
+    return {
+      source: 'rules',
+      main: 'You do not have budget categories yet. Set one up to unlock targeted spending coaching.',
+      why: 'Category limits are needed for next-best-move recommendations.',
+      actionLabel: 'Add Category',
+      actionPage: 'budget',
+    };
+  }
+
+  return {
+    source: 'rules',
+    main: `Your score is ${creditScoreValue}. Keep paying on time and monitor balances weekly.`,
+    why: 'Small weekly actions build long-term financial momentum.',
+    actionLabel: 'Ask AI Coach',
+    actionPage: 'ai-coach',
+  };
+};
 const incomeToMonthly = (entry) => {
   const amount = Number(entry?.amount || 0);
   switch ((entry?.frequency || '').toLowerCase()) {
@@ -132,6 +235,92 @@ function safeToSpend() {
   return Math.max(0, totalCash - upcomingBills - avgDaily * daysLeft * 0.5);
 }
 
+
+
+function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [], income = 0, spending = 0, creditDebt = 0, creditScore = null, netWorth = null, transactions = [] }) {
+  const todayDate = new Date();
+  const currentDay = todayDate.getDate();
+  const components = [];
+  const tips = [];
+
+  const safeBudget = Array.isArray(budget) ? budget : [];
+  if (safeBudget.length > 0) {
+    const usageRatios = safeBudget
+      .filter((b) => Number(b?.limit) > 0)
+      .map((b) => Math.max(0, Number(b?.spent || 0)) / Math.max(1, Number(b?.limit || 1)));
+    if (usageRatios.length > 0) {
+      const avgUsage = usageRatios.reduce((sum, ratio) => sum + ratio, 0) / usageRatios.length;
+      const budgetScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, avgUsage - 0.7) * 120)));
+      components.push({ weight: 1.3, score: budgetScore });
+      const nearMax = safeBudget.find((b) => Number(b?.limit) > 0 && (Number(b?.spent || 0) / Number(b?.limit || 1)) >= 0.9);
+      if (nearMax) tips.push(`Your ${nearMax.category || "budget"} budget is almost maxed out.`);
+    }
+  }
+
+  const safeBills = Array.isArray(bills) ? bills : [];
+  if (safeBills.length > 0) {
+    const paidBills = safeBills.filter((b) => b?.paid).length;
+    const dueBills = safeBills.filter((b) => Number(b?.dueDay || 0) <= currentDay).length;
+    const onTimeRate = dueBills > 0 ? paidBills / dueBills : paidBills / safeBills.length;
+    const billScore = Math.max(0, Math.min(100, Math.round(onTimeRate * 100)));
+    components.push({ weight: 1.2, score: billScore });
+    if (safeBills.some((b) => !b?.paid)) tips.push("Pay upcoming bills on time to protect your score.");
+  }
+
+  const safeAccounts = Array.isArray(accounts) ? accounts : [];
+  const savingsBalance = safeAccounts.filter((a) => a?.type === 'savings').reduce((sum, a) => sum + Number(a?.balance || 0), 0);
+  const monthlyNeed = Math.max(1, Number(spending || 0));
+  if (savingsBalance > 0 || monthlyNeed > 1) {
+    const emergencyCoverageMonths = savingsBalance / monthlyNeed;
+    const savingsProgress = Math.max(0, Math.min(100, Math.round((emergencyCoverageMonths / 6) * 100)));
+    components.push({ weight: 1.1, score: savingsProgress });
+    if (emergencyCoverageMonths < 1) tips.push("Build your emergency fund to cover at least one month of expenses.");
+    else if (emergencyCoverageMonths < 3) tips.push("Keep growing savings toward a 3-month emergency fund target.");
+  }
+
+  const debtAmount = Math.abs(Math.min(0, Number(creditDebt || 0)));
+  if (debtAmount > 0 && income > 0) {
+    const dti = debtAmount / Number(income);
+    const dtiScore = Math.max(0, Math.min(100, Math.round(100 - dti * 180)));
+    components.push({ weight: 1, score: dtiScore });
+    if (dti > 0.35) tips.push("Lower debt-to-income by paying down high-interest balances.");
+  }
+
+  const scoreValue = Number(creditScore?.latest?.score || creditScore?.score || 0);
+  if (scoreValue > 0) {
+    const normalizedCredit = Math.max(0, Math.min(100, Math.round(((scoreValue - 300) / 550) * 100)));
+    components.push({ weight: 0.9, score: normalizedCredit });
+    if (scoreValue < 700) tips.push("Lower credit utilization to improve your financial health.");
+  }
+
+  if (typeof netWorth === 'number' && Number.isFinite(netWorth)) {
+    const nwScore = netWorth >= 0 ? Math.min(100, Math.round(50 + Math.min(netWorth / 2000, 50))) : Math.max(0, Math.round(50 + netWorth / 2000));
+    components.push({ weight: 0.7, score: nwScore });
+  }
+
+  if (income <= 0) tips.push("Add income to improve your score accuracy.");
+
+  const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+  const finalScore = totalWeight > 0
+    ? Math.round(components.reduce((sum, c) => sum + (c.score * c.weight), 0) / totalWeight)
+    : 0;
+
+  const status = finalScore >= 90 ? 'Excellent'
+    : finalScore >= 75 ? 'Strong'
+    : finalScore >= 60 ? 'Improving'
+    : finalScore >= 40 ? 'Needs Attention'
+    : 'Critical';
+
+  return {
+    score: Math.max(0, Math.min(100, finalScore)),
+    status,
+    tips: (tips.length ? tips : [
+      'Add income to improve your score accuracy.',
+      'Pay upcoming bills on time to protect your score.',
+      'Lower credit utilization to improve your financial health.',
+    ]).slice(0, 3),
+  };
+}
 const CATEGORY_ICONS = {
   Housing: "🏠", Groceries: "🛒", Dining: "🍜", Transport: "🚗",
   Shopping: "🛍️", Entertainment: "🎬", Health: "💊", Income: "💵",
@@ -148,7 +337,7 @@ const FRIENDLY_ERRORS = {
   calendar: "We couldn’t load your calendar. Please refresh.",
   transactions: "We couldn’t load your transactions. Please refresh.",
   budgets: "We couldn’t load your budgets. Please refresh.",
-  ai: "I’m running in offline coach mode right now. I can still help with budget, bills, savings goals, and credit planning.",
+  ai: "I can still coach you right now with practical steps for budget, bills, savings, debt payoff, and credit planning.",
   creditScore: "We couldn’t load your credit score. Please try again.",
   portfolio: "We couldn’t load your portfolio. Please refresh.",
   settings: "Settings update failed. Please try again.",
@@ -167,6 +356,63 @@ const EmptyState = ({ icon="📭", message }) => (
 const LoadingCard = ({ message="Loading…" }) => (
   <div className="card"><div className="text-sm text-muted">{message}</div></div>
 );
+
+const ONBOARDING_STORAGE_KEY = 'wp_onboarding_state';
+const ONBOARDING_GOALS = ["Save money", "Pay debt", "Build credit", "Invest", "Prepare for funding", "Track net worth"];
+
+function OnboardingWizard({ onComplete, onSkip }) {
+  const steps = ["Welcome", "Income", "Bills", "Accounts", "Categories", "Credit Score", "Goal"];
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({
+    monthlyIncome: "",
+    billName: "",
+    billAmount: "",
+    billDueDay: "",
+    accountMethod: "plaid",
+    accountName: "",
+    accountBalance: "",
+    categoryName: "",
+    creditScore: "",
+    goal: ONBOARDING_GOALS[0],
+  });
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (Number.isInteger(saved.step)) setStep(saved.step);
+      if (saved.form && typeof saved.form === 'object') setForm(prev => ({ ...prev, ...saved.form }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step, form })); } catch {}
+  }, [step, form]);
+
+  const next = () => setStep(s => Math.min(steps.length - 1, s + 1));
+  const prev = () => setStep(s => Math.max(0, s - 1));
+  const finish = () => onComplete(form);
+
+  return (
+    <div className="card" style={{maxWidth:640,margin:"18px auto"}}>
+      <div className="card-title">Setup Wizard · Step {step + 1} of {steps.length}</div>
+      <div className="text-sm text-muted" style={{marginBottom:12}}>{steps[step]}</div>
+      {step===0 && <p className="text-sm">Welcome to WealthPilot. Let’s set up your financial workspace in a minute.</p>}
+      {step===1 && <input className="input" placeholder="Monthly income (USD)" value={form.monthlyIncome} onChange={(e)=>setForm(f=>({...f,monthlyIncome:e.target.value}))} />}
+      {step===2 && <div style={{display:"grid",gap:8}}><input className="input" placeholder="Bill name" value={form.billName} onChange={(e)=>setForm(f=>({...f,billName:e.target.value}))} /><input className="input" placeholder="Amount" value={form.billAmount} onChange={(e)=>setForm(f=>({...f,billAmount:e.target.value}))} /><input className="input" placeholder="Due day (1-31)" value={form.billDueDay} onChange={(e)=>setForm(f=>({...f,billDueDay:e.target.value}))} /></div>}
+      {step===3 && <div style={{display:"grid",gap:8}}><select className="input" value={form.accountMethod} onChange={(e)=>setForm(f=>({...f,accountMethod:e.target.value}))}><option value="plaid">Connect bank with Plaid</option><option value="manual">Enter account manually</option></select>{form.accountMethod==="manual" && <><input className="input" placeholder="Account name" value={form.accountName} onChange={(e)=>setForm(f=>({...f,accountName:e.target.value}))} /><input className="input" placeholder="Starting balance" value={form.accountBalance} onChange={(e)=>setForm(f=>({...f,accountBalance:e.target.value}))} /></>}</div>}
+      {step===4 && <input className="input" placeholder="Budget category (example: Groceries)" value={form.categoryName} onChange={(e)=>setForm(f=>({...f,categoryName:e.target.value}))} />}
+      {step===5 && <input className="input" placeholder="Credit score (optional)" value={form.creditScore} onChange={(e)=>setForm(f=>({...f,creditScore:e.target.value}))} />}
+      {step===6 && <select className="input" value={form.goal} onChange={(e)=>setForm(f=>({...f,goal:e.target.value}))}>{ONBOARDING_GOALS.map(g=><option key={g} value={g}>{g}</option>)}</select>}
+
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+        {step>0 && <button className="btn btn-ghost btn-sm" onClick={prev}>Back</button>}
+        {step<steps.length-1 ? <button className="btn btn-primary btn-sm" onClick={next}>Continue</button> : <button className="btn btn-primary btn-sm" onClick={finish}>Finish Setup</button>}
+        {[3,5].includes(step) && <button className="btn btn-ghost btn-sm" onClick={next}>Skip</button>}
+        <button className="btn btn-ghost btn-sm" onClick={onSkip}>Skip all for now</button>
+      </div>
+    </div>
+  );
+}
 
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
@@ -238,6 +484,8 @@ function useAuth() {
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
+const AUTH_DISABLED_MESSAGE = "Login is temporarily disabled while we stabilize the dashboard. Please try again soon.";
+
 function AuthGate({ onAuth }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
   const [email, setEmail]     = useState("");
@@ -247,14 +495,8 @@ function AuthGate({ onAuth }) {
   const [busy, setBusy]       = useState(false);
 
   const submit = async () => {
-    if (!email || !password) return setError("Email and password required.");
-    if (mode === "signup" && !name) return setError("Name required.");
-    setError(""); setBusy(true);
-    try {
-      await onAuth(mode, email, password, name);
-    } catch (e) {
-      setError(FRIENDLY_ERRORS.auth);
-    } finally { setBusy(false); }
+    setError(AUTH_DISABLED_MESSAGE);
+    return;
   };
 
   return (
@@ -296,6 +538,9 @@ function AuthGate({ onAuth }) {
         </div>
         <div style={{fontSize:13,color:"var(--text2)",marginBottom:24}}>
           {mode === "login" ? "Sign in to your account" : "Start managing your finances"}
+        </div>
+        <div style={{fontSize:12,color:"#fbbf24",marginBottom:16,border:"1px solid rgba(251,191,36,0.35)",background:"rgba(251,191,36,0.08)",borderRadius:10,padding:"10px 12px"}}>
+          {AUTH_DISABLED_MESSAGE}
         </div>
 
         {mode === "signup" && (
@@ -1396,9 +1641,9 @@ function Dashboard(props = {}) {
   const safeTransactions = pickCollection(transactions, ["transactions"], []);
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const manualMonthlyIncome = ensureArray(manualIncomeEntries, []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
-  const income = bankIncome + manualMonthlyIncome || MOCK.income;
-  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const manualMonthlyIncome = (manualIncomeEntries || []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
+  const income = bankIncome + manualMonthlyIncome;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const upcomingBills = safeBills.filter(b => !b.paid);
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
@@ -1406,6 +1651,32 @@ function Dashboard(props = {}) {
   const creditScoreValue = creditScore?.latest?.score || 742;
   const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
+  const creditLimitEstimate = safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Number(account?.limit || 0), 0);
+  const creditBalance = Math.abs(safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Math.min(0, Number(account?.balance || 0)), 0));
+  const creditUtilization = creditLimitEstimate > 0 ? creditBalance / creditLimitEstimate : null;
+  const [moneyMove, setMoneyMove] = useState(() => buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash }));
+
+  useEffect(() => {
+    const fallback = buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash });
+    let active = true;
+    setMoneyMove(fallback);
+
+    const fetchAiMove = async () => {
+      try {
+        const prompt = `Generate one concise next-best money move for today. Return JSON only with keys: main, why, actionLabel. Allowed actionLabel values: Add Bill, Add Category, Add Goal, Mark Bill Paid, View Budget, Ask AI Coach.`;
+        const context = { income, spending, budgets: safeBudget, bills: upcomingBills, creditScore: creditScoreValue, creditUtilization, accountBalances: safeAccounts.map((a) => ({ name: a.name, type: a.type, balance: a.balance })), upcomingDueDates: upcomingBills.map((b) => ({ name: b.name, dueDay: b.dueDay, dueDate: b.dueDate, amount: b.amount })) };
+        const result = await aiApi.chat(prompt, [], 'steady', context);
+        const content = result?.content || result?.message || result?.reply || '';
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (!active || !parsed?.main) return;
+        const actionMap = { 'Add Bill': 'bills', 'Add Category': 'budget', 'Add Goal': 'goals', 'Mark Bill Paid': 'bills', 'View Budget': 'budget', 'Ask AI Coach': 'ai-coach' };
+        setMoneyMove({ source: 'ai', main: parsed.main, why: parsed.why || fallback.why, actionLabel: actionMap[parsed.actionLabel] ? parsed.actionLabel : 'Ask AI Coach', actionPage: actionMap[parsed.actionLabel] || 'ai-coach' });
+      } catch (_) {}
+    };
+
+    fetchAiMove();
+    return () => { active = false; };
+  }, [income, spending, safeBudget, upcomingBills, creditScoreValue, creditUtilization, totalCash, safeAccounts]);
 
   return (
     <div style={{display:"grid",gap:14,paddingBottom:8}}>
@@ -1417,6 +1688,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
           <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
           <div className="card-sub">Cash inflow this cycle</div>
+          {income <= 0 && <div className="text-sm text-muted">Add income to start your plan.</div>}
         </div>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
           <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
@@ -1426,6 +1698,16 @@ function Dashboard(props = {}) {
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
+      </div>
+
+      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(56,189,248,0.14), rgba(147,51,234,0.08))",border:"1px solid rgba(56,189,248,0.35)"}}>
+        <div className="section-header" style={{marginBottom:6}}>
+          <div className="section-title">Today’s Money Move</div>
+          <span className="badge badge-gray" style={{fontSize:10}}>{moneyMove?.source === 'ai' ? 'AI' : 'Offline rules'}</span>
+        </div>
+        <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
+        <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
+        <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
@@ -1451,13 +1733,13 @@ function Dashboard(props = {}) {
           <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
             {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">Create your first budget category.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div>}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p></div>}
         </div>
       </div>
 
@@ -1470,6 +1752,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
           <div className="card-title">Credit Score Tracker</div>
           <div className="card-value">{creditScoreValue}</div>
+          {!creditScore?.latest?.score && <div className="card-sub">Add your credit score to track progress.</div>}
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
@@ -1527,10 +1810,30 @@ function Dashboard(props = {}) {
   );
 }
 
-function BudgetPage({ modeConfig, budgets = [] }) {
+function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
+  const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState("");
+  const [limit, setLimit] = useState("");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
+  const startVoiceForCategory = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amount = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const cat = (text.match(/called ([a-z ]+)/i) || [])[1];
+      if (cat) setCategory(cat.trim());
+      if (amount) setLimit(amount);
+    };
+    rec.start();
+  };
   return (
     <div>
       {/* Mode suggestions banner */}
@@ -1576,8 +1879,20 @@ function BudgetPage({ modeConfig, budgets = [] }) {
       <div className="card">
         <div className="section-header">
           <div className="section-title">Category Budgets</div>
-          <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Category creation form is not configured yet in this view. Use Settings > manual entries as a temporary fallback.")}>+ Add Category</button>
+          <button className="btn btn-primary btn-sm" onClick={()=>setOpen(v=>!v)}>+ Add Category</button>
         </div>
+        {open && (
+          <div style={{display:"grid",gap:8,marginBottom:12}}>
+            <input className="form-input" placeholder="Category name" value={category} onChange={(e)=>setCategory(e.target.value)} />
+            <input className="form-input" placeholder="Monthly limit" value={limit} onChange={(e)=>setLimit(e.target.value)} />
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-ghost btn-sm" onClick={startVoiceForCategory}>🎤 Voice</button>
+              <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddCategory?.({ category, limit }); if (ok) { setCategory(""); setLimit(""); setOpen(false); } }}>Save Category</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
+            </div>
+            {voiceUnsupported && <div className="text-xs" style={{color:"var(--yellow)"}}>{voiceUnsupported}</div>}
+          </div>
+        )}
         {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
@@ -1599,7 +1914,23 @@ function BudgetPage({ modeConfig, budgets = [] }) {
                     {over ? "Over by " : ""}{fmt(Math.abs(remaining))}
                   </div>
                   <div className="text-xs text-muted">{pct}% used</div>
+                  <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} onClick={async()=>{
+                      const raw = window.prompt(`Set new monthly limit for ${b.category}:`, String(b.limit || 0));
+                      const next = Number(raw);
+                      if (!Number.isFinite(next) || next <= 0) return addToast?.('Please enter a valid limit greater than 0.', 'error');
+                      try { setSavingId(b.id); await onUpdateBudget?.(b.id, next); addToast?.('Budget updated.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to update budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} style={{color:"var(--red)"}} onClick={async()=>{
+                      if (!window.confirm(`Delete budget category "${b.category}"?`)) return;
+                      try { setSavingId(b.id); await onDeleteBudget?.(b.id); addToast?.('Budget category deleted.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to delete budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Delete</button>
+                  </div>
                 </div>
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>startEdit(b)}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>onDeleteCategory?.(b.id)}>Delete</button>
               </div>
               <div className="progress-bar" style={{height:8}}>
                 <div className="progress-fill" style={{
@@ -1678,26 +2009,50 @@ function TransactionsPage({ transactions = [] }) {
   );
 }
 
-function BillsPage() {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
+function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
+  const [localBills, setLocalBills] = useState(ensureArray(bills, []));
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueDay, setDueDay] = useState("");
+  const [autopay, setAutopay] = useState(false);
   const [error, setError] = useState("");
-  const unpaid = bills.filter(b => !b.paid);
-  const paid = bills.filter(b => b.paid);
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
+  const normalizedBills = localBills.map(b => ({ ...b, dueDay: b.dueDay ?? b.due_day ?? 1, paid: Boolean(b.paid) }));
+  const unpaid = normalizedBills.filter(b => !b.paid);
+  const paid = normalizedBills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
   const totalPaid = paid.reduce((s, b) => s + b.amount, 0);
 
-  // Load from API on mount; fallback to MOCK if backend not connected
   useEffect(() => {
-    setLoading(true);
-    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => setError(FRIENDLY_ERRORS.bills)).finally(() => setLoading(false));
-  }, []);
+    setLocalBills(ensureArray(bills, []));
+  }, [bills]);
 
   const toggle = async (id) => {
-    const bill = bills.find(b => b.id === id);
+    const bill = localBills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
-    setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
+    const next = localBills.map(b => b.id === id ? updated : b);
+    setLocalBills(next);
+    onUpdateBills?.(next);
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
+  };
+  const startVoiceForBill = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amt = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const due = (text.match(/due on (?:the )?(\d{1,2})/i) || [])[1];
+      const billName = text.replace(/add my/i, "").replace(/for.*/i, "").trim();
+      if (billName) setName(billName);
+      if (amt) setAmount(amt);
+      if (due) setDueDay(due);
+    };
+    rec.start();
   };
 
   return (
@@ -1715,8 +2070,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {bills.length} total bills</div>
+          <div className="card-value">{normalizedBills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {normalizedBills.length} total bills</div>
         </div>
       </div>
 
@@ -1724,8 +2079,23 @@ function BillsPage() {
         <div className="card">
           <div className="section-header">
             <div className="section-title">Upcoming Bills</div>
-            <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Bill creation form is not configured yet in this view. Use Calendar to add recurring bill events as a temporary fallback.")}>+ Add Bill</button>
+            <button className="btn btn-primary btn-sm" onClick={()=>setOpen(v=>!v)}>+ Add Bill</button>
           </div>
+          {open && (
+            <div style={{display:"grid",gap:8,marginBottom:12}}>
+              <input className="form-input" placeholder="Bill name" value={name} onChange={(e)=>setName(e.target.value)} />
+              <input className="form-input" placeholder="Amount" value={amount} onChange={(e)=>setAmount(e.target.value)} />
+              <input className="form-input" placeholder="Due day (1-31)" value={dueDay} onChange={(e)=>setDueDay(e.target.value)} />
+              <label className="text-sm text-muted" style={{display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={autopay} onChange={(e)=>setAutopay(e.target.checked)} /> Autopay enabled</label>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={startVoiceForBill}>🎤 Voice</button>
+                <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddBill?.({ name, amount, dueDay, autopay }); if (ok) { setName(""); setAmount(""); setDueDay(""); setAutopay(false); setOpen(false); } }}>Save Bill</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
+              </div>
+              {voiceUnsupported && <div className="text-xs" style={{color:"var(--yellow)"}}>{voiceUnsupported}</div>}
+            </div>
+          )}
+          {error && <div className="text-xs text-red" style={{marginBottom:8}}>{error}</div>}
           {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No bills yet. Add your first bill.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
@@ -1766,6 +2136,18 @@ function BillsPage() {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
+  const [connectState, setConnectState] = useState({ status: connected ? "connected" : "not_configured", message: connected ? "Brokerage connected." : "SnapTrade credentials missing." });
+  const handleSnapTradeConnect = async () => {
+    setConnectState({ status: "loading", message: "Connecting to SnapTrade..." });
+    try {
+      const res = await fetch('/api/portfolio/sync', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'SnapTrade is not configured.');
+      setConnectState({ status: "connected", message: data?.message || "SnapTrade connected." });
+    } catch (e) {
+      setConnectState({ status: "error", message: e?.message || "Unable to connect SnapTrade. Use manual holdings as fallback." });
+    }
+  };
   return (
     <div>
       <div className="portfolio-placeholder mb-4">
@@ -1775,9 +2157,12 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           Sync your Webull, TD Ameritrade, or any SnapTrade-supported brokerage to see your portfolio here in real time.
         </p>
         <div className="flex items-center gap-3" style={{justifyContent:"center", flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={()=>window.alert("SnapTrade connection is not configured yet. Add your SnapTrade client ID and consumer key in environment variables to enable live brokerage sync.")}>🔌 Connect via SnapTrade</button>
+          <button className="btn btn-primary" onClick={handleSnapTradeConnect} disabled={connectState.status === "loading"}>🔌 {connectState.status === "loading" ? "Connecting..." : "Connect via SnapTrade"}</button>
           <button className="btn btn-ghost" onClick={()=>window.alert("Webull direct sync is not available yet. You can connect supported brokerages through SnapTrade, upload a CSV, or enter holdings manually.")}>📊 Connect Webull</button>
         </div>
+        <p className="text-xs text-muted" style={{marginTop:8}}>
+          Status: {connectState.status.replace('_',' ')} · {connectState.message}
+        </p>
         <p className="text-xs text-muted" style={{marginTop:12}}>Read-only access · Bank-level encryption · Coming Q3 2026</p>
       </div>
 
@@ -1811,14 +2196,82 @@ function AICoachPage({ modeConfig }) {
   const [messages, setMessages] = useState(MOCK.aiMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [aiMode, setAiMode] = useState("offline");
+  const [aiErrorFallback, setAiErrorFallback] = useState(false);
+  const [voiceState, setVoiceState] = useState("idle");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
+  const [confirmIntent, setConfirmIntent] = useState(null);
   const bottomRef = useRef(null);
+  const voiceRef = useRef(null);
 
   const suggestions = [
-    "How can I save more each month?",
-    "Am I on track for my goals?",
-    "Where am I overspending?",
-    "Analyze my budget",
+    "What should I do today?",
+    "What bill is due next?",
+    "How can I save money this week?",
+    "How do I improve my credit score?",
+    "Can I afford this?",
+    "Create a savings plan",
   ];
+
+  const coachContext = {
+    incomeTotal: Number(MOCK.income || 0),
+    budgetSummary: (MOCK.budget || []).map(b => ({ category: b.category, limit: Number(b.limit || 0), spent: Number(b.spent || 0) })),
+    billsSummary: (MOCK.bills || []).map(b => ({ name: b.name, amount: Number(b.amount || 0), dueDay: b.dueDay ?? null, paid: Boolean(b.paid) })),
+    accountsSummary: (MOCK.accounts || []).map(a => ({ name: a.name, type: a.type, balance: Number(a.balance || 0) })),
+    goalsSummary: (INIT_GOALS || []).map(g => ({ name: g.name, target: Number(g.target || 0), current: Number(g.current || 0) })),
+    creditScore: 742,
+    utilization: Number(MOCK.accounts?.find(a => a.type === "credit")?.balance ? (Math.abs(Number(MOCK.accounts.find(a => a.type === "credit").balance || 0)) / 5000) * 100 : 0),
+    debtSummary: { totalDebt: Number(MOCK.studentLoan || 0) + Number(MOCK.carLoan || 0) + Math.abs(Number(MOCK.accounts?.find(a=>a.type==="credit")?.balance || 0)) },
+    netWorth: Number(MOCK.netWorth || 0),
+    upcomingReminders: (MOCK.bills || []).filter(b => !b.paid).map(b => ({ title: `${b.name} bill`, dueDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(b.dueDay || 1).padStart(2, "0")}` })),
+  };
+
+  const detectVoiceIntent = (text) => {
+    const t = text.toLowerCase();
+    const amount = Number(((t.match(/\$\s?(\d+(?:\.\d{1,2})?)/) || [])[1] || (t.match(/for\s+(\d+(?:\.\d{1,2})?)/) || [])[1] || 0));
+    const day = Number((t.match(/due on (?:the )?(\d{1,2})/) || [])[1] || 0);
+    const daysBefore = Number((t.match(/(\d+)\s+days?\s+before/) || [])[1] || 0);
+    if (t.includes("add my") && t.includes("bill")) return { type:"bill", summary:"Add recurring bill", payload:{ name:text.replace(/add my/i,"").replace(/for.*/i,"").trim(), amount:amount||"", dueDay:day||"", recurrence:"monthly" } };
+    if (t.includes("create a goal") || t.includes("save $")) return { type:"goal", summary:"Create savings goal", payload:{ name:(t.match(/for ([a-z ]+)/i)||[])[1]?.trim() || "New Savings Goal", target:amount||"" } };
+    if (t.includes("what") && t.includes("budget left")) return { type:"budget_left", summary:"Check remaining budget", payload:{ category:(t.match(/(?:my|what'?s my)\s+([a-z ]+)\s+budget/i)||[])[1]?.trim() || "overall" } };
+    if (t.includes("remind me") && t.includes("before it")) return { type:"bill_reminder", summary:"Create bill reminder", payload:{ billName:(t.match(/about my ([a-z ]+) bill/i)||[])[1]?.trim() || "Bill", daysBefore:daysBefore||3 } };
+    if (t.includes("add a new category") || t.includes("add a category")) return { type:"category", summary:"Add budget category", payload:{ name:(t.match(/called ([a-z ]+)/i)||[])[1]?.trim()||"", limit:amount||"", period:"monthly" } };
+    return null;
+  };
+
+  const runVoiceAction = async (intent) => {
+    if (!intent) return;
+    const now = new Date();
+    if (intent.type === "bill") {
+      await billsApi.create({ name: intent.payload.name || "New Bill", amount: Number(intent.payload.amount || 0), due_day: Number(intent.payload.dueDay || 1), autopay: false });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added "${intent.payload.name}" for ${fmt(Number(intent.payload.amount || 0))} due on day ${intent.payload.dueDay || 1} each month.` }]);
+      return;
+    }
+    if (intent.type === "goal") {
+      setMessages(m => [...m, { role: "assistant", content: `Goal drafted: save ${fmt(Number(intent.payload.target || 0))} for ${intent.payload.name}. I can now build a weekly contribution plan in chat.` }]);
+      return;
+    }
+    if (intent.type === "budget_left") {
+      const category = String(intent.payload.category || "").trim().toLowerCase();
+      const target = coachContext.budgetSummary.find(b => (b.category || "").toLowerCase() === category);
+      const left = target ? Math.max(0, Number(target.limit || 0) - Number(target.spent || 0)) : coachContext.budgetSummary.reduce((sum, b) => sum + Math.max(0, Number(b.limit || 0) - Number(b.spent || 0)), 0);
+      const label = target?.category || "Overall";
+      setMessages(m => [...m, { role: "assistant", content: `${label} budget left this week (est.): ${fmt(left)}. Want me to suggest where to trim spending next?` }]);
+      return;
+    }
+    if (intent.type === "bill_reminder") {
+      const bill = coachContext.billsSummary.find(b => (b.name || "").toLowerCase().includes(String(intent.payload.billName || "").toLowerCase()));
+      const dueDay = Number(bill?.dueDay || 1);
+      const remindDay = Math.max(1, dueDay - Number(intent.payload.daysBefore || 3));
+      await calApi.create({ title: `${bill?.name || intent.payload.billName} bill reminder`, amount: 0, due_date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(remindDay).padStart(2, "0")}`, type: "reminder", status: "upcoming", autopay: false, recurring: "monthly", notes: `Reminder ${intent.payload.daysBefore || 3} days before due date.` });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added a reminder for your ${bill?.name || intent.payload.billName} bill ${intent.payload.daysBefore || 3} days before its due date.` }]);
+      return;
+    }
+    if (intent.type === "category") {
+      await budgetsApi.create({ category: intent.payload.name, limit: Number(intent.payload.limit || 0), month: now.getMonth() + 1, year: now.getFullYear() });
+      setMessages(m => [...m, { role: "assistant", content: `Done — I added a ${intent.payload.name} budget category with a ${fmt(Number(intent.payload.limit || 0))} monthly limit.` }]);
+    }
+  };
 
   const send = async (text) => {
     if (!text.trim()) return;
@@ -1829,36 +2282,45 @@ function AICoachPage({ modeConfig }) {
     try {
       // Calls /api/ai/chat — Anthropic key stays server-side
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
-      const result  = await aiApi.chat(text, history, modeConfig?.id);
+      const result  = await aiApi.chat(text, history, modeConfig?.id, coachContext);
       const reply   = result?.reply || null;
+      setAiMode(result?.mode || "offline");
+      setAiErrorFallback(result?.mode === "error_fallback");
 
       if (reply) {
         setMessages(m => [...m, { role: "assistant", content: reply }]);
-      } else {
-        // Fallback: direct Anthropic call (demo mode — no backend)
-        const context = `You are WealthPilot AI, a personal finance coach. The user's name is ${MOCK.user.name}.
-Monthly income: $${MOCK.income}. Monthly spending: $${MOCK.spending}. Safe to spend: $${Math.round(safeToSpend())}.
-Top spending categories: ${MOCK.budget.map(b => `${b.category}: $${b.spent}/$${b.limit}`).join(", ")}.
-Upcoming bills total: $${MOCK.bills.filter(b=>!b.paid).reduce((s,b)=>s+b.amount,0).toFixed(0)}.
-${modeConfig ? `\nUSER FINANCIAL MODE: ${modeConfig.label.toUpperCase()}\n${modeConfig.aiInstructions}` : ""}
-Be concise, specific. Use emojis sparingly.`;
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514", max_tokens: 1000,
-            system: context,
-            messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-          })
-        });
-        const data = await res.json();
-        const fallbackReply = data.content?.[0]?.text || "I'm having trouble connecting. Please try again.";
-        setMessages(m => [...m, { role: "assistant", content: fallbackReply }]);
       }
     } catch {
-      setMessages(m => [...m, { role: "assistant", content: FRIENDLY_ERRORS.ai }]);
+      setAiMode("offline");
+      setAiErrorFallback(true);
+      setMessages(m => [...m, { role: "assistant", content: "I can still coach you right now: tell me your next bill, budget category, or savings goal and I’ll suggest the next best action." }]);
     }
     setLoading(false);
+  };
+
+  const startVoice = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) {
+      setVoiceUnsupported("Voice input is not supported in this browser yet.");
+      setVoiceState("unsupported");
+      return;
+    }
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => setVoiceState("listening");
+    rec.onend = () => setVoiceState("idle");
+    rec.onerror = () => setVoiceState("idle");
+    rec.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || "";
+      setInput(transcript);
+      const intent = detectVoiceIntent(transcript);
+      if (intent) setConfirmIntent(intent);
+    };
+    voiceRef.current = rec;
+    rec.start();
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -1866,8 +2328,8 @@ Be concise, specific. Use emojis sparingly.`;
   return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 68px)"}}>
       <div style={{padding:"12px 20px 0", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap"}}>
-        <div className="ai-badge"><div className="ai-dot" />AI Coach · Powered by Claude</div>
-        <span className="text-xs text-muted">Your finances are analyzed in real time</span>
+        <div className="ai-badge"><div className="ai-dot" />AI Coach · {aiMode === "online" ? "Online AI mode" : "Offline coach mode"}</div>
+        <span className="text-xs text-muted">{aiErrorFallback ? "Using reliable fallback guidance" : "Your finances are analyzed in real time"}</span>
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:16}}>
@@ -1898,12 +2360,25 @@ Be concise, specific. Use emojis sparingly.`;
         </div>
       )}
 
+      {confirmIntent && (
+        <div className="card" style={{margin:"0 20px 12px",padding:12,border:"1px solid rgba(79,142,247,0.4)"}}>
+          <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Voice action detected: {confirmIntent.summary}</div>
+          <div className="text-xs text-muted" style={{marginBottom:8}}>Review and confirm before saving.</div>
+          <pre style={{margin:0,fontSize:11,whiteSpace:"pre-wrap"}}>{JSON.stringify(confirmIntent.payload, null, 2)}</pre>
+          <div style={{marginTop:8,display:"flex",gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmIntent(null)}>Dismiss</button>
+            <button className="btn btn-primary btn-sm" onClick={async () => { try { await runVoiceAction(confirmIntent); } catch { setInput(`Please help me ${confirmIntent.summary.toLowerCase()} with these details: ${JSON.stringify(confirmIntent.payload)}`); } finally { setConfirmIntent(null); } }}>Run action</button>
+          </div>
+        </div>
+      )}
       <div className="chat-input-wrap">
         <input className="chat-input" value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && send(input)}
           placeholder="Ask your AI coach anything about your finances..." />
+        <button className="btn btn-ghost" onClick={startVoice} disabled={voiceState === "listening"}>{voiceState === "listening" ? "🎙 Listening…" : "🎤 Mic"}</button>
         <button className="btn btn-primary" onClick={() => send(input)} disabled={loading || !input.trim()}>Send</button>
       </div>
+      {voiceUnsupported && <div style={{padding:"8px 20px",fontSize:12,color:"var(--yellow)"}}>{voiceUnsupported}</div>}
     </div>
   );
 }
@@ -2009,7 +2484,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts }) {
+function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts, onRestartSetup }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2034,6 +2509,9 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     hidePortfolioWidget: false,
   });
 
+  const [twoFactorSetupMethod, setTwoFactorSetupMethod] = useState('email');
+  const [twoFactorBusy, setTwoFactorBusy] = useState(false);
+
   const [form, setForm] = useState({
     fullName: MOCK.user.name,
     email: MOCK.user.email,
@@ -2057,10 +2535,31 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   const [incomeFormOpen, setIncomeFormOpen] = useState(false);
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const [balanceFormAccountId, setBalanceFormAccountId] = useState(null);
+  const [incomeTopUpAccountId, setIncomeTopUpAccountId] = useState(null);
+  const [balanceInput, setBalanceInput] = useState('');
+  const [incomeTopUpInput, setIncomeTopUpInput] = useState('');
   const [editingIncomeId, setEditingIncomeId] = useState(null);
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
   const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
+  const MAX_ACCOUNTS = 6;
+
+  const [reminderPrefs, setReminderPrefs] = useState({ categories: [], frequency: 'both', reminderTime: '09:00', phoneNumber: '', inAppEnabled: true });
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const twilioReady = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ENABLED === 'true');
+
+  const totalConnectedAccounts = (manualAccounts||[]).length + (plaid.accounts||[]).length;
+  useEffect(() => {
+    try {
+      const savedReminders = JSON.parse(localStorage.getItem('wp_reminders') || 'null');
+      const savedSecurity = JSON.parse(localStorage.getItem('wp_security_settings') || 'null');
+      if (savedReminders) setReminderPrefs((p) => ({ ...p, ...savedReminders }));
+      if (savedSecurity) setToggles((t) => ({ ...t, ...savedSecurity }));
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem('wp_reminders', JSON.stringify(reminderPrefs)); } catch {} }, [reminderPrefs]);
+  useEffect(() => { try { localStorage.setItem('wp_security_settings', JSON.stringify({ twoFactor: toggles.twoFactor, privacyMode: toggles.privacyMode })); } catch {} }, [toggles.twoFactor, toggles.privacyMode]);
 
   const saveIncome = () => {
     const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
@@ -2073,22 +2572,28 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
 
   const addIncomeToManualAccount = (accountId) => {
-    const raw = window.prompt('Enter income amount to add to this account balance:');
-    const amt = Number(raw || 0);
-    if (!amt || amt <= 0) return;
+    const amt = Number(incomeTopUpInput || 0);
+    if (!amt || amt <= 0) return addToast && addToast("Income amount must be greater than 0.", "error");
     setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: Number(a.balance||0) + amt } : a));
+    setIncomeTopUpAccountId(null);
+    setIncomeTopUpInput('');
     addToast && addToast(`Added ${fmt(amt)} to account balance`, 'success');
   };
 
   const updateManualAccountBalance = (accountId) => {
-    const account = (manualAccounts||[]).find(a => a.id === accountId);
-    const raw = window.prompt('Set new balance for this account:', String(account?.balance || 0));
-    const next = Number(raw || 0);
-    if (Number.isNaN(next)) return;
+    const next = Number(balanceInput || 0);
+    if (Number.isNaN(next)) return addToast && addToast("Please enter a valid number.", "error");
     setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: next } : a));
+    setBalanceFormAccountId(null);
+    setBalanceInput('');
     addToast && addToast('Account balance updated', 'success');
   };
   const saveManualAccount = () => {
+    const isNew = !editingAccountId;
+    if (isNew && totalConnectedAccounts >= MAX_ACCOUNTS) {
+      addToast && addToast(`You can connect up to ${MAX_ACCOUNTS} accounts. Remove one to add another.`, 'error');
+      return;
+    }
     const acc = { id: editingAccountId || Date.now(), name: accountForm.account_name, type: (accountForm.account_type||'other').toLowerCase(), balance: Number(accountForm.starting_balance||0), institution: 'Manual', last4: '0000', manual: true };
     const income = { id: Date.now()+1, user_id: user?.id || 'local-user', source_name: accountForm.income_source_name || accountForm.account_name, amount: Number(accountForm.income_amount||0), frequency: accountForm.income_frequency, next_pay_date: accountForm.next_pay_date, payment_method: accountForm.payment_method, notes: accountForm.notes, monthly_estimate: 0, created_at: new Date().toISOString() };
     if (editingAccountId) setManualAccounts((manualAccounts||[]).map(x => x.id === editingAccountId ? acc : x));
@@ -2098,7 +2603,35 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     setEditingAccountId(null);
   };
 
-  const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+  const toggle = async (k) => {
+    if (k !== 'twoFactor') {
+      setToggles(t => ({ ...t, [k]: !t[k] }));
+      return;
+    }
+
+    if (!user?.email) {
+      addToast && addToast('Unable to update 2FA without a signed-in email.', 'error');
+      return;
+    }
+
+    setTwoFactorBusy(true);
+    try {
+      if (!toggles.twoFactor) {
+        await authApi.enableTwoFactor(user.email);
+        await authApi.sendTwoFactorCode(user.email);
+        setToggles(t => ({ ...t, twoFactor: true }));
+        addToast && addToast('2FA enabled. A verification code was sent via email.', 'success');
+      } else {
+        await authApi.disableTwoFactor(user.email);
+        setToggles(t => ({ ...t, twoFactor: false }));
+        addToast && addToast('2FA disabled.', 'success');
+      }
+    } catch {
+      addToast && addToast('Unable to update two-factor authentication.', 'error');
+    } finally {
+      setTwoFactorBusy(false);
+    }
+  };
   const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const plaid = usePlaidConnect({
@@ -2111,9 +2644,29 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   useEffect(() => { plaid.fetchLinkToken(); }, []);
 
   const handlePlaidConnect = () => {
+    if (totalConnectedAccounts >= MAX_ACCOUNTS) {
+      addToast && addToast(`You can connect up to ${MAX_ACCOUNTS} accounts. Remove one to add another.`, 'error');
+      return;
+    }
     if (!plaid.linkToken) { plaid.fetchLinkToken(); return; }
     plaid.open();
   };
+
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await remindersApi.getPreferences();
+        if (data) setReminderPrefs({
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          frequency: data.frequency || 'both',
+          reminderTime: data.reminder_time || '09:00',
+          phoneNumber: data.phone_number || '',
+          inAppEnabled: data.in_app_enabled !== false,
+        });
+      } catch {}
+    })();
+  }, []);
 
   const handleSync = async () => {
     try {
@@ -2152,6 +2705,11 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   return (
     <div>
+      <div className="card" style={{marginBottom:12}}>
+        <div className="card-title">Setup</div>
+        <div className="text-sm text-muted" style={{marginBottom:10}}>Need to run onboarding again?</div>
+        <button className="btn btn-ghost btn-sm" onClick={onRestartSetup}>Restart setup</button>
+      </div>
       <div className="grid-2" style={{alignItems:'start'}}>
         <div>
           <div className="card settings-section">
@@ -2166,7 +2724,6 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
                 <input value={form[key]} onChange={(e)=>updateField(key,e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} />
               </div>
             ))}
-            {renderToggleRow('twoFactor','Two-factor auth','Require a verification step at login.')}
             <button className="btn btn-danger btn-sm" style={{marginTop:8}}>Delete Account</button>
           </div>
 
@@ -2196,6 +2753,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
                   <button className='btn btn-ghost' style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>window.alert('Teller connection is not configured yet. Add your Teller application credentials and certificate setup to enable live bank syncing.')}>
                     Connect with Teller
                   </button>
+                  {plaid.error && <div style={{marginTop:8,fontSize:12,color:'var(--yellow)'}}>{plaid.error}</div>}
                 </>
               ) : <>{plaid.accounts.map(a => <div key={a.id} className="integration-card" style={{marginBottom:8}}><div className="int-icon">{a.type === 'checking' ? '🏦' : a.type === 'savings' ? '💰' : '💳'}</div><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.institution} · ••••{a.last4}</div></div><div style={{fontFamily:'Syne',fontWeight:700,fontSize:14}}>{fmt(a.balance)}</div></div>)}</>}
             </div>
@@ -2207,7 +2765,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
             <div className="setting-desc" style={{marginBottom:10}}>Sync your bank account for automatic tracking, or enter your income manually if you do not use a bank account.</div>
             <div className="setting-desc" style={{marginBottom:10}}>No bank account? No problem. You can still use WealthPilot OS by entering your income manually. You can connect a bank later anytime.</div>
             <div className="grid-2" style={{gap:10}}>
-              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Securely connect your bank account to automatically track income, spending, and bills.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Securely connect your bank account to automatically track income, spending, and bills.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect} disabled={totalConnectedAccounts >= MAX_ACCOUNTS}>Connect Bank</button></div>
               <div className="integration-card"><div className="int-icon">✍️</div><div className="int-info"><div className="int-name">Manual Income Entry</div><div className="int-status">Enter your income yourself. Great for cash income, gig work, self-employed users, or anyone without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeFormOpen(v=>!v)}>Enter Manually</button></div>
             </div>
             {incomeFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Income source name" value={incomeForm.source_name} onChange={e=>setIncomeForm(f=>({...f,source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={incomeForm.amount} onChange={e=>setIncomeForm(f=>({...f,amount:e.target.value}))}/><select className="form-select" value={incomeForm.frequency} onChange={e=>setIncomeForm(f=>({...f,frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select>{incomeForm.frequency==='Custom' && <input className="form-input" placeholder="Custom monthly estimate" value={incomeForm.monthly_estimate} onChange={e=>setIncomeForm(f=>({...f,monthly_estimate:e.target.value}))}/>}<input className="form-input" type="date" value={incomeForm.next_pay_date} onChange={e=>setIncomeForm(f=>({...f,next_pay_date:e.target.value}))}/><select className="form-select" value={incomeForm.payment_method} onChange={e=>setIncomeForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Notes" value={incomeForm.notes} onChange={e=>setIncomeForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveIncome}>Save Income</button></div>}
@@ -2217,12 +2775,13 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           <div className="card settings-section">
             <h3>5. Add Another Account</h3>
             <div className="setting-desc" style={{marginBottom:10}}>Connect a bank account or add one manually.</div>
+            <div className="setting-desc" style={{marginBottom:10}}>Connected accounts: {totalConnectedAccounts}/{MAX_ACCOUNTS}</div>
             <div className="grid-2" style={{gap:10}}>
-              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Connect another bank account for automatic income, spending, bills, and balance tracking.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect}>Connect Bank</button></div>
-              <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)}>Add Manual Account</button></div>
+              <div className="integration-card"><div className="int-icon">🏦</div><div className="int-info"><div className="int-name">Sync Bank Account</div><div className="int-status">Connect another bank account for automatic income, spending, bills, and balance tracking.</div></div><button className="btn btn-ghost btn-sm" onClick={handlePlaidConnect} disabled={totalConnectedAccounts >= MAX_ACCOUNTS}>Connect Bank</button></div>
+              <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)} disabled={totalConnectedAccounts >= MAX_ACCOUNTS}>Add Manual Account</button></div>
             </div>
             {accountFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Account name" value={accountForm.account_name} onChange={e=>setAccountForm(f=>({...f,account_name:e.target.value}))}/><select className="form-select" value={accountForm.account_type} onChange={e=>setAccountForm(f=>({...f,account_type:e.target.value}))}>{['Cash','Checking','Savings','Prepaid Card','Gig Work','Business Income','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Starting balance" value={accountForm.starting_balance} onChange={e=>setAccountForm(f=>({...f,starting_balance:e.target.value}))}/><input className="form-input" placeholder="Income source name" value={accountForm.income_source_name} onChange={e=>setAccountForm(f=>({...f,income_source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={accountForm.income_amount} onChange={e=>setAccountForm(f=>({...f,income_amount:e.target.value}))}/><select className="form-select" value={accountForm.income_frequency} onChange={e=>setAccountForm(f=>({...f,income_frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select><select className="form-select" value={accountForm.payment_method} onChange={e=>setAccountForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" type="date" value={accountForm.next_pay_date} onChange={e=>setAccountForm(f=>({...f,next_pay_date:e.target.value}))}/><input className="form-input" placeholder="Notes" value={accountForm.notes} onChange={e=>setAccountForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveManualAccount}>Save Account</button></div>}
-            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>)}</div>
+            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6,display:'grid',gap:8}}><div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>{setIncomeTopUpAccountId(a.id);setIncomeTopUpInput('');}}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>{setBalanceFormAccountId(a.id);setBalanceInput(String(a.balance||0));}}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>{incomeTopUpAccountId===a.id && <div style={{display:'flex',gap:8}}><input className="form-input" placeholder="Income amount" value={incomeTopUpInput} onChange={e=>setIncomeTopUpInput(e.target.value)} /><button className="btn btn-primary btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>Apply</button><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeTopUpAccountId(null)}>Cancel</button></div>}{balanceFormAccountId===a.id && <div style={{display:'flex',gap:8}}><input className="form-input" placeholder="New balance" value={balanceInput} onChange={e=>setBalanceInput(e.target.value)} /><button className="btn btn-primary btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Save</button><button className="btn btn-ghost btn-sm" onClick={()=>setBalanceFormAccountId(null)}>Cancel</button></div>}</div>)}</div>
           </div>
 
 <div className="card settings-section">
@@ -2246,8 +2805,29 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
         </div>
 
         <div>
+
           <div className="card settings-section">
-            <h3>6. Budget Preferences</h3>
+            <h3>6. Security</h3>
+            {renderToggleRow('twoFactor','Require two-factor authentication at login','Add a verification step before login is completed.')}
+            <div className="setting-row">
+              <div>
+                <div className="setting-label">2FA setup method</div>
+                <div className="setting-desc">Email verification code is available now. Authenticator app can be added when backend support is ready.</div>
+              </div>
+              <select
+                value={twoFactorSetupMethod}
+                onChange={(e) => setTwoFactorSetupMethod(e.target.value)}
+                disabled={twoFactorBusy}
+                style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:200}}
+              >
+                <option value="email">Email code (available)</option>
+                <option value="authenticator" disabled>Authenticator app (coming soon)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>7. Budget Preferences</h3>
             <div className="setting-row"><div><div className="setting-label">Monthly budget reset day</div><div className="setting-desc">Calendar day to reset budget tracking.</div></div><input value={form.budgetResetDay} onChange={(e)=>updateField('budgetResetDay',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:70}} /></div>
             {renderToggleRow('autoCategorize','Auto-categorize transactions','Apply smart categories to new transactions.')}
             {renderToggleRow('rolloverBudget','Rollover unused budget','Carry remaining funds into next month.')}
@@ -2256,7 +2836,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           </div>
 
           <div className="card settings-section">
-            <h3>7. Privacy & Security</h3>
+            <h3>8. Privacy & Security</h3>
             {renderToggleRow('privacyMode','Privacy mode / hide balances','Mask balances and sensitive amounts on screen.')}
             {renderSelectRow('Session timeout selector','Auto sign-out period when inactive.','sessionTimeout',['15 minutes','30 minutes','1 hour','4 hours'])}
             <div className="setting-row"><div><div className="setting-label">Export my data</div><div className="setting-desc">Download your account records as CSV/JSON.</div></div><button className="btn btn-ghost btn-sm">Export</button></div>
@@ -2265,7 +2845,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           </div>
 
           <div className="card settings-section">
-            <h3>8. Appearance</h3>
+            <h3>9. Appearance</h3>
             {renderToggleRow('darkMode','Dark mode toggle','Premium low-glare experience for night usage.')}
             {renderSelectRow('Accent color selector','Set your interface highlight color.','accentColor',['Electric Blue','Emerald','Violet','Rose'])}
             {renderToggleRow('compactMode','Compact mode toggle','Reduce spacing to fit more content.')}
@@ -2274,8 +2854,22 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
             {renderToggleRow('hidePortfolioWidget','Show/hide dashboard widgets · Portfolio','Control Portfolio card visibility.')}
           </div>
 
+
           <div className="card settings-section">
-            <h3>9. Billing</h3>
+            <h3>10. Budget Reminders (Text + In-App)</h3>
+            {!twilioReady && <div className="setting-desc" style={{marginBottom:10}}>SMS reminders require Twilio setup. In-app reminders are active.</div>}
+            <div className="setting-row"><div><div className="setting-label">Categories (max 4)</div><div className="setting-desc">Comma-separated category names to include in reminders.</div></div><input value={reminderPrefs.categories.join(', ')} onChange={(e)=>setReminderPrefs(p=>({ ...p, categories: e.target.value.split(',').map(v=>v.trim()).filter(Boolean).slice(0,4) }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:220}} /></div>
+            <div className="setting-row"><div><div className="setting-label">Reminder schedule</div><div className="setting-desc">Daily, weekly, or both.</div></div><select value={reminderPrefs.frequency} onChange={(e)=>setReminderPrefs(p=>({ ...p, frequency: e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:140}}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="both">Both</option></select></div>
+            <div className="setting-row"><div><div className="setting-label">Reminder time</div><div className="setting-desc">24-hour HH:mm.</div></div><input type="time" value={reminderPrefs.reminderTime} onChange={(e)=>setReminderPrefs(p=>({ ...p, reminderTime:e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12}} /></div>
+            <div className="setting-row"><div><div className="setting-label">Phone number</div><div className="setting-desc">Used for SMS delivery when Twilio is configured.</div></div><input value={reminderPrefs.phoneNumber} onChange={(e)=>setReminderPrefs(p=>({ ...p, phoneNumber:e.target.value }))} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} /></div>
+            <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+              <button className="btn btn-primary btn-sm" disabled={reminderLoading} onClick={async()=>{try{setReminderLoading(true);await remindersApi.savePreferences(reminderPrefs);addToast?.('Reminder preferences saved.','success');}catch(e){addToast?.(e?.message||'Unable to save reminder preferences.','error');}finally{setReminderLoading(false);}}}>Save Reminders</button>
+              <button className="btn btn-ghost btn-sm" disabled={reminderLoading} onClick={async()=>{try{setReminderLoading(true);const r=await remindersApi.sendTest();addToast?.(r?.notice || 'Test reminder processed.','success');}catch(e){addToast?.(e?.message||'Unable to send test reminder.','error');}finally{setReminderLoading(false);}}}>Send Test Text</button>
+            </div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>10. Billing</h3>
             <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · $9.99 / month</div></div><span className="badge badge-green">Active</span></div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm">Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
             <div style={{marginTop:14,padding:12,border:'1px dashed var(--border2)',borderRadius:12,color:'var(--text2)',fontSize:12}}>Billing history placeholder · Invoice download and payment history will appear here.</div>
@@ -2887,6 +3481,7 @@ function CreditScorePage({ addToast, initialScore }) {
   });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
+  const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
   const hasHistory = history.length > 0;
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
@@ -2933,7 +3528,8 @@ function CreditScorePage({ addToast, initialScore }) {
             onClick={()=>setShowForm(s=>!s)}>
             {showForm ? "Cancel" : "+ Log Score"}
           </button>
-          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={()=>window.alert("SmartCredit sync is not configured yet. Add SmartCredit API credentials or connection URL in the backend to enable live credit report syncing.")}>Connect SmartCredit</button>
+          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={connectSmartCredit} disabled={smartCreditState.status==="loading"}>{smartCreditState.status==="loading" ? "Connecting..." : "Connect SmartCredit"}</button>
+          <div className="text-xs text-muted" style={{marginTop:6}}>Status: {smartCreditState.status.replace('_',' ')} · {smartCreditState.message}</div>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
@@ -3359,6 +3955,7 @@ function GoalsPage({ addToast, modeConfig }) {
   const [form, setForm] = useState(BLANK);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
@@ -3376,6 +3973,22 @@ function GoalsPage({ addToast, modeConfig }) {
   };
 
   const del = (id) => { setGoals(gs => gs.filter(g => g.id!==id)); addToast&&addToast("Goal deleted","info"); setDrawer(false); };
+  const startVoiceForGoal = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      const amt = (text.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+      const goalName = (text.match(/for ([a-z ]+)/i) || [])[1];
+      if (goalName) setForm((f) => ({ ...f, name: goalName.trim() }));
+      if (amt) setForm((f) => ({ ...f, target: amt }));
+    };
+    rec.start();
+  };
 
   const addContrib = (id, amt) => {
     setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, g.current+amt)} : g));
@@ -3552,11 +4165,13 @@ function GoalsPage({ addToast, modeConfig }) {
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
+              <button className="btn btn-ghost" onClick={startVoiceForGoal}>🎤 Voice</button>
               <button className="btn btn-primary" style={{flex:1,justifyContent:"center"}} onClick={save}>
                 {editing ? "Save Changes" : "Create Goal"}
               </button>
               {editing && <button className="btn btn-danger" onClick={()=>del(editing.id)}>Delete</button>}
             </div>
+            {voiceUnsupported && <div className="text-xs" style={{marginTop:8,color:"var(--yellow)"}}>{voiceUnsupported}</div>}
           </div>
         </div>
       )}
@@ -4237,6 +4852,7 @@ export default function WealthPilotOS() {
   });
   const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
   const [manualAccounts, setManualAccounts] = useState([]);
+  const [onboarding, setOnboarding] = useState({ completed: false, step: 0 });
   const [liveStatus, setLiveStatus] = useState({
     accounts: { loading: true, error: false },
     transactions: { loading: true, error: false },
@@ -4250,48 +4866,68 @@ export default function WealthPilotOS() {
 
   useEffect(() => {
     try {
-      setManualIncomeEntries(JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]'));
-      setManualAccounts(JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]'));
+      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income') || localStorage.getItem('wp_manual_income_entries') || '[]');
+      const savedAccounts = JSON.parse(localStorage.getItem('wp_accounts') || localStorage.getItem('wp_manual_accounts') || '[]');
+      setManualIncomeEntries(Array.isArray(savedIncome) ? savedIncome : []);
+      setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
+      const localBudgets = JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]');
+      const localBills = JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]');
+      if (Array.isArray(localBudgets) && localBudgets.length) setLiveData(prev => ({ ...prev, budgets: localBudgets }));
+      if (Array.isArray(localBills) && localBills.length) setLiveData(prev => ({ ...prev, bills: localBills }));
+    } catch {
+      setManualIncomeEntries([]);
+      setManualAccounts([]);
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (saved && typeof saved === 'object') setOnboarding({ completed: Boolean(saved.completed), step: Number(saved.step || 0) });
     } catch {}
   }, []);
 
-  useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
-  useEffect(() => { try { localStorage.setItem('wp_manual_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
+  useEffect(() => { try { localStorage.setItem('wp_manual_income', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
+  useEffect(() => { try { localStorage.setItem('wp_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
   useEffect(() => {
     const fetchData = async () => {
       setLiveDataLoading(true);
       setLiveDataError("");
-      const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
-      const accounts = await safe(async () => {
-        const res = await fetch("/api/accounts");
-        if (!res.ok) throw new Error("accounts unavailable");
-        const payload = await res.json();
-        return ensureArray(payload?.data ?? payload, []);
-      }, acct.accounts);
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      try {
+        const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
+        const accounts = await safe(async () => {
+          const res = await fetch("/api/accounts");
+          if (!res.ok) throw new Error("accounts unavailable");
+          const payload = await res.json();
+          return ensureArray(payload?.data ?? payload, []);
+        }, acct.accounts);
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
 
-      const bills = ensureArray(await safe(() => billsApi.list(), []), []);
-      const transactions = ensureArray(await safe(() => txApi.list(), []), []);
-      const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
-      const portfolio = await safe(async () => {
-        const p = await portfolioApi.list();
-        if (Array.isArray(p)) {
-          const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
-          return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
-        }
-        return p || MOCK.portfolio;
-      }, MOCK.portfolio);
-      const creditScore = await safe(() => creditScoreApi.get(), null);
-      setLiveData({
-        accounts: ensureArray(accounts, acct.accounts),
-        bills,
-        transactions,
-        budgets,
-        portfolio,
-        creditScore
-      });
+        const bills = ensureArray(await safe(() => billsApi.list(), []), []);
+        const transactions = ensureArray(await safe(() => txApi.list(), []), []);
+        const budgets = ensureArray(await safe(() => budgetsApi.list(currentMonth, currentYear), []), []);
+        const portfolio = await safe(async () => {
+          const p = await portfolioApi.list();
+          if (Array.isArray(p)) {
+            const totalValue = p.reduce((s, h) => s + (h.value || 0), 0);
+            return { ...MOCK.portfolio, connected: p.length > 0, holdings: p, totalValue };
+          }
+          return p || MOCK.portfolio;
+        }, MOCK.portfolio);
+        const creditScore = await safe(() => creditScoreApi.get(), null);
+        setLiveData({
+          accounts: ensureArray(accounts, acct.accounts),
+          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]'), []),
+          transactions,
+          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]'), []),
+          portfolio,
+          creditScore
+        });
+      } catch (e) {
+        console.error("Live data fetch failed", e);
+        setLiveDataError("Unable to refresh live account data. Showing available data.");
+      } finally {
+        setLiveDataLoading(false);
+      }
     };
     fetchData();
   }, [acct.accounts]);
@@ -4300,6 +4936,44 @@ export default function WealthPilotOS() {
     const id = Date.now();
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
+  };
+  const refreshBudgets = async () => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const budgets = ensureArray(await budgetsApi.list(currentMonth, currentYear), []);
+    setLiveData((d) => ({ ...d, budgets }));
+  };
+
+  const addBudgetCategory = async ({ category, limit }) => {
+    try {
+      const now = new Date();
+      await budgetsApi.create({ category, limit, month: now.getMonth() + 1, year: now.getFullYear() });
+      await refreshBudgets();
+      addToast("Budget category added.", "success");
+    } catch {
+      addToast("Unable to add budget category.", "error");
+    }
+  };
+
+  const updateBudgetCategory = async (id, limit) => {
+    try {
+      await budgetsApi.update(id, limit);
+      await refreshBudgets();
+      addToast("Budget category updated.", "success");
+    } catch {
+      addToast("Unable to update budget category.", "error");
+    }
+  };
+
+  const deleteBudgetCategory = async (id) => {
+    try {
+      await budgetsApi.remove(id);
+      await refreshBudgets();
+      addToast("Budget category deleted.", "success");
+    } catch {
+      addToast("Unable to delete budget category.", "error");
+    }
   };
 
   // Alert engine — uses live account + bill + budget data
@@ -4329,6 +5003,49 @@ export default function WealthPilotOS() {
 
   const showPage = (id) => { setPage(id); setFabOpen(false); };
 
+  const handleAddCategory = async (input = {}) => {
+    const category = String(input.category || "").trim();
+    const limit = Number(input.limit || 0);
+    if (!category || !Number.isFinite(limit) || limit <= 0) return false;
+    const now = new Date();
+    const draft = { id: Date.now(), category, limit, spent: 0, month: now.getMonth()+1, year: now.getFullYear(), color: '#4f8ef7' };
+    try {
+      const created = await budgetsApi.create({ category: draft.category, limit: draft.limit, month: draft.month, year: draft.year });
+      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), created || draft] }));
+      return true;
+    } catch {
+      setLiveData(prev => {
+        const fallback = [...ensureArray(prev.budgets, []), draft];
+        try { localStorage.setItem('wp_budget_categories', JSON.stringify(fallback)); } catch {}
+        return { ...prev, budgets: fallback };
+      });
+      return true;
+    }
+  };
+
+  const handleAddBill = async (input = {}) => {
+    const name = String(input.name || "").trim();
+    const amount = Number(input.amount || 0);
+    const dueDay = Number(input.dueDay || 0);
+    const autopay = Boolean(input.autopay);
+    if (!name || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
+      return false;
+    }
+    const draft = { id: Date.now(), name, amount, dueDay, due_day: dueDay, autopay, paid: false, category: 'Bills' };
+    try {
+      const created = await billsApi.create({ name: draft.name, amount: draft.amount, due_day: dueDay, autopay });
+      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), created ? { ...created, dueDay: created.dueDay ?? created.due_day } : draft] }));
+      return true;
+    } catch {
+      setLiveData(prev => {
+        const fallback = [...ensureArray(prev.bills, []), draft];
+        try { localStorage.setItem('wp_bills', JSON.stringify(fallback)); } catch {}
+        return { ...prev, bills: fallback };
+      });
+      return true;
+    }
+  };
+
   const dashboardProps = {
     setPage: showPage,
     accounts: [...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])],
@@ -4350,9 +5067,9 @@ export default function WealthPilotOS() {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
-      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
+      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
-      case "bills":        return <BillsPage />;
+      case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
       case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
@@ -4361,9 +5078,30 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
+  };
+
+  const completeOnboarding = async (formData = {}) => {
+    if (Number(formData.monthlyIncome) > 0) {
+      setManualIncomeEntries(prev => [...prev, { id: Date.now(), source_name: 'Primary income', amount: Number(formData.monthlyIncome), frequency: 'Monthly', created_at: new Date().toISOString() }]);
+    }
+    if (formData.billName && Number(formData.billAmount) > 0) {
+      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), { id: Date.now()+1, name: formData.billName, amount: Number(formData.billAmount), dueDay: Number(formData.billDueDay || 1), paid: false, category: 'Bills' }] }));
+    }
+    if (formData.categoryName) {
+      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), { id: Date.now()+2, category: formData.categoryName, limit: 0, spent: 0, color: '#4f8ef7' }] }));
+    }
+    if (formData.accountMethod === 'manual' && formData.accountName) {
+      setManualAccounts(prev => [...prev, { id: Date.now()+3, name: formData.accountName, type: 'checking', balance: Number(formData.accountBalance || 0), institution: 'Manual', last4: '0000', manual: true }]);
+    }
+    if (Number(formData.creditScore) > 0) {
+      setLiveData(prev => ({ ...prev, creditScore: { latest: { score: Number(formData.creditScore) } } }));
+    }
+    const nextState = { completed: true, step: 6, goal: formData.goal || ONBOARDING_GOALS[0] };
+    setOnboarding(nextState);
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(nextState)); } catch {}
   };
 
  return (
@@ -4476,7 +5214,11 @@ export default function WealthPilotOS() {
             <span style={{color:"var(--text2)",fontWeight:400}}>— {modeConfig.dashBanner}</span>
           </div>
 
-          {page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>}
+          {!onboarding.completed ? (
+            <div className="content">
+              <OnboardingWizard onComplete={completeOnboarding} onSkip={() => { setOnboarding({ completed: true, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: true, step: 0 })); } catch {} }} />
+            </div>
+          ) : (page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>)}
         </div>
 
         {/* ── Mobile Bottom Nav ── */}
@@ -4516,3 +5258,12 @@ export default function WealthPilotOS() {
     </>
   );
 }
+  const connectSmartCredit = async () => {
+    setSmartCreditState({ status: "loading", message: "Connecting SmartCredit..." });
+    try {
+      await creditScoreApi.get();
+      setSmartCreditState({ status: "connected", message: "Credit provider reachable." });
+    } catch (e) {
+      setSmartCreditState({ status: "error", message: e?.message || "Connection failed. Manual score entry available." });
+    }
+  };
