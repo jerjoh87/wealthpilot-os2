@@ -51,7 +51,10 @@ const ChatSchema = z.object({
       accountsSummary: z.array(z.object({ name: z.string(), type: z.string().optional(), balance: z.number() })).optional(),
       goalsSummary: z.array(z.object({ name: z.string(), target: z.number().optional(), current: z.number().optional() })).optional(),
       creditScore: z.number().optional(),
+      utilization: z.number().optional(),
       debtSummary: z.object({ totalDebt: z.number().optional() }).optional(),
+      netWorth: z.number().optional(),
+      upcomingReminders: z.array(z.object({ title: z.string(), dueDate: z.string() })).optional(),
     })
     .optional(),
 })
@@ -180,14 +183,30 @@ function buildOfflineReply(message: string, context?: any) {
     const left = Number(b.limit || 0) - Number(b.spent || 0)
     return sum + Math.max(0, left)
   }, 0)
+  const netWorth = Number(context?.netWorth ?? 0)
+  const creditScore = Number(context?.creditScore ?? 0)
+  const utilization = Number(context?.utilization ?? 0)
+  const reminders = Array.isArray(context?.upcomingReminders) ? context.upcomingReminders : []
+  const nextReminder = reminders.sort((a: any, b: any) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')))[0]
+  const totalDebt = Number(context?.debtSummary?.totalDebt ?? 0)
+
+  if (m.includes('today')) {
+    return `Today’s plan: confirm your next due bill, keep spending inside one at-risk category, and move a small amount to savings. Net worth snapshot: $${netWorth.toFixed(2)}.`
+  }
   if (m.includes('bill') && nextBill) {
     return `Your next unpaid bill is ${nextBill.name} for $${Number(nextBill.amount).toFixed(2)} due on day ${nextBill.dueDay ?? 'N/A'}. Suggested action: set a reminder 2 days early and confirm autopay status today.`
   }
   if (m.includes('credit')) return 'To improve credit this month: keep card utilization below 30%, pay on-time, and avoid new hard inquiries. Suggested action: pay down your highest-utilization card first, then set autopay for minimum due.'
+  if (m.includes('next') && m.includes('due') && nextReminder) return `Your next reminder is "${nextReminder.title}" on ${nextReminder.dueDate}. Suggested action: complete it 1–2 days early to avoid late fees.`
   if (m.includes('save') || m.includes('savings')) return `A practical weekly savings move: cap discretionary spending and auto-transfer a small fixed amount right after income lands. You currently have about $${totalBudgetLeft.toFixed(2)} of unspent budget room this month to protect.`
   if (m.includes('afford')) return `Use this quick rule: (income - fixed bills - minimum debt payments) should stay positive with a buffer. Current tracked income is $${income.toFixed(2)}. Suggested action: check this purchase against your category's remaining budget before buying.`
-  if (m.includes('debt')) return 'Debt payoff plan: pay minimums on all debts, direct extra cash to the highest-interest debt, and repeat monthly. Suggested action: choose one target debt and commit a fixed extra amount this week.'
+  if (m.includes('debt')) return `Debt payoff plan: pay minimums on all debts, direct extra cash to the highest-interest debt, and repeat monthly. Current tracked debt is about $${totalDebt.toFixed(2)}.`
   if (m.includes('goal')) return 'For savings goals, set a target date and divide remaining amount by months left to get a required monthly contribution. Suggested action: create one goal and automate the transfer.'
+  if (m.includes('net worth')) return `Your net worth estimate is $${netWorth.toFixed(2)}. To improve it, focus on increasing savings and reducing high-interest debt first.`
+  if (m.includes('funding readiness') || m.includes('fund') || m.includes('raise')) return 'Funding readiness checklist: clean monthly P&L, stable cash runway, debt obligations documented, and predictable revenue/ income trend. I can help you draft a 30-day readiness plan.'
+  if (m.includes('account setup') || m.includes('connect account') || m.includes('link account')) return 'For account setup: link your bank first, then add recurring bills, then set category budgets and one savings goal. That sequence gives the best coaching accuracy.'
+  if (m.includes('utilization')) return `Current utilization snapshot: ${utilization.toFixed(1)}%. Target below 30%, ideal below 10% for score gains.`
+  if (creditScore > 0 && m.includes('improve my credit score')) return `Your credit score is ${creditScore}. Focus this month on on-time payments and lowering utilization from ${utilization.toFixed(1)}% toward <30%.`
   if (m.includes('budget') || m.includes('spend')) return `Budget check: prioritize must-pay bills, then protect essentials, then discretionary categories. Suggested action: freeze one category this week to stay under limit. Current unspent budget total is about $${totalBudgetLeft.toFixed(2)}.`
   return 'Here’s a useful next step today: review your next bill due date, verify one spending category is under its limit, and schedule a small automatic savings transfer. I can help you break this into a 7-day plan if you want.'
 }

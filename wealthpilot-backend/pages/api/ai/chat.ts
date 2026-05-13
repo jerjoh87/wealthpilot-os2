@@ -43,6 +43,20 @@ const ChatSchema = z.object({
     )
     .max(20)
     .default([]),
+  context: z
+    .object({
+      incomeTotal: z.number().optional(),
+      budgetSummary: z.array(z.object({ category: z.string(), limit: z.number(), spent: z.number().optional() })).optional(),
+      billsSummary: z.array(z.object({ name: z.string(), amount: z.number(), dueDay: z.number().nullable().optional(), paid: z.boolean().optional() })).optional(),
+      accountsSummary: z.array(z.object({ name: z.string(), type: z.string().optional(), balance: z.number() })).optional(),
+      goalsSummary: z.array(z.object({ name: z.string(), target: z.number().optional(), current: z.number().optional() })).optional(),
+      creditScore: z.number().optional(),
+      utilization: z.number().optional(),
+      debtSummary: z.object({ totalDebt: z.number().optional() }).optional(),
+      netWorth: z.number().optional(),
+      upcomingReminders: z.array(z.object({ title: z.string(), dueDate: z.string() })).optional(),
+    })
+    .optional(),
 })
 
 // Builds a finance-aware system prompt from the user's live DB data
@@ -139,12 +153,71 @@ Budget categories this month: ${budgetText}.
 Be concise, specific, and reference actual numbers. Never make up data not provided above.`
 }
 
+
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_MESSAGES = 20
+const aiRateLimitByUser = new Map<string, number[]>()
+
+function isRateLimited(userId: string) {
+  const now = Date.now()
+  const cutoff = now - RATE_LIMIT_WINDOW_MS
+  const entries = (aiRateLimitByUser.get(userId) ?? []).filter((t) => t > cutoff)
+
+  if (entries.length >= RATE_LIMIT_MAX_MESSAGES) {
+    aiRateLimitByUser.set(userId, entries)
+    return true
+  }
+
+  entries.push(now)
+  aiRateLimitByUser.set(userId, entries)
+  return false
+}
+
+function buildOfflineReply(message: string, context?: any) {
+  const m = message.toLowerCase()
+  const nextBill = (context?.billsSummary || [])
+    .filter((b: any) => !b.paid)
+    .sort((a: any, b: any) => (a.dueDay ?? 99) - (b.dueDay ?? 99))[0]
+  const income = Number(context?.incomeTotal || 0)
+  const totalBudgetLeft = (context?.budgetSummary || []).reduce((sum: number, b: any) => {
+    const left = Number(b.limit || 0) - Number(b.spent || 0)
+    return sum + Math.max(0, left)
+  }, 0)
+  const netWorth = Number(context?.netWorth ?? 0)
+  const creditScore = Number(context?.creditScore ?? 0)
+  const utilization = Number(context?.utilization ?? 0)
+  const reminders = Array.isArray(context?.upcomingReminders) ? context.upcomingReminders : []
+  const nextReminder = reminders.sort((a: any, b: any) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')))[0]
+  const totalDebt = Number(context?.debtSummary?.totalDebt ?? 0)
+
+  if (m.includes('today')) {
+    return `Today’s plan: confirm your next due bill, keep spending inside one at-risk category, and move a small amount to savings. Net worth snapshot: $${netWorth.toFixed(2)}.`
+  }
+  if (m.includes('bill') && nextBill) {
+    return `Your next unpaid bill is ${nextBill.name} for $${Number(nextBill.amount).toFixed(2)} due on day ${nextBill.dueDay ?? 'N/A'}. Suggested action: set a reminder 2 days early and confirm autopay status today.`
+  }
+  if (m.includes('credit')) return 'To improve credit this month: keep card utilization below 30%, pay on-time, and avoid new hard inquiries. Suggested action: pay down your highest-utilization card first, then set autopay for minimum due.'
+  if (m.includes('next') && m.includes('due') && nextReminder) return `Your next reminder is "${nextReminder.title}" on ${nextReminder.dueDate}. Suggested action: complete it 1–2 days early to avoid late fees.`
+  if (m.includes('save') || m.includes('savings')) return `A practical weekly savings move: cap discretionary spending and auto-transfer a small fixed amount right after income lands. You currently have about $${totalBudgetLeft.toFixed(2)} of unspent budget room this month to protect.`
+  if (m.includes('afford')) return `Use this quick rule: (income - fixed bills - minimum debt payments) should stay positive with a buffer. Current tracked income is $${income.toFixed(2)}. Suggested action: check this purchase against your category's remaining budget before buying.`
+  if (m.includes('debt')) return `Debt payoff plan: pay minimums on all debts, direct extra cash to the highest-interest debt, and repeat monthly. Current tracked debt is about $${totalDebt.toFixed(2)}.`
+  if (m.includes('goal')) return 'For savings goals, set a target date and divide remaining amount by months left to get a required monthly contribution. Suggested action: create one goal and automate the transfer.'
+  if (m.includes('net worth')) return `Your net worth estimate is $${netWorth.toFixed(2)}. To improve it, focus on increasing savings and reducing high-interest debt first.`
+  if (m.includes('funding readiness') || m.includes('fund') || m.includes('raise')) return 'Funding readiness checklist: clean monthly P&L, stable cash runway, debt obligations documented, and predictable revenue/ income trend. I can help you draft a 30-day readiness plan.'
+  if (m.includes('account setup') || m.includes('connect account') || m.includes('link account')) return 'For account setup: link your bank first, then add recurring bills, then set category budgets and one savings goal. That sequence gives the best coaching accuracy.'
+  if (m.includes('utilization')) return `Current utilization snapshot: ${utilization.toFixed(1)}%. Target below 30%, ideal below 10% for score gains.`
+  if (creditScore > 0 && m.includes('improve my credit score')) return `Your credit score is ${creditScore}. Focus this month on on-time payments and lowering utilization from ${utilization.toFixed(1)}% toward <30%.`
+  if (m.includes('budget') || m.includes('spend')) return `Budget check: prioritize must-pay bills, then protect essentials, then discretionary categories. Suggested action: freeze one category this week to stay under limit. Current unspent budget total is about $${totalBudgetLeft.toFixed(2)}.`
+  return 'Here’s a useful next step today: review your next bill due date, verify one spending category is under its limit, and schedule a small automatic savings transfer. I can help you break this into a 7-day plan if you want.'
+}
 // POST /api/ai/chat
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
 
   const user = await requireUser(req, res)
   if (!user) return
+
+  if (isRateLimited(user.id)) return err(res, 'Rate limit exceeded: max 20 messages per minute', 429)
 
   const parsed = ChatSchema.safeParse(req.body)
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
@@ -164,34 +237,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // 2. Build context-aware system prompt from live DB
   const systemPrompt = await buildSystemPrompt(user.id)
 
-  // 3. Make sure Anthropic API key exists
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return err(res, 'Missing ANTHROPIC_API_KEY environment variable', 500)
+  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY)
+  const hasOpenAI = Boolean(process.env.OPENAI_API_KEY)
+  let reply = ''
+  let mode: 'online' | 'offline' | 'error_fallback' = 'offline'
+
+  try {
+    if (hasAnthropic) {
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY as string,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [...history, { role: 'user', content: message }],
+        }),
+      })
+      if (!anthropicRes.ok) throw new Error('Anthropic request failed')
+      const aiData = await anthropicRes.json()
+      reply = aiData.content?.[0]?.text ?? ''
+      mode = 'online'
+    } else if (hasOpenAI) {
+      const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...history,
+            { role: 'user', content: message },
+          ],
+          temperature: 0.3,
+        }),
+      })
+      if (!openAiRes.ok) throw new Error('OpenAI request failed')
+      const aiData = await openAiRes.json()
+      reply = aiData.choices?.[0]?.message?.content ?? ''
+      mode = 'online'
+    }
+  } catch (_) {
+    reply = ''
+    mode = 'error_fallback'
   }
 
-  // 4. Call Anthropic API. API key stays server-side.
-  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [...history, { role: 'user', content: message }],
-    }),
-  })
-
-  if (!anthropicRes.ok) {
-    const errBody = await anthropicRes.text()
-    return err(res, `AI service error: ${errBody}`, 502)
+  if (!reply) {
+    reply = buildOfflineReply(message, parsed.data.context)
+    if (mode !== 'error_fallback') mode = 'offline'
   }
-
-  const aiData = await anthropicRes.json()
-  const reply = aiData.content?.[0]?.text ?? 'No response from AI.'
 
   const assistantMessage: AiMessageInsert = {
     user_id: user.id,
@@ -202,5 +303,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // 5. Persist assistant reply
   await db.from('ai_messages').insert(assistantMessage)
 
-  return ok(res, { reply })
+  return ok(res, { reply, mode })
 }
