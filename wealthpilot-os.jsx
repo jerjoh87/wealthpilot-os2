@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, creditReport as creditReportApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
+import { auth as authApi, accounts as accountsApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, creditReport as creditReportApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -5553,12 +5553,7 @@ export default function WealthPilotOS() {
       });
       try {
         const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
-        const accounts = await safe(async () => {
-          const res = await fetch("/api/accounts");
-          if (!res.ok) throw new Error("accounts unavailable");
-          const payload = await res.json();
-          return ensureArray(payload?.data ?? payload, []);
-        }, acct.accounts);
+        const accounts = ensureArray(await safe(() => accountsApi.list(), acct.accounts), acct.accounts);
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();
@@ -5674,6 +5669,11 @@ export default function WealthPilotOS() {
     if (mode === "signup") await signup(email, password, name);
   };
 
+  const currentPlan = normalizePlan(user?.plan || user?.user_metadata?.plan || MOCK.user.plan || 'free');
+  useEffect(() => {
+    if (BILLING_STATUSES.has(currentPlan)) setBillingStatus(currentPlan);
+  }, [currentPlan]);
+
   // Show auth gate if not logged in (null = still loading)
   if (loading) return (
     <div style={{minHeight:"100vh",background:"#0a0b0e",display:"flex",alignItems:"center",justifyContent:"center",color:"#f0f2f7",fontFamily:"sans-serif"}}>
@@ -5681,10 +5681,6 @@ export default function WealthPilotOS() {
     </div>
   );
   if (!user) return <AuthGate onAuth={handleAuth} />;
-  const currentPlan = normalizePlan(user?.plan || user?.user_metadata?.plan || MOCK.user.plan || 'free');
-  useEffect(() => {
-    if (BILLING_STATUSES.has(currentPlan)) setBillingStatus(currentPlan);
-  }, [currentPlan]);
 
   const showPage = (id) => {
     const requiredPlan = FEATURE_GATES[id];
