@@ -84,6 +84,7 @@ export const budgets = {
   list:   (month, year) => get(`/budgets?month=${month}&year=${year}`),
   create: (data)        => post('/budgets', data),
   update: (id, limit)   => put(`/budgets/${id}`, { limit }),
+  remove: (id)          => del(`/budgets/${id}`),
 };
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────

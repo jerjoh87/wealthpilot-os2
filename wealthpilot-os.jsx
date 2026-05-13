@@ -1526,10 +1526,28 @@ function Dashboard(props = {}) {
   );
 }
 
-function BudgetPage({ modeConfig, budgets = [] }) {
+function BudgetPage({ modeConfig, budgets = [], onCreateBudget, onUpdateBudget, onDeleteBudget, addToast }) {
+  const now = new Date();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [savingId, setSavingId] = useState(null);
+  const [addForm, setAddForm] = useState({ category: '', limit: '', month: now.getMonth() + 1, year: now.getFullYear() });
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
+  const submitAdd = async () => {
+    const limit = Number(addForm.limit);
+    if (!addForm.category.trim()) return addToast?.('Category name is required.', 'error');
+    if (!Number.isFinite(limit) || limit <= 0) return addToast?.('Budget limit must be greater than zero.', 'error');
+    try {
+      setSavingId('new');
+      await onCreateBudget?.({ ...addForm, category: addForm.category.trim(), limit });
+      setAddForm({ category: '', limit: '', month: now.getMonth() + 1, year: now.getFullYear() });
+      setShowAddForm(false);
+      addToast?.('Budget category added.', 'success');
+    } catch (e) {
+      addToast?.(e?.message || 'Unable to add budget category.', 'error');
+    } finally { setSavingId(null); }
+  };
   return (
     <div>
       {/* Mode suggestions banner */}
@@ -1575,8 +1593,17 @@ function BudgetPage({ modeConfig, budgets = [] }) {
       <div className="card">
         <div className="section-header">
           <div className="section-title">Category Budgets</div>
-          <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Category creation form is not configured yet in this view. Use Settings > manual entries as a temporary fallback.")}>+ Add Category</button>
+          <button className="btn btn-primary btn-sm" onClick={()=>setShowAddForm(v=>!v)}>{showAddForm ? "Cancel" : "+ Add Category"}</button>
         </div>
+        {showAddForm && (
+          <div className="card mb-3" style={{padding:12,background:"var(--bg2)"}}>
+            <div className="grid-3" style={{gap:8}}>
+              <input className="input" placeholder="Category name" value={addForm.category} onChange={(e)=>setAddForm(f=>({...f,category:e.target.value}))} />
+              <input className="input" type="number" min="0" step="0.01" placeholder="Monthly limit" value={addForm.limit} onChange={(e)=>setAddForm(f=>({...f,limit:e.target.value}))} />
+              <button className="btn btn-primary" disabled={savingId==='new'} onClick={submitAdd}>{savingId==='new'?'Saving…':'Save Category'}</button>
+            </div>
+          </div>
+        )}
         {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
@@ -1598,6 +1625,18 @@ function BudgetPage({ modeConfig, budgets = [] }) {
                     {over ? "Over by " : ""}{fmt(Math.abs(remaining))}
                   </div>
                   <div className="text-xs text-muted">{pct}% used</div>
+                  <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} onClick={async()=>{
+                      const raw = window.prompt(`Set new monthly limit for ${b.category}:`, String(b.limit || 0));
+                      const next = Number(raw);
+                      if (!Number.isFinite(next) || next <= 0) return addToast?.('Please enter a valid limit greater than 0.', 'error');
+                      try { setSavingId(b.id); await onUpdateBudget?.(b.id, next); addToast?.('Budget updated.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to update budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} style={{color:"var(--red)"}} onClick={async()=>{
+                      if (!window.confirm(`Delete budget category "${b.category}"?`)) return;
+                      try { setSavingId(b.id); await onDeleteBudget?.(b.id); addToast?.('Budget category deleted.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to delete budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Delete</button>
+                  </div>
                 </div>
               </div>
               <div className="progress-bar" style={{height:8}}>
@@ -4312,6 +4351,14 @@ export default function WealthPilotOS() {
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
   };
+  const refreshBudgets = async () => {
+    const now = new Date();
+    const items = ensureArray(await budgetsApi.list(now.getMonth() + 1, now.getFullYear()), []);
+    setLiveData((prev) => ({ ...prev, budgets: items }));
+  };
+  const createBudget = async (payload) => { await budgetsApi.create(payload); await refreshBudgets(); };
+  const updateBudget = async (id, limit) => { await budgetsApi.update(id, limit); await refreshBudgets(); };
+  const deleteBudget = async (id) => { await budgetsApi.remove(id); await refreshBudgets(); };
 
   // Alert engine — uses live account + bill + budget data
   const alertEngine = useAlerts({
@@ -4361,7 +4408,7 @@ export default function WealthPilotOS() {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
-      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
+      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onCreateBudget={createBudget} onUpdateBudget={updateBudget} onDeleteBudget={deleteBudget} addToast={addToast} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
