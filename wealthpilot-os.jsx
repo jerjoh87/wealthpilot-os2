@@ -1334,6 +1334,17 @@ const css = `
   /* SECTION */
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+  .pricing-shell { font-family: 'Inter', 'DM Sans', system-ui, sans-serif; }
+  .pricing-grid { margin-top: 12px; }
+  .plan-card { border: 1px solid var(--border2); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); padding: 14px; }
+  .plan-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; text-transform: capitalize; letter-spacing: 0.2px; }
+  .plan-price { font-size: 13px; font-weight: 600; color: var(--text2); margin: 4px 0 10px; }
+  .plan-list { margin: 0; padding-left: 18px; color: var(--text2); line-height: 1.5; font-size: 12px; }
+  .upgrade-btn { width: 100%; margin-top: 12px; font-weight: 700; letter-spacing: 0.2px; }
+  .billing-form { margin-top: 16px; padding: 14px; border-radius: 12px; border: 1px solid var(--border2); background: linear-gradient(135deg, rgba(79,142,247,0.08), rgba(79,142,247,0.02)); }
+  .billing-form-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .billing-input { height: 38px; border-radius: 10px; border: 1px solid var(--border2); background: rgba(12,16,24,0.95); color: var(--text); padding: 0 12px; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; outline: none; }
+  .billing-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,142,247,0.2); }
   .mt-4 { margin-top: 16px; } .mt-6 { margin-top: 24px; }
   .mb-4 { margin-bottom: 16px; }
   .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
@@ -5517,7 +5528,11 @@ function WealthPilotOSApp() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
-  const [billingStatus, setBillingStatus] = useState('free');
+  const [billingStatus, setBillingStatus] = useState('premium');
+  const [demoPlan, setDemoPlan] = useState('premium');
+  const [cardEntryOpen, setCardEntryOpen] = useState(false);
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState('premium');
+  const [cardForm, setCardForm] = useState({ cardNumber: '', expiry: '', cvc: '', zip: '' });
   const [liveDataLoading, setLiveDataLoading] = useState(true);
   const [liveDataError, setLiveDataError] = useState("");
   const [liveData, setLiveData] = useState({
@@ -5642,6 +5657,21 @@ function WealthPilotOSApp() {
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
   };
+  const handleDemoCardUpgrade = () => {
+    const cleanCard = String(cardForm.cardNumber || '').replace(/\s+/g, '');
+    const cleanExpiry = String(cardForm.expiry || '').trim();
+    const cleanCvc = String(cardForm.cvc || '').trim();
+    if (cleanCard.length < 12 || cleanExpiry.length < 4 || cleanCvc.length < 3) {
+      addToast('Please enter a valid card number, expiry, and CVC.', 'error');
+      return;
+    }
+    setDemoPlan(selectedUpgradePlan);
+    setBillingStatus(selectedUpgradePlan);
+    setCardEntryOpen(false);
+    setPricingOpen(false);
+    setCardForm({ cardNumber: '', expiry: '', cvc: '', zip: '' });
+    addToast(`Demo plan switched to ${selectedUpgradePlan}.`, 'success');
+  };
   const refreshBudgets = async () => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -5698,7 +5728,7 @@ function WealthPilotOSApp() {
     if (mode === "signup") await signup(email, password, name);
   };
 
-  const currentPlan = normalizePlan(user?.plan || user?.user_metadata?.plan || MOCK.user.plan || 'free');
+  const currentPlan = normalizePlan(demoPlan || user?.plan || user?.user_metadata?.plan || MOCK.user.plan || 'free');
   useEffect(() => {
     if (BILLING_STATUSES.has(currentPlan)) setBillingStatus(currentPlan);
   }, [currentPlan]);
@@ -5949,28 +5979,47 @@ function WealthPilotOSApp() {
 
         {pricingOpen && (
           <div style={{position:"fixed", inset:0, zIndex:600, background:"rgba(2,6,23,0.72)", display:"flex", alignItems:"center", justifyContent:"center"}} onClick={()=>setPricingOpen(false)}>
-            <div className="card" style={{width:"min(980px, 94%)", maxHeight:"90vh", overflow:"auto"}} onClick={(e)=>e.stopPropagation()}>
+            <div className="card pricing-shell" style={{width:"min(980px, 94%)", maxHeight:"90vh", overflow:"auto"}} onClick={(e)=>e.stopPropagation()}>
               <div className="section-title">Subscription plans</div>
-              <div className="grid-3" style={{marginTop:12}}>
+              <div className="grid-3 pricing-grid">
                 {[
                   { id:'free', price:'$0/mo', items:['manual budget','manual bills','3 budget categories','1 manual account','basic AI Coach/offline coach','basic credit score entry','basic goals']},
                   { id:'pro', price:'$9.99/mo', items:['unlimited categories','up to 6 bank accounts with Plaid','AI Coach','voice commands','SMS reminders','debt payoff planner','credit utilization tracker','net worth tracker','weekly money report']},
                   { id:'premium', price:'$19.99/mo', items:['everything in Pro','SmartCredit sync','SnapTrade portfolio sync','advanced AI recommendations','funding readiness score','advanced reports','priority features']},
                 ].map((plan) => (
-                  <div key={plan.id} className="card">
-                    <div style={{fontWeight:700,textTransform:'capitalize'}}>{plan.id}</div>
-                    <div className="text-sm mb-2">{plan.price}</div>
-                    <ul className="text-sm">{plan.items.map((item) => <li key={item}>{item}</li>)}</ul>
-                    <button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={async()=>{
-                      if (plan.id === 'free') { setPricingOpen(false); return; }
-                      const res = await fetch('/api/billing/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ plan: plan.id }) });
-                      const data = await res.json();
-                      if (data?.url) window.location.href = data.url;
-                      else addToast(data?.message || 'Billing setup required.', 'info');
+                  <div key={plan.id} className="plan-card">
+                    <div className="plan-name">{plan.id}</div>
+                    <div className="plan-price">{plan.price}</div>
+                    <ul className="plan-list">{plan.items.map((item) => <li key={item}>{item}</li>)}</ul>
+                    <button className="btn btn-primary btn-sm upgrade-btn" onClick={async()=>{
+                      if (plan.id === 'free') {
+                        setDemoPlan('free');
+                        setBillingStatus('free');
+                        setPricingOpen(false);
+                        addToast('Demo plan switched to free.', 'success');
+                        return;
+                      }
+                      setSelectedUpgradePlan(plan.id);
+                      setCardEntryOpen(true);
                     }}>Upgrade</button>
                   </div>
                 ))}
               </div>
+              {cardEntryOpen && (
+                <div className="billing-form">
+                  <div className="billing-form-title">Enter card details to upgrade to {selectedUpgradePlan}</div>
+                  <div className="grid-2" style={{gap:8}}>
+                    <input className="billing-input" placeholder="Card number" value={cardForm.cardNumber} onChange={(e)=>setCardForm((f)=>({ ...f, cardNumber: e.target.value }))} />
+                    <input className="billing-input" placeholder="MM/YY" value={cardForm.expiry} onChange={(e)=>setCardForm((f)=>({ ...f, expiry: e.target.value }))} />
+                    <input className="billing-input" placeholder="CVC" value={cardForm.cvc} onChange={(e)=>setCardForm((f)=>({ ...f, cvc: e.target.value }))} />
+                    <input className="billing-input" placeholder="ZIP" value={cardForm.zip} onChange={(e)=>setCardForm((f)=>({ ...f, zip: e.target.value }))} />
+                  </div>
+                  <div style={{display:'flex',gap:8,marginTop:10}}>
+                    <button className="btn btn-primary btn-sm" onClick={handleDemoCardUpgrade}>Submit</button>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setCardEntryOpen(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
