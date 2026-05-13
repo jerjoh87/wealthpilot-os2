@@ -2207,6 +2207,9 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     hidePortfolioWidget: false,
   });
 
+  const [twoFactorSetupMethod, setTwoFactorSetupMethod] = useState('email');
+  const [twoFactorBusy, setTwoFactorBusy] = useState(false);
+
   const [form, setForm] = useState({
     fullName: MOCK.user.name,
     email: MOCK.user.email,
@@ -2288,7 +2291,35 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     setEditingAccountId(null);
   };
 
-  const toggle = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+  const toggle = async (k) => {
+    if (k !== 'twoFactor') {
+      setToggles(t => ({ ...t, [k]: !t[k] }));
+      return;
+    }
+
+    if (!user?.email) {
+      addToast && addToast('Unable to update 2FA without a signed-in email.', 'error');
+      return;
+    }
+
+    setTwoFactorBusy(true);
+    try {
+      if (!toggles.twoFactor) {
+        await authApi.enableTwoFactor(user.email);
+        await authApi.sendTwoFactorCode(user.email);
+        setToggles(t => ({ ...t, twoFactor: true }));
+        addToast && addToast('2FA enabled. A verification code was sent via email.', 'success');
+      } else {
+        await authApi.disableTwoFactor(user.email);
+        setToggles(t => ({ ...t, twoFactor: false }));
+        addToast && addToast('2FA disabled.', 'success');
+      }
+    } catch {
+      addToast && addToast('Unable to update two-factor authentication.', 'error');
+    } finally {
+      setTwoFactorBusy(false);
+    }
+  };
   const updateField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const plaid = usePlaidConnect({
@@ -2376,7 +2407,6 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
                 <input value={form[key]} onChange={(e)=>updateField(key,e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:170}} />
               </div>
             ))}
-            {renderToggleRow('twoFactor','Two-factor auth','Require a verification step at login.')}
             <button className="btn btn-danger btn-sm" style={{marginTop:8}}>Delete Account</button>
           </div>
 
@@ -2458,8 +2488,29 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
         </div>
 
         <div>
+
           <div className="card settings-section">
-            <h3>6. Budget Preferences</h3>
+            <h3>6. Security</h3>
+            {renderToggleRow('twoFactor','Require two-factor authentication at login','Add a verification step before login is completed.')}
+            <div className="setting-row">
+              <div>
+                <div className="setting-label">2FA setup method</div>
+                <div className="setting-desc">Email verification code is available now. Authenticator app can be added when backend support is ready.</div>
+              </div>
+              <select
+                value={twoFactorSetupMethod}
+                onChange={(e) => setTwoFactorSetupMethod(e.target.value)}
+                disabled={twoFactorBusy}
+                style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,minWidth:200}}
+              >
+                <option value="email">Email code (available)</option>
+                <option value="authenticator" disabled>Authenticator app (coming soon)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="card settings-section">
+            <h3>7. Budget Preferences</h3>
             <div className="setting-row"><div><div className="setting-label">Monthly budget reset day</div><div className="setting-desc">Calendar day to reset budget tracking.</div></div><input value={form.budgetResetDay} onChange={(e)=>updateField('budgetResetDay',e.target.value)} style={{background:'var(--bg3)',color:'var(--text)',border:'1px solid var(--border2)',borderRadius:10,padding:'8px 10px',fontSize:12,width:70}} /></div>
             {renderToggleRow('autoCategorize','Auto-categorize transactions','Apply smart categories to new transactions.')}
             {renderToggleRow('rolloverBudget','Rollover unused budget','Carry remaining funds into next month.')}
@@ -2468,7 +2519,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           </div>
 
           <div className="card settings-section">
-            <h3>7. Privacy & Security</h3>
+            <h3>8. Privacy & Security</h3>
             {renderToggleRow('privacyMode','Privacy mode / hide balances','Mask balances and sensitive amounts on screen.')}
             {renderSelectRow('Session timeout selector','Auto sign-out period when inactive.','sessionTimeout',['15 minutes','30 minutes','1 hour','4 hours'])}
             <div className="setting-row"><div><div className="setting-label">Export my data</div><div className="setting-desc">Download your account records as CSV/JSON.</div></div><button className="btn btn-ghost btn-sm">Export</button></div>
@@ -2477,7 +2528,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           </div>
 
           <div className="card settings-section">
-            <h3>8. Appearance</h3>
+            <h3>9. Appearance</h3>
             {renderToggleRow('darkMode','Dark mode toggle','Premium low-glare experience for night usage.')}
             {renderSelectRow('Accent color selector','Set your interface highlight color.','accentColor',['Electric Blue','Emerald','Violet','Rose'])}
             {renderToggleRow('compactMode','Compact mode toggle','Reduce spacing to fit more content.')}
@@ -2501,7 +2552,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
           </div>
 
           <div className="card settings-section">
-            <h3>9. Billing</h3>
+            <h3>10. Billing</h3>
             <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · $9.99 / month</div></div><span className="badge badge-green">Active</span></div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm">Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
             <div style={{marginTop:14,padding:12,border:'1px dashed var(--border2)',borderRadius:12,color:'var(--text2)',fontSize:12}}>Billing history placeholder · Invoice download and payment history will appear here.</div>
@@ -4562,15 +4613,6 @@ export default function WealthPilotOS() {
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
   };
-  const refreshBudgets = async () => {
-    const now = new Date();
-    const items = ensureArray(await budgetsApi.list(now.getMonth() + 1, now.getFullYear()), []);
-    setLiveData((prev) => ({ ...prev, budgets: items }));
-  };
-  const createBudget = async (payload) => { await budgetsApi.create(payload); await refreshBudgets(); };
-  const updateBudget = async (id, limit) => { await budgetsApi.update(id, limit); await refreshBudgets(); };
-  const deleteBudget = async (id) => { await budgetsApi.remove(id); await refreshBudgets(); };
-
   const refreshBudgets = async () => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;

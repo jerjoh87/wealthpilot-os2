@@ -52,6 +52,10 @@ export const auth = {
   login:  (email, password)       => post('/auth/login',  { email, password }),
   logout: ()                      => post('/auth/logout', {}),
   me:     ()                      => get('/users/me'),
+  enableTwoFactor: (email)        => post('/auth/2fa/enable', { email }),
+  disableTwoFactor: (email)       => post('/auth/2fa/disable', { email }),
+  sendTwoFactorCode: (email)      => post('/auth/2fa/send-code', { email }),
+  verifyTwoFactorCode: (email, code) => post('/auth/2fa/verify', { email, code }),
 };
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
