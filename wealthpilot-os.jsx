@@ -1611,6 +1611,18 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
                     {over ? "Over by " : ""}{fmt(Math.abs(remaining))}
                   </div>
                   <div className="text-xs text-muted">{pct}% used</div>
+                  <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} onClick={async()=>{
+                      const raw = window.prompt(`Set new monthly limit for ${b.category}:`, String(b.limit || 0));
+                      const next = Number(raw);
+                      if (!Number.isFinite(next) || next <= 0) return addToast?.('Please enter a valid limit greater than 0.', 'error');
+                      try { setSavingId(b.id); await onUpdateBudget?.(b.id, next); addToast?.('Budget updated.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to update budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} style={{color:"var(--red)"}} onClick={async()=>{
+                      if (!window.confirm(`Delete budget category "${b.category}"?`)) return;
+                      try { setSavingId(b.id); await onDeleteBudget?.(b.id); addToast?.('Budget category deleted.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to delete budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Delete</button>
+                  </div>
                 </div>
               </div>
               <div className="progress-bar" style={{height:8}}>
@@ -4360,6 +4372,14 @@ export default function WealthPilotOS() {
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
   };
+  const refreshBudgets = async () => {
+    const now = new Date();
+    const items = ensureArray(await budgetsApi.list(now.getMonth() + 1, now.getFullYear()), []);
+    setLiveData((prev) => ({ ...prev, budgets: items }));
+  };
+  const createBudget = async (payload) => { await budgetsApi.create(payload); await refreshBudgets(); };
+  const updateBudget = async (id, limit) => { await budgetsApi.update(id, limit); await refreshBudgets(); };
+  const deleteBudget = async (id) => { await budgetsApi.remove(id); await refreshBudgets(); };
 
   // Alert engine — uses live account + bill + budget data
   const alertEngine = useAlerts({
