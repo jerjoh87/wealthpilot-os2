@@ -1949,10 +1949,6 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
                   </div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <button className="btn btn-ghost btn-sm" onClick={()=>startEdit(b)}>Edit</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>onDeleteCategory?.(b.id)}>Delete</button>
-              </div>
               <div className="progress-bar" style={{height:8}}>
                 <div className="progress-fill" style={{
                   width:`${pct}%`,
@@ -2098,6 +2094,42 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
     onUpdateBills?.(next);
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
+  const editBill = async (bill) => {
+    const nextName = window.prompt("Update bill name:", bill.name || "");
+    if (nextName === null) return;
+    const nextAmountRaw = window.prompt("Update bill amount:", String(bill.amount ?? ""));
+    if (nextAmountRaw === null) return;
+    const nextDueRaw = window.prompt("Update due day (1-31):", String(bill.dueDay ?? bill.due_day ?? ""));
+    if (nextDueRaw === null) return;
+    const nextAmount = Number(nextAmountRaw);
+    const nextDue = Number(nextDueRaw);
+    if (!nextName.trim() || !Number.isFinite(nextAmount) || nextAmount <= 0 || !Number.isInteger(nextDue) || nextDue < 1 || nextDue > 31) {
+      setError("Please enter valid bill details.");
+      return;
+    }
+    const updated = { ...bill, name: nextName.trim(), amount: nextAmount, dueDay: nextDue };
+    const next = localBills.map((b) => (b.id === bill.id ? updated : b));
+    setLocalBills(next);
+    onUpdateBills?.(next);
+    try {
+      await billsApi.update(bill.id, { name: updated.name, amount: updated.amount, dueDay: updated.dueDay });
+      setError("");
+    } catch {
+      setError(FRIENDLY_ERRORS.settings);
+    }
+  };
+  const deleteBill = async (bill) => {
+    if (!window.confirm(`Delete bill "${bill.name}"?`)) return;
+    const next = localBills.filter((b) => b.id !== bill.id);
+    setLocalBills(next);
+    onUpdateBills?.(next);
+    try {
+      await billsApi.remove?.(bill.id);
+      setError("");
+    } catch {
+      setError(FRIENDLY_ERRORS.settings);
+    }
+  };
   const startVoiceForBill = () => {
     const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
     if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
@@ -2167,7 +2199,11 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
               </div>
               <div style={{textAlign:"right"}}>
                 <div className="bill-amount">{fmt(b.amount)}</div>
-                <button onClick={() => toggle(b.id)} className="btn btn-ghost btn-sm" style={{marginTop:4,padding:"3px 8px"}}>Mark Paid</button>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:4}}>
+                  <button onClick={() => toggle(b.id)} className="btn btn-ghost btn-sm" style={{padding:"3px 8px"}}>Mark Paid</button>
+                  <button onClick={() => editBill(b)} className="btn btn-ghost btn-sm" style={{padding:"3px 8px"}}>Edit</button>
+                  <button onClick={() => deleteBill(b)} className="btn btn-ghost btn-sm" style={{padding:"3px 8px", color:"var(--red)"}}>Delete</button>
+                </div>
               </div>
             </div>
           ))}
@@ -2186,6 +2222,8 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <div className="bill-amount text-muted">{fmt(b.amount)}</div>
+                <button onClick={() => editBill(b)} className="btn btn-ghost btn-sm" style={{padding:"3px 8px"}}>Edit</button>
+                <button onClick={() => deleteBill(b)} className="btn btn-ghost btn-sm" style={{padding:"3px 8px", color:"var(--red)"}}>Delete</button>
                 <span className="badge badge-green">✓</span>
               </div>
             </div>
