@@ -132,6 +132,92 @@ function safeToSpend() {
   return Math.max(0, totalCash - upcomingBills - avgDaily * daysLeft * 0.5);
 }
 
+
+
+function calculateFinancialHealthScore({ budget = [], bills = [], accounts = [], income = 0, spending = 0, creditDebt = 0, creditScore = null, netWorth = null, transactions = [] }) {
+  const todayDate = new Date();
+  const currentDay = todayDate.getDate();
+  const components = [];
+  const tips = [];
+
+  const safeBudget = Array.isArray(budget) ? budget : [];
+  if (safeBudget.length > 0) {
+    const usageRatios = safeBudget
+      .filter((b) => Number(b?.limit) > 0)
+      .map((b) => Math.max(0, Number(b?.spent || 0)) / Math.max(1, Number(b?.limit || 1)));
+    if (usageRatios.length > 0) {
+      const avgUsage = usageRatios.reduce((sum, ratio) => sum + ratio, 0) / usageRatios.length;
+      const budgetScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, avgUsage - 0.7) * 120)));
+      components.push({ weight: 1.3, score: budgetScore });
+      const nearMax = safeBudget.find((b) => Number(b?.limit) > 0 && (Number(b?.spent || 0) / Number(b?.limit || 1)) >= 0.9);
+      if (nearMax) tips.push(`Your ${nearMax.category || "budget"} budget is almost maxed out.`);
+    }
+  }
+
+  const safeBills = Array.isArray(bills) ? bills : [];
+  if (safeBills.length > 0) {
+    const paidBills = safeBills.filter((b) => b?.paid).length;
+    const dueBills = safeBills.filter((b) => Number(b?.dueDay || 0) <= currentDay).length;
+    const onTimeRate = dueBills > 0 ? paidBills / dueBills : paidBills / safeBills.length;
+    const billScore = Math.max(0, Math.min(100, Math.round(onTimeRate * 100)));
+    components.push({ weight: 1.2, score: billScore });
+    if (safeBills.some((b) => !b?.paid)) tips.push("Pay upcoming bills on time to protect your score.");
+  }
+
+  const safeAccounts = Array.isArray(accounts) ? accounts : [];
+  const savingsBalance = safeAccounts.filter((a) => a?.type === 'savings').reduce((sum, a) => sum + Number(a?.balance || 0), 0);
+  const monthlyNeed = Math.max(1, Number(spending || 0));
+  if (savingsBalance > 0 || monthlyNeed > 1) {
+    const emergencyCoverageMonths = savingsBalance / monthlyNeed;
+    const savingsProgress = Math.max(0, Math.min(100, Math.round((emergencyCoverageMonths / 6) * 100)));
+    components.push({ weight: 1.1, score: savingsProgress });
+    if (emergencyCoverageMonths < 1) tips.push("Build your emergency fund to cover at least one month of expenses.");
+    else if (emergencyCoverageMonths < 3) tips.push("Keep growing savings toward a 3-month emergency fund target.");
+  }
+
+  const debtAmount = Math.abs(Math.min(0, Number(creditDebt || 0)));
+  if (debtAmount > 0 && income > 0) {
+    const dti = debtAmount / Number(income);
+    const dtiScore = Math.max(0, Math.min(100, Math.round(100 - dti * 180)));
+    components.push({ weight: 1, score: dtiScore });
+    if (dti > 0.35) tips.push("Lower debt-to-income by paying down high-interest balances.");
+  }
+
+  const scoreValue = Number(creditScore?.latest?.score || creditScore?.score || 0);
+  if (scoreValue > 0) {
+    const normalizedCredit = Math.max(0, Math.min(100, Math.round(((scoreValue - 300) / 550) * 100)));
+    components.push({ weight: 0.9, score: normalizedCredit });
+    if (scoreValue < 700) tips.push("Lower credit utilization to improve your financial health.");
+  }
+
+  if (typeof netWorth === 'number' && Number.isFinite(netWorth)) {
+    const nwScore = netWorth >= 0 ? Math.min(100, Math.round(50 + Math.min(netWorth / 2000, 50))) : Math.max(0, Math.round(50 + netWorth / 2000));
+    components.push({ weight: 0.7, score: nwScore });
+  }
+
+  if (income <= 0) tips.push("Add income to improve your score accuracy.");
+
+  const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+  const finalScore = totalWeight > 0
+    ? Math.round(components.reduce((sum, c) => sum + (c.score * c.weight), 0) / totalWeight)
+    : 0;
+
+  const status = finalScore >= 90 ? 'Excellent'
+    : finalScore >= 75 ? 'Strong'
+    : finalScore >= 60 ? 'Improving'
+    : finalScore >= 40 ? 'Needs Attention'
+    : 'Critical';
+
+  return {
+    score: Math.max(0, Math.min(100, finalScore)),
+    status,
+    tips: (tips.length ? tips : [
+      'Add income to improve your score accuracy.',
+      'Pay upcoming bills on time to protect your score.',
+      'Lower credit utilization to improve your financial health.',
+    ]).slice(0, 3),
+  };
+}
 const CATEGORY_ICONS = {
   Housing: "🏠", Groceries: "🛒", Dining: "🍜", Transport: "🚗",
   Shopping: "🛍️", Entertainment: "🎬", Health: "💊", Income: "💵",
@@ -1405,6 +1491,17 @@ function Dashboard(props = {}) {
   const creditScoreValue = creditScore?.latest?.score || 742;
   const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
+  const financialHealth = calculateFinancialHealthScore({
+    budget: safeBudget,
+    bills: safeBills,
+    accounts: safeAccounts,
+    income,
+    spending,
+    creditDebt,
+    creditScore,
+    netWorth,
+    transactions: safeTransactions,
+  });
 
   return (
     <div style={{display:"grid",gap:14,paddingBottom:8}}>
@@ -1424,6 +1521,14 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.03))"}}>
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.14), rgba(99,102,241,0.06))"}}>
+        <div className="section-header"><div className="section-title">Financial Health Score</div><span className="badge badge-gray">{financialHealth.status}</span></div>
+        <div className="card-value" style={{fontSize:32,marginTop:4}}>Financial Health Score: {financialHealth.score}/100</div>
+        <div style={{marginTop:12,display:"grid",gap:6}}>
+          {financialHealth.tips.map((tip, idx) => <div key={`fh-tip-${idx}`} className="text-sm text-muted">• {tip}</div>)}
         </div>
       </div>
 
