@@ -4029,7 +4029,7 @@ function GoalsPage({ addToast, modeConfig }) {
             {totalTarget > 0 ? Math.round((totalSaved/totalTarget)*100) : 0}%
           </div>
           <div className="progress-bar" style={{height:6,marginTop:8}}>
-            <div className="progress-fill" style={{width:`${Math.min(100,(totalSaved/totalTarget)*100)}%`,background:"var(--green)"}}/>
+            <div className="progress-fill" style={{width:`${totalTarget > 0 ? Math.min(100,(totalSaved/totalTarget)*100) : 0}%`,background:"var(--green)"}}/>
           </div>
         </div>
         <div className="card" style={{borderLeft:"3px solid var(--yellow)",padding:"14px 16px"}}>
@@ -4058,7 +4058,8 @@ function GoalsPage({ addToast, modeConfig }) {
         )}
 
         {sortedGoals.map(g => {
-          const pct      = Math.min(100, Math.round((g.current/g.target)*100));
+          const pctBase  = g.target > 0 ? (g.current / g.target) * 100 : 0;
+          const pct      = Math.min(100, Math.max(0, Math.round(pctBase)));
           const color    = GOAL_COLORS[g.type] || "#4f8ef7";
           const icon     = GOAL_ICONS[g.type]  || "🎯";
           const done     = g.current >= g.target;
@@ -4186,7 +4187,7 @@ function GoalsPage({ addToast, modeConfig }) {
                 <span style={{color:"var(--text3)"}}>📅 Projected: </span>
                 <b>{projectedDate(parseFloat(form.current)||0, parseFloat(form.target)||0, parseFloat(form.monthlyContrib)||0)
                   ?.toLocaleDateString("en-US",{month:"long",year:"numeric"}) || "—"}</b>
-                <span style={{color:"var(--text3)"}}> · {Math.ceil((parseFloat(form.target)-parseFloat(form.current))/(parseFloat(form.monthlyContrib)||1))} months at {fmt(parseFloat(form.monthlyContrib)||0)}/mo</span>
+                <span style={{color:"var(--text3)"}}> · {Math.max(0, Math.ceil(((parseFloat(form.target)||0)-(parseFloat(form.current)||0))/(parseFloat(form.monthlyContrib)||1)))} months at {fmt(parseFloat(form.monthlyContrib)||0)}/mo</span>
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
@@ -4478,14 +4479,19 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
   const toggle = (k) => setExpanded(e => ({...e, [k]: !e[k]}));
 
   // ── Asset calculations ──────────────────────────────────────────────────────
-  const cashAssets       = totalCash;                            // live from useAccounts
+  const safeAccounts     = Array.isArray(accounts) ? accounts : [];
+  const cashAssets       = safeAccounts
+    .filter((a) => a.type !== "credit")
+    .reduce((sum, a) => sum + Number(a.balance || 0), 0);
   const investAssets     = MOCK.portfolio.totalValue;            // live when SnapTrade connected
   const cryptoAssets     = MOCK.crypto.totalValue;               // manual / Coinbase later
   const realEstateEquity = MOCK.realEstate.properties.reduce((s,p) => s + p.equity, 0);
   const totalAssets      = cashAssets + investAssets + cryptoAssets + realEstateEquity;
 
   // ── Liability calculations ──────────────────────────────────────────────────
-  const creditLiab   = Math.abs(creditDebt);                     // live from useAccounts
+  const creditLiab   = Math.abs(safeAccounts
+    .filter((a) => a.type === "credit")
+    .reduce((sum, a) => sum + Number(a.balance || 0), 0));
   const studentLiab  = MOCK.studentLoan;
   const carLiab      = MOCK.carLoan;
   const mortgageLiab = MOCK.realEstate.properties.reduce((s,p) => s + p.mortgage, 0);
