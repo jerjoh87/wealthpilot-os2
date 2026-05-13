@@ -393,7 +393,15 @@ const ONBOARDING_STORAGE_KEY = 'wp_onboarding_state';
 const ONBOARDING_GOALS = ["Save money", "Pay debt", "Build credit", "Invest", "Prepare for funding", "Track net worth"];
 
 function OnboardingWizard({ onComplete, onSkip }) {
-  const steps = ["Welcome", "Income", "Bills", "Accounts", "Categories", "Credit Score", "Goal"];
+  const steps = [
+    { key: "welcome", label: "Welcome", optional: false },
+    { key: "income", label: "Income", optional: false },
+    { key: "bills", label: "Bills", optional: true },
+    { key: "accounts", label: "Accounts", optional: true },
+    { key: "budget-categories", label: "Budget categories", optional: true },
+    { key: "credit-score", label: "Credit score", optional: true },
+    { key: "main-goal", label: "Main goal", optional: false },
+  ];
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     monthlyIncome: "",
@@ -411,7 +419,8 @@ function OnboardingWizard({ onComplete, onSkip }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
-      if (Number.isInteger(saved.step)) setStep(saved.step);
+      if (saved?.completed) return;
+      if (Number.isInteger(saved.step)) setStep(Math.max(0, Math.min(steps.length - 1, saved.step)));
       if (saved.form && typeof saved.form === 'object') setForm(prev => ({ ...prev, ...saved.form }));
     } catch {}
   }, []);
@@ -420,31 +429,44 @@ function OnboardingWizard({ onComplete, onSkip }) {
     try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step, form })); } catch {}
   }, [step, form]);
 
-  const next = () => setStep(s => Math.min(steps.length - 1, s + 1));
-  const prev = () => setStep(s => Math.max(0, s - 1));
+  const next = () => setStep((s) => Math.min(steps.length - 1, s + 1));
+  const prev = () => setStep((s) => Math.max(0, s - 1));
   const finish = () => onComplete(form);
+  const current = steps[step];
 
   return (
-    <div className="card" style={{maxWidth:640,margin:"18px auto"}}>
-      <div className="card-title">Setup Wizard · Step {step + 1} of {steps.length}</div>
-      <div className="text-sm text-muted" style={{marginBottom:12}}>{steps[step]}</div>
-      {step===0 && <p className="text-sm">Welcome to WealthPilot. Let’s set up your financial workspace in a minute.</p>}
+    <div className="card" style={{maxWidth:760,margin:"18px auto"}}>
+      <div className="card-title">Onboarding setup wizard · Step {step + 1} of {steps.length}</div>
+      <div className="text-sm text-muted" style={{marginBottom:12}}>
+        {current.label}{current.optional ? " (optional)" : ""}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginBottom:16}}>
+        {steps.map((s, idx) => (
+          <div key={s.key} style={{padding:"6px 8px",borderRadius:8,fontSize:11,textAlign:"center",border:"1px solid var(--border2)",background:idx===step?"rgba(79,142,247,0.16)":"var(--bg3)",color:idx===step?"var(--accent)":"var(--text2)",fontWeight:idx===step?700:500}}>
+            {idx + 1}. {s.label}
+          </div>
+        ))}
+      </div>
+
+      {step===0 && <p className="text-sm">Welcome to WealthPilot. We will walk through income, bills, accounts, budget categories, credit score, and your main goal. Optional steps can be skipped.</p>}
       {step===1 && <input className="input" placeholder="Monthly income (USD)" value={form.monthlyIncome} onChange={(e)=>setForm(f=>({...f,monthlyIncome:e.target.value}))} />}
       {step===2 && <div style={{display:"grid",gap:8}}><input className="input" placeholder="Bill name" value={form.billName} onChange={(e)=>setForm(f=>({...f,billName:e.target.value}))} /><input className="input" placeholder="Amount" value={form.billAmount} onChange={(e)=>setForm(f=>({...f,billAmount:e.target.value}))} /><input className="input" placeholder="Due day (1-31)" value={form.billDueDay} onChange={(e)=>setForm(f=>({...f,billDueDay:e.target.value}))} /></div>}
       {step===3 && <div style={{display:"grid",gap:8}}><select className="input" value={form.accountMethod} onChange={(e)=>setForm(f=>({...f,accountMethod:e.target.value}))}><option value="plaid">Connect bank with Plaid</option><option value="manual">Enter account manually</option></select>{form.accountMethod==="manual" && <><input className="input" placeholder="Account name" value={form.accountName} onChange={(e)=>setForm(f=>({...f,accountName:e.target.value}))} /><input className="input" placeholder="Starting balance" value={form.accountBalance} onChange={(e)=>setForm(f=>({...f,accountBalance:e.target.value}))} /></>}</div>}
       {step===4 && <input className="input" placeholder="Budget category (example: Groceries)" value={form.categoryName} onChange={(e)=>setForm(f=>({...f,categoryName:e.target.value}))} />}
-      {step===5 && <input className="input" placeholder="Credit score (optional)" value={form.creditScore} onChange={(e)=>setForm(f=>({...f,creditScore:e.target.value}))} />}
+      {step===5 && <input className="input" placeholder="Credit score" value={form.creditScore} onChange={(e)=>setForm(f=>({...f,creditScore:e.target.value}))} />}
       {step===6 && <select className="input" value={form.goal} onChange={(e)=>setForm(f=>({...f,goal:e.target.value}))}>{ONBOARDING_GOALS.map(g=><option key={g} value={g}>{g}</option>)}</select>}
 
       <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
         {step>0 && <button className="btn btn-ghost btn-sm" onClick={prev}>Back</button>}
-        {step<steps.length-1 ? <button className="btn btn-primary btn-sm" onClick={next}>Continue</button> : <button className="btn btn-primary btn-sm" onClick={finish}>Finish Setup</button>}
-        {[3,5].includes(step) && <button className="btn btn-ghost btn-sm" onClick={next}>Skip</button>}
-        <button className="btn btn-ghost btn-sm" onClick={onSkip}>Skip all for now</button>
+        {step<steps.length-1 ? <button className="btn btn-primary btn-sm" onClick={next}>Continue</button> : <button className="btn btn-primary btn-sm" onClick={finish}>Finish setup</button>}
+        {current.optional && <button className="btn btn-ghost btn-sm" onClick={next}>Skip optional step</button>}
+        <button className="btn btn-ghost btn-sm" onClick={onSkip}>Skip onboarding for now</button>
       </div>
     </div>
   );
 }
+
 
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
