@@ -106,6 +106,109 @@ const pickCollection = (value, keys = [], fallback = []) => {
   return ensureArray(value, fallback);
 };
 
+
+
+const getDueInDays = (bill, now = new Date()) => {
+  if (bill?.dueDate) {
+    const due = new Date(bill.dueDate);
+    if (!Number.isNaN(due.getTime())) {
+      return Math.ceil((due.setHours(0,0,0,0) - new Date(now).setHours(0,0,0,0)) / (1000*60*60*24));
+    }
+  }
+  const dueDay = Number(bill?.dueDay);
+  if (!Number.isFinite(dueDay) || dueDay <= 0) return 999;
+  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay);
+  const due = dueThisMonth >= current ? dueThisMonth : new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
+  return Math.ceil((due - current) / (1000*60*60*24));
+};
+
+const buildRuleBasedMoneyMove = ({ income, upcomingBills = [], budget = [], spending = 0, goals = [], creditScoreValue = 0, creditUtilization = null, totalCash = 0 }) => {
+  const highBudget = budget
+    .map((item) => ({ ...item, pct: (Number(item?.spent || 0) / Math.max(1, Number(item?.limit || 0))) * 100 }))
+    .filter((item) => Number(item.limit || 0) > 0)
+    .sort((a, b) => b.pct - a.pct)[0];
+  const dueSoonBill = upcomingBills
+    .map((bill) => ({ ...bill, dueInDays: getDueInDays(bill) }))
+    .filter((bill) => bill.dueInDays >= 0)
+    .sort((a, b) => a.dueInDays - b.dueInDays)[0];
+  const billTotal = upcomingBills.reduce((sum, bill) => sum + Number(bill?.amount || 0), 0);
+  const leftAfterBills = Math.max(0, income - billTotal);
+  const utilization = Number(creditUtilization);
+
+  if (Number.isFinite(utilization) && utilization >= 0.35) {
+    const paydown = Math.max(50, Math.round((utilization - 0.3) * 1000 / 10) * 10);
+    return {
+      source: 'rules',
+      main: `Your utilization is ${Math.round(utilization * 100)}%. Pay ${fmt(paydown)} before your statement date.`,
+      why: 'Lower utilization can improve your score and reduce borrowing risk.',
+      actionLabel: 'Ask AI Coach',
+      actionPage: 'ai-coach',
+    };
+  }
+
+  if (dueSoonBill && dueSoonBill.dueInDays <= 3) {
+    return {
+      source: 'rules',
+      main: `${dueSoonBill.name} is due in ${dueSoonBill.dueInDays} day${dueSoonBill.dueInDays === 1 ? '' : 's'}. Pay ${fmt(dueSoonBill.amount)} now to avoid a late fee.`,
+      why: 'Staying current on bills protects cash flow and your credit profile.',
+      actionLabel: 'Mark Bill Paid',
+      actionPage: 'bills',
+    };
+  }
+
+  if (highBudget && highBudget.pct >= 80) {
+    const daysWindow = Math.max(1, Math.min(7, daysLeft));
+    const remaining = Math.max(0, Number(highBudget.limit || 0) - Number(highBudget.spent || 0));
+    return {
+      source: 'rules',
+      main: `You spent ${Math.round(highBudget.pct)}% of your ${highBudget.category} budget. Limit spending to ${fmt(remaining / daysWindow)} for the next ${daysWindow} days.`,
+      why: 'Pacing spending now helps you avoid budget overruns before month-end.',
+      actionLabel: 'View Budget',
+      actionPage: 'budget',
+    };
+  }
+
+  if (leftAfterBills > 0) {
+    const saveAmt = Math.max(25, Math.round((leftAfterBills * 0.3) / 5) * 5);
+    const essentials = Math.max(50, Math.round((leftAfterBills * 0.45) / 5) * 5);
+    return {
+      source: 'rules',
+      main: `You have ${fmt(leftAfterBills)} left after bills. Put ${fmt(saveAmt)} toward savings and keep ${fmt(essentials)} for food and gas.`,
+      why: 'Automating a split between savings and essentials keeps progress consistent.',
+      actionLabel: goals.length ? 'Add Goal' : 'Add Goal',
+      actionPage: 'goals',
+    };
+  }
+
+  if (!upcomingBills.length) {
+    return {
+      source: 'rules',
+      main: 'No upcoming bills found. Add your recurring bills so your plan is accurate.',
+      why: 'Reliable due dates make your cash-flow guidance and reminders smarter.',
+      actionLabel: 'Add Bill',
+      actionPage: 'bills',
+    };
+  }
+
+  if (!budget.length) {
+    return {
+      source: 'rules',
+      main: 'You do not have budget categories yet. Set one up to unlock targeted spending coaching.',
+      why: 'Category limits are needed for next-best-move recommendations.',
+      actionLabel: 'Add Category',
+      actionPage: 'budget',
+    };
+  }
+
+  return {
+    source: 'rules',
+    main: `Your score is ${creditScoreValue}. Keep paying on time and monitor balances weekly.`,
+    why: 'Small weekly actions build long-term financial momentum.',
+    actionLabel: 'Ask AI Coach',
+    actionPage: 'ai-coach',
+  };
+};
 const incomeToMonthly = (entry) => {
   const amount = Number(entry?.amount || 0);
   switch ((entry?.frequency || '').toLowerCase()) {
@@ -1405,6 +1508,32 @@ function Dashboard(props = {}) {
   const creditScoreValue = creditScore?.latest?.score || 742;
   const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
+  const creditLimitEstimate = safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Number(account?.limit || 0), 0);
+  const creditBalance = Math.abs(safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Math.min(0, Number(account?.balance || 0)), 0));
+  const creditUtilization = creditLimitEstimate > 0 ? creditBalance / creditLimitEstimate : null;
+  const [moneyMove, setMoneyMove] = useState(() => buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash }));
+
+  useEffect(() => {
+    const fallback = buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash });
+    let active = true;
+    setMoneyMove(fallback);
+
+    const fetchAiMove = async () => {
+      try {
+        const prompt = `Generate one concise next-best money move for today. Return JSON only with keys: main, why, actionLabel. Allowed actionLabel values: Add Bill, Add Category, Add Goal, Mark Bill Paid, View Budget, Ask AI Coach.`;
+        const context = { income, spending, budgets: safeBudget, bills: upcomingBills, creditScore: creditScoreValue, creditUtilization, accountBalances: safeAccounts.map((a) => ({ name: a.name, type: a.type, balance: a.balance })), upcomingDueDates: upcomingBills.map((b) => ({ name: b.name, dueDay: b.dueDay, dueDate: b.dueDate, amount: b.amount })) };
+        const result = await aiApi.chat(prompt, [], 'steady', context);
+        const content = result?.content || result?.message || result?.reply || '';
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (!active || !parsed?.main) return;
+        const actionMap = { 'Add Bill': 'bills', 'Add Category': 'budget', 'Add Goal': 'goals', 'Mark Bill Paid': 'bills', 'View Budget': 'budget', 'Ask AI Coach': 'ai-coach' };
+        setMoneyMove({ source: 'ai', main: parsed.main, why: parsed.why || fallback.why, actionLabel: actionMap[parsed.actionLabel] ? parsed.actionLabel : 'Ask AI Coach', actionPage: actionMap[parsed.actionLabel] || 'ai-coach' });
+      } catch (_) {}
+    };
+
+    fetchAiMove();
+    return () => { active = false; };
+  }, [income, spending, safeBudget, upcomingBills, creditScoreValue, creditUtilization, totalCash, safeAccounts]);
 
   return (
     <div style={{display:"grid",gap:14,paddingBottom:8}}>
@@ -1425,6 +1554,16 @@ function Dashboard(props = {}) {
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
+      </div>
+
+      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(56,189,248,0.14), rgba(147,51,234,0.08))",border:"1px solid rgba(56,189,248,0.35)"}}>
+        <div className="section-header" style={{marginBottom:6}}>
+          <div className="section-title">Today’s Money Move</div>
+          <span className="badge badge-gray" style={{fontSize:10}}>{moneyMove?.source === 'ai' ? 'AI' : 'Offline rules'}</span>
+        </div>
+        <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
+        <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
+        <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
