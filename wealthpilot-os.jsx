@@ -1971,56 +1971,49 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
 
 
 function DebtPlannerPage({ debts = [], setDebts, addToast }) {
-  const [draft, setDraft] = useState({ name:'', type:'credit card', balance:'', creditLimit:'', statementDate:'', minimumPayment:'', apr:'', dueDate:'', lender:'', notes:'', priority:1 });
-  const [method, setMethod] = useState('avalanche');
+  const [draft, setDraft] = useState({ name:'', type:'credit card', balance:'', minimumPayment:'', apr:'', dueDate:'', lender:'', notes:'', priority:1 });
+  const [method, setMethod] = useState('snowball');
   const [extraPayment, setExtraPayment] = useState(0);
   const debtTypes = ['credit card','personal loan','auto loan','student loan','collection','BNPL','other'];
   const safeDebts = ensureArray(debts, []);
   const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
   const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
-  const totalCreditBalance = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.balance || 0), 0);
-  const totalCreditLimit = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.creditLimit || 0), 0);
-  const overallUtilization = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
   const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
   const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
   const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
   const estMonths = monthlyBudget>0 ? Math.ceil(totalDebt / monthlyBudget) : null;
   const estPayoffDate = estMonths ? new Date(new Date().setMonth(new Date().getMonth()+estMonths)).toLocaleDateString() : 'Add minimum/extra payments';
   const estimatedInterestSaved = method==='avalanche' && safeDebts.some(d=>Number(d.apr||0)>0) ? Math.max(0, extraPayment*0.15*12) : null;
+  const interestPriority = [...safeDebts]
+    .filter((d) => Number(d.balance || 0) > 0)
+    .sort((a, b) => (Number(b.apr || 0) * Number(b.balance || 0)) - (Number(a.apr || 0) * Number(a.balance || 0)))
+    .slice(0, 3)
+    .map((d) => ({ ...d, estimatedAnnualInterest: Number(d.balance || 0) * (Number(d.apr || 0) / 100) }));
   const creditDebts = safeDebts.filter((d) => (d?.type || '').toLowerCase() === 'credit card');
   const totalCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
   const totalCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
   const utilizationPct = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
   const paymentToThirtyPct = totalCreditLimit > 0 ? Math.max(0, totalCreditBalance - (totalCreditLimit * 0.3)) : null;
   const paymentToTenPct = totalCreditLimit > 0 ? Math.max(0, totalCreditBalance - (totalCreditLimit * 0.1)) : null;
-  const statementDates = creditDebts
-    .map((d) => d?.statementDate)
+  const dueDates = creditDebts
+    .map((d) => d?.dueDate)
     .filter(Boolean)
     .map((v) => new Date(v))
     .filter((d) => !Number.isNaN(d.getTime()));
-  const bestPaymentTiming = statementDates.length
-    ? new Date(Math.min(...statementDates.map((d) => d.getTime())))
+  const bestPaymentTiming = dueDates.length
+    ? new Date(Math.min(...dueDates.map((d) => d.getTime())))
     : null;
 
   const persist = async (next) => { setDebts(next); try { localStorage.setItem('wp_debts', JSON.stringify(next)); } catch {} };
-  const addDebt = async () => { const payload = { ...draft, id: Date.now(), balance:Number(draft.balance||0), creditLimit:Number(draft.creditLimit||0), minimumPayment:Number(draft.minimumPayment||0), apr:Number(draft.apr||0), priority:Number(draft.priority||999) }; if (!payload.name || payload.balance<=0) return; try { const created = await debtsApi.create(payload); const next=[...safeDebts, created||payload]; await persist(next); addToast?.('Debt added.','success'); } catch { await persist([...safeDebts,payload]); addToast?.('Debt added locally.','info'); } };
+  const addDebt = async () => { const payload = { ...draft, id: Date.now(), balance:Number(draft.balance||0), minimumPayment:Number(draft.minimumPayment||0), apr:Number(draft.apr||0), priority:Number(draft.priority||999) }; if (!payload.name || payload.balance<=0) return; try { const created = await debtsApi.create(payload); const next=[...safeDebts, created||payload]; await persist(next); addToast?.('Debt added.','success'); } catch { await persist([...safeDebts,payload]); addToast?.('Debt added locally.','info'); } };
 
   return <div className="grid-2" style={{gap:16}}><div className="card"><div className="card-title">Add Debt</div>
     <input className="input" placeholder="Debt name" value={draft.name} onChange={e=>setDraft(v=>({...v,name:e.target.value}))}/>
-    <input className="input" placeholder="Card name" value={draft.cardName} onChange={e=>setDraft(v=>({...v,cardName:e.target.value}))}/>
-    <input className="input" placeholder="Issuer" value={draft.issuer} onChange={e=>setDraft(v=>({...v,issuer:e.target.value}))}/>
     <select className="input" value={draft.type} onChange={e=>setDraft(v=>({...v,type:e.target.value}))}>{debtTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
     <input className="input" placeholder="Balance" value={draft.balance} onChange={e=>setDraft(v=>({...v,balance:e.target.value}))}/>
-    <input className="input" placeholder="Credit limit (for cards)" value={draft.creditLimit} onChange={e=>setDraft(v=>({...v,creditLimit:e.target.value}))}/>
-    <input className="input" type="date" value={draft.statementDate} onChange={e=>setDraft(v=>({...v,statementDate:e.target.value}))}/>
     <input className="input" placeholder="Minimum payment" value={draft.minimumPayment} onChange={e=>setDraft(v=>({...v,minimumPayment:e.target.value}))}/>
     <input className="input" placeholder="APR %" value={draft.apr} onChange={e=>setDraft(v=>({...v,apr:e.target.value}))}/>
     <input className="input" type="date" value={draft.dueDate} onChange={e=>setDraft(v=>({...v,dueDate:e.target.value}))} title="Due date"/>
-    <input className="input" type="date" value={draft.statementDate} onChange={e=>setDraft(v=>({...v,statementDate:e.target.value}))} title="Statement date"/>
     <input className="input" placeholder="Lender/Creditor" value={draft.lender} onChange={e=>setDraft(v=>({...v,lender:e.target.value}))}/>
     <input className="input" placeholder="Notes" value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))}/>
     <input className="input" placeholder="Custom priority (1=highest)" value={draft.priority} onChange={e=>setDraft(v=>({...v,priority:e.target.value}))}/>
@@ -2037,15 +2030,26 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
         <div>Total utilization %: <b>{utilizationPct === null ? 'Add credit limits' : `${utilizationPct.toFixed(1)}%`}</b></div>
         <div>Recommended payment to get under 30%: <b>{paymentToThirtyPct === null ? 'Add credit limits' : fmt(paymentToThirtyPct)}</b></div>
         <div>Recommended payment to get under 10%: <b>{paymentToTenPct === null ? 'Add credit limits' : fmt(paymentToTenPct)}</b></div>
-        <div>Best payment timing before statement date: <b>{bestPaymentTiming ? `Pay 2-3 days before ${bestPaymentTiming.toLocaleDateString()}` : 'Add statement dates for your cards'}</b></div>
+        <div>Best payment timing before due date: <b>{bestPaymentTiming ? `Pay 2-3 days before ${bestPaymentTiming.toLocaleDateString()}` : 'Add due dates for your cards'}</b></div>
       </div>
-      <div>Recommended next debt: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)})` : 'None'}</b></div>
+      <div>Recommended debt to attack first: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)} at ${Number(nextDebt.apr||0)}% APR)` : 'Add a debt to generate a recommendation'}</b></div>
       {estimatedInterestSaved!==null && <div>Estimated interest saved (illustrative): <b>{fmt(estimatedInterestSaved)}</b></div>}
+      {method === 'avalanche' && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Interest Priority (Educational Estimate)</div>
+          {interestPriority.length ? interestPriority.map((d, i) => (
+            <div key={`${d.id || d.name}-interest-${i}`} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0' }}>
+              <span>{i + 1}. {d.cardName || d.name}</span>
+              <span>{fmt(d.estimatedAnnualInterest)} / year est.</span>
+            </div>
+          )) : <div>Add balances and APR values to estimate interest priority.</div>}
+        </div>
+      )}
       <div style={{marginTop:10}}>{sorted.map((d,i)=>{
         const limit = Number(d.creditLimit || 0);
         const cardUtilization = limit > 0 ? (Number(d.balance || 0) / limit) * 100 : null;
         return <div key={d.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
-          <span>{i+1}. {d.cardName || d.name} · {d.type} {d.issuer ? `· ${d.issuer}` : ''} {d.statementDate ? `· stmt ${d.statementDate}` : ''}</span>
+          <span>{i+1}. {d.name} · {d.type} {d.lender ? `· ${d.lender}` : ''} {d.dueDate ? `· due ${d.dueDate}` : ''}</span>
           <span>{fmt(d.minimumPayment||0)} min · {Number(d.apr||0)}% APR · Util {cardUtilization===null ? 'N/A' : `${cardUtilization.toFixed(1)}%`}</span>
         </div>;
       })}</div>
@@ -4307,6 +4311,21 @@ function projectedDate(current, target, monthlyContrib) {
   d.setMonth(d.getMonth() + months);
   return d;
 }
+function getSavingsAutoPlan(goal) {
+  const now = new Date();
+  const deadline = goal.deadline ? new Date(goal.deadline) : null;
+  const amountRemaining = Math.max(0, Number(goal.target || 0) - Number(goal.current || 0));
+  const weeksRemaining = deadline ? Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (7 * 24 * 60 * 60 * 1000))) : null;
+  const amountNeededPerWeek = weeksRemaining && weeksRemaining > 0 ? amountRemaining / weeksRemaining : 0;
+  const freqToPaychecksPerWeek = { weekly: 1, biweekly: 0.5, semimonthly: 24 / 52, monthly: 12 / 52 };
+  const paychecksPerWeek = goal.incomeFrequency ? freqToPaychecksPerWeek[goal.incomeFrequency] : null;
+  const paydaysRemaining = paychecksPerWeek && weeksRemaining !== null ? Math.max(1, Math.ceil(weeksRemaining * paychecksPerWeek)) : null;
+  const amountNeededPerPayday = paydaysRemaining ? amountRemaining / paydaysRemaining : null;
+  let status = "on track";
+  if (amountRemaining <= 0) status = "completed";
+  else if (weeksRemaining === 0) status = "behind";
+  return { amountRemaining, weeksRemaining, amountNeededPerWeek, amountNeededPerPayday, status };
+}
 
 function GoalsPage({ addToast, modeConfig }) {
   const [goals, setGoals] = useState(INIT_GOALS);
@@ -4324,7 +4343,7 @@ function GoalsPage({ addToast, modeConfig }) {
     : [...goals].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99));
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState(null);
-  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", priority:"medium", monthlyContrib:"", notes:"" };
+  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", incomeFrequency:"", notes:"" };
   const [form, setForm] = useState(BLANK);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -4367,27 +4386,17 @@ function GoalsPage({ addToast, modeConfig }) {
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
   const completed   = goals.filter(g => g.current >= g.target).length;
+  const activeGoals = sortedGoals.filter(g => g.current < g.target);
+  const completedGoals = sortedGoals.filter(g => g.current >= g.target);
 
   const openAdd  = () => { setForm(BLANK); setEditing(null); setDrawer(true); };
   const openEdit = (g) => { setForm({...g, target:String(g.target), current:String(g.current), monthlyContrib:String(g.monthlyContrib)}); setEditing(g); setDrawer(true); };
 
   const save = () => {
     if (!form.name.trim() || !form.target) return;
-    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0, priority: form.priority || "medium" };
-    if (editing) {
-      setGoals(gs => {
-        const next = gs.map(g => g.id===editing.id ? entry : g);
-        persistGoals(next);
-        return next;
-      }); addToast&&addToast("Goal updated","success");
-    }
-    else {
-      setGoals(gs => {
-        const next = [...gs, entry];
-        persistGoals(next);
-        return next;
-      }); addToast&&addToast("Goal created 🎯","success");
-    }
+    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0, incomeFrequency: form.incomeFrequency || "" };
+    if (editing) { setGoals(gs => gs.map(g => g.id===editing.id ? entry : g)); addToast&&addToast("Goal updated","success"); }
+    else         { setGoals(gs => [...gs, entry]); addToast&&addToast("Goal created 🎯","success"); }
     setDrawer(false);
   };
 
@@ -4421,6 +4430,25 @@ function GoalsPage({ addToast, modeConfig }) {
       return next;
     });
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
+  };
+
+  const updateProgress = (id) => {
+    const goal = goals.find(g => g.id === id);
+    if (!goal) return;
+    const raw = window.prompt(`Update progress for ${goal.name} (current: ${fmt(goal.current)} / ${fmt(goal.target)}).\nEnter new saved amount:`, String(goal.current));
+    if (raw === null) return;
+    const value = parseFloat(raw);
+    if (!Number.isFinite(value) || value < 0) {
+      addToast&&addToast("Enter a valid amount","error");
+      return;
+    }
+    setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, value)} : g));
+    addToast&&addToast("Goal progress updated","success");
+  };
+
+  const markComplete = (id) => {
+    setGoals(gs => gs.map(g => g.id===id ? {...g, current: g.target} : g));
+    addToast&&addToast("Goal marked complete 🎉","success");
   };
 
   if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading goals…" />;
@@ -4468,7 +4496,8 @@ function GoalsPage({ addToast, modeConfig }) {
           </div>
         )}
 
-        {sortedGoals.map(g => {
+        {activeGoals.length > 0 && <div className="section-title" style={{fontSize:13}}>Active Goals</div>}
+        {activeGoals.map(g => {
           const pct      = Math.min(100, Math.round((g.current/g.target)*100));
           const color    = GOAL_COLORS[g.type] || "#4f8ef7";
           const icon     = GOAL_ICONS[g.type]  || "🎯";
@@ -4478,6 +4507,7 @@ function GoalsPage({ addToast, modeConfig }) {
           const overdue  = deadline && proj && proj > deadline && !done;
           const remaining = g.target - g.current;
           const monthsLeft = g.monthlyContrib > 0 ? Math.ceil(remaining / g.monthlyContrib) : null;
+          const autoPlan = getSavingsAutoPlan(g);
 
           return (
             <div key={g.id} className="card" style={{borderLeft:`3px solid ${done?"var(--green)":color}`}}>
@@ -4521,6 +4551,15 @@ function GoalsPage({ addToast, modeConfig }) {
                     </div>
                   )}
                   {g.notes && <div style={{marginTop:4,fontSize:11,color:"var(--text3)"}}>{g.notes}</div>}
+                  <div style={{marginTop:8,padding:"8px 10px",background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:10,fontSize:11,color:"var(--text2)"}}>
+                    <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                      <span>Status: <b style={{color:autoPlan.status==="completed"?"var(--green)":autoPlan.status==="behind"?"var(--red)":"var(--accent)",textTransform:"capitalize"}}>{autoPlan.status}</b></span>
+                      <span>Amount remaining: <b style={{color:"var(--text)"}}>{fmt(autoPlan.amountRemaining)}</b></span>
+                      <span>Weeks remaining: <b style={{color:"var(--text)"}}>{autoPlan.weeksRemaining ?? "—"}</b></span>
+                      <span>Needed/week: <b style={{color:"var(--green)"}}>{fmt(autoPlan.amountNeededPerWeek)}</b></span>
+                      {autoPlan.amountNeededPerPayday !== null && <span>Needed/payday: <b style={{color:"var(--green)"}}>{fmt(autoPlan.amountNeededPerPayday)}</b></span>}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -4531,12 +4570,54 @@ function GoalsPage({ addToast, modeConfig }) {
                       + Add
                     </button>
                   )}
+                  {!done && <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>updateProgress(g.id)}>Update</button>}
+                  {!done && <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>markComplete(g.id)}>Complete</button>}
                   <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>openEdit(g)}>Edit</button>
                 </div>
               </div>
             </div>
           );
         })}
+
+        {completedGoals.length > 0 && (
+          <>
+            <div className="section-title" style={{fontSize:13,marginTop:8}}>Completed Goals</div>
+            {completedGoals.map(g => {
+              const pct      = 100;
+              const color    = GOAL_COLORS[g.type] || "#4f8ef7";
+              const icon     = GOAL_ICONS[g.type]  || "🎯";
+              return (
+                <div key={g.id} className="card" style={{borderLeft:"3px solid var(--green)",opacity:0.9}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+                    <div style={{width:44,height:44,borderRadius:12,background:`${color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
+                      ✅
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2,flexWrap:"wrap"}}>
+                        <span style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>{g.name}</span>
+                        <span className="badge badge-green">Completed 🎉</span>
+                        <span style={{fontSize:12,color:"var(--text3)"}}>{icon} {g.type}</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:10,margin:"8px 0"}}>
+                        <div className="progress-bar" style={{flex:1,height:8}}>
+                          <div className="progress-fill" style={{width:`${pct}%`,background:"var(--green)"}}/>
+                        </div>
+                        <span style={{fontSize:12,fontWeight:700,color:"var(--green)",minWidth:36,textAlign:"right"}}>{pct}%</span>
+                      </div>
+                      <div style={{display:"flex",gap:20,flexWrap:"wrap",fontSize:12}}>
+                        <span style={{color:"var(--text2)"}}>Saved: <b style={{color:"var(--text)"}}>{fmt(g.current)}</b></span>
+                        <span style={{color:"var(--text2)"}}>Target: <b style={{color:"var(--text)"}}>{fmt(g.target)}</b></span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>openEdit(g)}>Edit</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* Drawer */}
@@ -4582,6 +4663,12 @@ function GoalsPage({ addToast, modeConfig }) {
               <div className="form-group">
                 <label className="form-label">Monthly Contribution ($)</label>
                 <input className="form-input" type="number" value={form.monthlyContrib} onChange={e=>setForm(f=>({...f,monthlyContrib:e.target.value}))} placeholder="500"/>
+              </div>
+              <div>
+                <label className="form-label">Income Frequency (optional)</label>
+                <select className="form-input" value={form.incomeFrequency || ""} onChange={e=>setForm(f=>({...f,incomeFrequency:e.target.value}))}>
+                  <option value="">None</option><option value="weekly">Weekly</option><option value="biweekly">Biweekly</option><option value="semimonthly">Semi-monthly</option><option value="monthly">Monthly</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Deadline</label>
