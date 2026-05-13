@@ -1978,18 +1978,15 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
   const safeDebts = ensureArray(debts, []);
   const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
   const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
-  const totalCreditBalance = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.balance || 0), 0);
-  const totalCreditLimit = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.creditLimit || 0), 0);
-  const overallUtilization = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
+  const baseMonthlyBudget = Math.max(0, totalMin);
   const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
   const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
   const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
   const estMonths = monthlyBudget>0 ? Math.ceil(totalDebt / monthlyBudget) : null;
+  const baseMonths = baseMonthlyBudget>0 ? Math.ceil(totalDebt / baseMonthlyBudget) : null;
   const estPayoffDate = estMonths ? new Date(new Date().setMonth(new Date().getMonth()+estMonths)).toLocaleDateString() : 'Add minimum/extra payments';
+  const basePayoffDate = baseMonths ? new Date(new Date().setMonth(new Date().getMonth()+baseMonths)).toLocaleDateString() : 'Add minimum payments';
+  const monthsSaved = baseMonths && estMonths ? Math.max(0, baseMonths - estMonths) : null;
   const estimatedInterestSaved = method==='avalanche' && safeDebts.some(d=>Number(d.apr||0)>0) ? Math.max(0, extraPayment*0.15*12) : null;
   const creditDebts = safeDebts.filter((d) => (d?.type || '').toLowerCase() === 'credit card');
   const totalCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
@@ -2028,8 +2025,11 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
     <div className="card"><div className="card-title">Payoff Planner</div>
       <div className="text-sm" style={{marginBottom:8}}>Educational planning tool only — no legal or financial guarantees.</div>
       <select className="input" value={method} onChange={e=>setMethod(e.target.value)}><option value="snowball">Snowball (smallest balance first)</option><option value="avalanche">Avalanche (highest APR first)</option><option value="custom">Custom priority</option></select>
-      <input className="input" placeholder="Extra monthly payment" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value||0))}/>
-      <div>Total debt: <b>{fmt(totalDebt||0)}</b></div><div>Total minimum payments: <b>{fmt(totalMin||0)}</b></div><div>Estimated payoff date: <b>{estPayoffDate}</b></div>
+      <input className="input" type="number" min="0" step="1" placeholder="Extra monthly payment" value={extraPayment} onChange={e=>setExtraPayment(Math.max(0, Number(e.target.value||0)))}/>
+      <div>Total debt: <b>{fmt(totalDebt||0)}</b></div><div>Total minimum payments: <b>{fmt(totalMin||0)}</b></div><div>Estimated payoff date with extra payment: <b>{estPayoffDate}</b></div>
+      <div style={{ marginTop: 6 }}>Estimated payoff date with minimum-only payments: <b>{basePayoffDate}</b></div>
+      <div>Estimated timeline change from extra payment: <b>{monthsSaved===null ? 'Add minimum payments' : monthsSaved===0 ? 'No change yet' : `${monthsSaved} month${monthsSaved===1 ? '' : 's'} faster`}</b></div>
+      <div className="text-sm text-muted" style={{marginTop:4}}>Estimates are illustrative and may differ from your lender&apos;s exact payoff schedule.</div>
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>Credit Utilization Totals</div>
         <div>Total balance: <b>{fmt(totalCreditBalance)}</b></div>
