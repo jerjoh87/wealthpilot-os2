@@ -2380,6 +2380,107 @@ function AICoachPage({ modeConfig }) {
   );
 }
 
+function CalculatorPage({ budgets = [], bills = [], accounts = [], manualIncomeEntries = [], transactions = [] }) {
+  const [itemName, setItemName] = useState("");
+  const [cost, setCost] = useState("");
+  const [category, setCategory] = useState("");
+  const [urgency, setUrgency] = useState("need");
+  const [paymentMethod, setPaymentMethod] = useState("cash/debit");
+
+  const numericCost = Number(cost || 0);
+  const safeBudgets = ensureArray(budgets, []);
+  const safeBills = ensureArray(bills, []);
+  const safeAccounts = ensureArray(accounts, []);
+  const safeIncome = ensureArray(manualIncomeEntries, []);
+  const safeTx = ensureArray(transactions, []);
+  const categoryBudget = safeBudgets.find((b) => (b.category || "").toLowerCase() === String(category || "").toLowerCase());
+  const categoryRemaining = categoryBudget ? Math.max(0, Number(categoryBudget.limit || 0) - Number(categoryBudget.spent || 0)) : 0;
+  const totalCash = safeAccounts.filter(a => ["checking", "savings", "cash"].includes(String(a.type || "").toLowerCase())).reduce((sum, a) => sum + Number(a.balance || 0), 0);
+  const totalIncome = safeIncome.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+  const debtObligations = safeBills.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  const savingsGoalMonthly = (INIT_GOALS || []).reduce((sum, g) => sum + (Number(g.target || 0) - Number(g.current || 0)) / 12, 0);
+  const remainingCashAfter = totalCash - numericCost;
+  const nextDueDay = safeBills.map((b) => Number(b.dueDay || b.due_day || 99)).sort((a, b) => a - b)[0];
+  const now = new Date();
+  const daysToPayday = Math.max(1, 14 - (now.getDate() % 14));
+  const weeklySpendRate = safeTx.slice(0, 20).reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0) / 4 || 1;
+  const futurePressure = debtObligations + Math.max(0, savingsGoalMonthly);
+  const liquidityBuffer = totalCash - futurePressure;
+
+  const result = (() => {
+    if (!itemName || !Number.isFinite(numericCost) || numericCost <= 0) return null;
+    const urgencyPenalty = urgency === "want" ? 0.8 : urgency === "need" ? 1 : urgency === "investment" ? 1.05 : 1.2;
+    const methodPenalty = paymentMethod === "credit card" ? 0.95 : paymentMethod === "financing" ? 0.85 : paymentMethod === "unknown" ? 0.9 : 1;
+    const affordabilityScore = (liquidityBuffer - numericCost) * urgencyPenalty * methodPenalty;
+    const budgetImpact = categoryBudget ? (numericCost / Math.max(1, categoryBudget.limit || 1)) * 100 : 0;
+    const timingHint = remainingCashAfter < 0
+      ? `Wait ${daysToPayday} days until payday.`
+      : nextDueDay && now.getDate() <= nextDueDay
+        ? `Consider buying after bill due dates around day ${nextDueDay}.`
+        : "Timing looks okay this week.";
+    const saferAlternative = numericCost > weeklySpendRate
+      ? "Split this into two payments only if no fees apply."
+      : "Use cash/debit to avoid interest and keep spending visible.";
+
+    let verdict = "Maybe";
+    if (affordabilityScore > 150 && remainingCashAfter > 100) verdict = "Yes";
+    if (affordabilityScore < 0 || (categoryBudget && numericCost > categoryRemaining && urgency === "want")) verdict = "No";
+
+    return {
+      verdict,
+      budgetImpact,
+      categoryRemainingAfter: Math.max(0, categoryRemaining - numericCost),
+      remainingCashAfter,
+      timingHint,
+      saferAlternative,
+      message: verdict === "Yes"
+        ? `You can afford this, but it leaves only ${fmt(Math.max(0, categoryRemaining - numericCost))} in ${category || "this"} budget.`
+        : verdict === "No"
+          ? "This may hurt your budget this week."
+          : "Maybe — review your due dates and category limits before buying.",
+    };
+  })();
+
+  return (
+    <div>
+      <div className="section-header">
+        <div className="section-title">Calculator</div>
+      </div>
+      <div className="card mb-4">
+        <div className="card-title">Can I Afford This?</div>
+        <div className="text-sm text-muted mb-3">Quickly check if a purchase fits your budget using your income, bills, due dates, goals, and debt obligations.</div>
+        <div className="grid-2">
+          <div><label className="field-label">Item name</label><input className="input" value={itemName} onChange={(e)=>setItemName(e.target.value)} placeholder="Example: Running shoes" /></div>
+          <div><label className="field-label">Cost</label><input className="input" type="number" min="0" value={cost} onChange={(e)=>setCost(e.target.value)} placeholder="0.00" /></div>
+          <div><label className="field-label">Category</label><input className="input" value={category} onChange={(e)=>setCategory(e.target.value)} placeholder="Shopping, Groceries, Transport..." /></div>
+          <div>
+            <label className="field-label">Urgency</label>
+            <select className="input" value={urgency} onChange={(e)=>setUrgency(e.target.value)}>
+              <option value="need">Need</option><option value="want">Want</option><option value="emergency">Emergency</option><option value="investment">Investment</option>
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Payment method</label>
+            <select className="input" value={paymentMethod} onChange={(e)=>setPaymentMethod(e.target.value)}>
+              <option value="cash/debit">Cash/debit</option><option value="credit card">Credit card</option><option value="financing">Financing</option><option value="unknown">Unknown</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      {result && (
+        <div className="card">
+          <div className="section-title">Result: {result.verdict}</div>
+          <div className="text-sm" style={{marginBottom:8}}>{result.message}</div>
+          <div className="text-sm text-muted">Impact on category budget: {categoryBudget ? `${result.budgetImpact.toFixed(1)}% used · ${fmt(result.categoryRemainingAfter)} remaining` : "No category match found yet."}</div>
+          <div className="text-sm text-muted">Impact on remaining cash: {fmt(result.remainingCashAfter)} after purchase.</div>
+          <div className="text-sm text-muted">Better timing suggestion: {result.timingHint}</div>
+          <div className="text-sm text-muted">Safer alternative: {result.saferAlternative}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PLAID CONNECT HOOK ───────────────────────────────────────────────────────
 // Uses Plaid's CDN script — no npm package needed.
 // In a Next.js project replace with: import { usePlaidLink } from 'react-plaid-link'
@@ -4794,6 +4895,7 @@ const NAV_GROUPS = [
   ]},
   { label: "Tools", items: [
     { id:"ai-coach",     icon:"✦",  label:"AI Coach"      },
+    { id:"calculator",   icon:"🧮",  label:"Calculator"    },
     { id:"settings",     icon:"⚙",  label:"Settings"      },
   ]},
 ];
@@ -4824,7 +4926,7 @@ const FAB_PAGES = [
 const PAGE_TITLES = {
   "credit-score":"Credit Score", "reports":"Reports", "profit-lock":"Profit Lock", "net-worth":"Net Worth Command Center", dashboard:"Dashboard", budget:"Budget", transactions:"Transactions",
   bills:"Bills & Subscriptions", calendar:"Calendar", portfolio:"Portfolio",
-  goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", settings:"Settings",
+  goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", calculator:"Calculator", settings:"Settings",
 };
 
 export default function WealthPilotOS() {
@@ -5075,6 +5177,7 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
+      case "calculator":   return <CalculatorPage budgets={liveData.budgets} bills={liveData.bills} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} manualIncomeEntries={manualIncomeEntries} transactions={liveData.transactions} />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
