@@ -115,6 +115,34 @@ export const creditScore = {
   record: (data) => post('/credit-score', data),
 };
 
+
+export const creditReport = {
+  scan: async (file, onProgress) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append('file', file);
+    return await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE}/credit-report/scan`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        try {
+          const payload = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300) return resolve(payload.data);
+          reject(new Error(payload?.error || 'Request failed. Please try again.'));
+        } catch {
+          reject(new Error('Unexpected server response. Please try again.'));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload.'));
+      xhr.send(form);
+    });
+  },
+};
+
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 export const ai = {
   chat: (message, history, mode, context) => post('/ai/chat', { message, history, ...(mode ? { mode } : {}), ...(context ? { context } : {}) }),
