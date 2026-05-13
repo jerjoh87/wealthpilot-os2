@@ -1971,13 +1971,23 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
 
 
 function DebtPlannerPage({ debts = [], setDebts, addToast }) {
-  const [draft, setDraft] = useState({ name:'', type:'credit card', balance:'', minimumPayment:'', apr:'', dueDate:'', lender:'', notes:'', priority:1 });
+  const [draft, setDraft] = useState({
+    name:'', type:'credit card', balance:'', minimumPayment:'', apr:'', dueDate:'', lender:'', notes:'', priority:1,
+    cardName:'', issuer:'', creditLimit:'', statementDate:''
+  });
   const [method, setMethod] = useState('avalanche');
   const [extraPayment, setExtraPayment] = useState(0);
   const debtTypes = ['credit card','personal loan','auto loan','student loan','collection','BNPL','other'];
   const safeDebts = ensureArray(debts, []);
   const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
   const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
+  const totalCreditBalance = safeDebts
+    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
+    .reduce((sum, d) => sum + Number(d.balance || 0), 0);
+  const totalCreditLimit = safeDebts
+    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
+    .reduce((sum, d) => sum + Number(d.creditLimit || 0), 0);
+  const overallUtilization = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
   const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
   const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
   const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
@@ -1986,15 +1996,35 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
   const estimatedInterestSaved = method==='avalanche' && safeDebts.some(d=>Number(d.apr||0)>0) ? Math.max(0, extraPayment*0.15*12) : null;
 
   const persist = async (next) => { setDebts(next); try { localStorage.setItem('wp_debts', JSON.stringify(next)); } catch {} };
-  const addDebt = async () => { const payload = { ...draft, id: Date.now(), balance:Number(draft.balance||0), minimumPayment:Number(draft.minimumPayment||0), apr:Number(draft.apr||0), priority:Number(draft.priority||999) }; if (!payload.name || payload.balance<=0) return; try { const created = await debtsApi.create(payload); const next=[...safeDebts, created||payload]; await persist(next); addToast?.('Debt added.','success'); } catch { await persist([...safeDebts,payload]); addToast?.('Debt added locally.','info'); } };
+  const addDebt = async () => {
+    const payload = {
+      ...draft,
+      id: Date.now(),
+      name: draft.name || draft.cardName,
+      balance:Number(draft.balance||0),
+      minimumPayment:Number(draft.minimumPayment||0),
+      apr:Number(draft.apr||0),
+      priority:Number(draft.priority||999),
+      creditLimit: Number(draft.creditLimit || 0),
+      cardName: draft.cardName || draft.name,
+      statementDate: draft.statementDate || '',
+    };
+    if (!payload.name || payload.balance<=0) return;
+    try { const created = await debtsApi.create(payload); const next=[...safeDebts, created||payload]; await persist(next); addToast?.('Debt added.','success'); }
+    catch { await persist([...safeDebts,payload]); addToast?.('Debt added locally.','info'); }
+  };
 
   return <div className="grid-2" style={{gap:16}}><div className="card"><div className="card-title">Add Debt</div>
     <input className="input" placeholder="Debt name" value={draft.name} onChange={e=>setDraft(v=>({...v,name:e.target.value}))}/>
+    <input className="input" placeholder="Card name" value={draft.cardName} onChange={e=>setDraft(v=>({...v,cardName:e.target.value}))}/>
+    <input className="input" placeholder="Issuer" value={draft.issuer} onChange={e=>setDraft(v=>({...v,issuer:e.target.value}))}/>
     <select className="input" value={draft.type} onChange={e=>setDraft(v=>({...v,type:e.target.value}))}>{debtTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
     <input className="input" placeholder="Balance" value={draft.balance} onChange={e=>setDraft(v=>({...v,balance:e.target.value}))}/>
+    <input className="input" placeholder="Credit limit" value={draft.creditLimit} onChange={e=>setDraft(v=>({...v,creditLimit:e.target.value}))}/>
     <input className="input" placeholder="Minimum payment" value={draft.minimumPayment} onChange={e=>setDraft(v=>({...v,minimumPayment:e.target.value}))}/>
     <input className="input" placeholder="APR %" value={draft.apr} onChange={e=>setDraft(v=>({...v,apr:e.target.value}))}/>
-    <input className="input" type="date" value={draft.dueDate} onChange={e=>setDraft(v=>({...v,dueDate:e.target.value}))}/>
+    <input className="input" type="date" value={draft.dueDate} onChange={e=>setDraft(v=>({...v,dueDate:e.target.value}))} title="Due date"/>
+    <input className="input" type="date" value={draft.statementDate} onChange={e=>setDraft(v=>({...v,statementDate:e.target.value}))} title="Statement date"/>
     <input className="input" placeholder="Lender/Creditor" value={draft.lender} onChange={e=>setDraft(v=>({...v,lender:e.target.value}))}/>
     <input className="input" placeholder="Notes" value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))}/>
     <input className="input" placeholder="Custom priority (1=highest)" value={draft.priority} onChange={e=>setDraft(v=>({...v,priority:e.target.value}))}/>
@@ -2004,9 +2034,17 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
       <select className="input" value={method} onChange={e=>setMethod(e.target.value)}><option value="snowball">Snowball (smallest balance first)</option><option value="avalanche">Avalanche (highest APR first)</option><option value="custom">Custom priority</option></select>
       <input className="input" placeholder="Extra monthly payment" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value||0))}/>
       <div>Total debt: <b>{fmt(totalDebt||0)}</b></div><div>Total minimum payments: <b>{fmt(totalMin||0)}</b></div><div>Estimated payoff date: <b>{estPayoffDate}</b></div>
+      <div>Overall card utilization: <b>{overallUtilization===null ? 'N/A' : `${overallUtilization.toFixed(1)}%`}</b></div>
       <div>Recommended next debt: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)})` : 'None'}</b></div>
       {estimatedInterestSaved!==null && <div>Estimated interest saved (illustrative): <b>{fmt(estimatedInterestSaved)}</b></div>}
-      <div style={{marginTop:10}}>{sorted.map((d,i)=><div key={d.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)'}}><span>{i+1}. {d.name} · {d.type}</span><span>{fmt(d.minimumPayment||0)} min · {Number(d.apr||0)}% APR</span></div>)}</div>
+      <div style={{marginTop:10}}>{sorted.map((d,i)=>{
+        const limit = Number(d.creditLimit || 0);
+        const cardUtilization = limit > 0 ? (Number(d.balance || 0) / limit) * 100 : null;
+        return <div key={d.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
+          <span>{i+1}. {d.cardName || d.name} · {d.type} {d.issuer ? `· ${d.issuer}` : ''} {d.statementDate ? `· stmt ${d.statementDate}` : ''}</span>
+          <span>{fmt(d.minimumPayment||0)} min · {Number(d.apr||0)}% APR · Util {cardUtilization===null ? 'N/A' : `${cardUtilization.toFixed(1)}%`}</span>
+        </div>;
+      })}</div>
     </div></div>;
 }
 
