@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Component, useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 
 // ── API CLIENT ────────────────────────────────────────────────────────────────
@@ -4878,7 +4878,36 @@ const PAGE_TITLES = {
   goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", settings:"Settings",
 };
 
-export default function WealthPilotOS() {
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("WealthPilot backend UI crashed", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#0a0b0e", color: "#f0f2f7", display: "grid", placeItems: "center", padding: 24 }}>
+          <div className="card" style={{ maxWidth: 560, textAlign: "center" }}>
+            <h2 style={{ marginBottom: 8 }}>We hit an app error.</h2>
+            <p className="text-sm text-muted">Please refresh. If this keeps happening, sign out and sign back in.</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function WealthPilotOSApp() {
   const { user, loading, login, signup, logout } = useAuth();
   const acct = useAccounts();
   const { mode, setMode, config: modeConfig, suggestion: modeSuggestion } = useMode();
@@ -5306,6 +5335,14 @@ export default function WealthPilotOS() {
         <button className={`fab ${fabOpen?"open":""}`} onClick={()=>setFabOpen(o=>!o)}>+</button>
       </div>
     </>
+  );
+}
+
+export default function WealthPilotOS() {
+  return (
+    <AppErrorBoundary>
+      <WealthPilotOSApp />
+    </AppErrorBoundary>
   );
 }
   const connectSmartCredit = async () => {
