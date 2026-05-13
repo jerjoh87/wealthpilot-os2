@@ -91,6 +91,14 @@ export const budgets = {
   remove: (id)          => del(`/budgets/${id}`),
 };
 
+// ── Debts ─────────────────────────────────────────────────────────────────────
+export const debts = {
+  list:   ()          => get('/debts'),
+  create: (data)      => post('/debts', data),
+  update: (id, data)  => put(`/debts/${id}`, data),
+  remove: (id)        => del(`/debts/${id}`),
+};
+
 // ── Portfolio ─────────────────────────────────────────────────────────────────
 export const portfolio = {
   list: async () => {

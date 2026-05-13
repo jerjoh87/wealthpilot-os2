@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1944,6 +1944,47 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
       </div>
     </div>
   );
+}
+
+
+function DebtPlannerPage({ debts = [], setDebts, addToast }) {
+  const [draft, setDraft] = useState({ name:'', type:'credit card', balance:'', minimumPayment:'', apr:'', dueDate:'', lender:'', notes:'', priority:1 });
+  const [method, setMethod] = useState('avalanche');
+  const [extraPayment, setExtraPayment] = useState(0);
+  const debtTypes = ['credit card','personal loan','auto loan','student loan','collection','BNPL','other'];
+  const safeDebts = ensureArray(debts, []);
+  const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
+  const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
+  const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
+  const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
+  const estMonths = monthlyBudget>0 ? Math.ceil(totalDebt / monthlyBudget) : null;
+  const estPayoffDate = estMonths ? new Date(new Date().setMonth(new Date().getMonth()+estMonths)).toLocaleDateString() : 'Add minimum/extra payments';
+  const estimatedInterestSaved = method==='avalanche' && safeDebts.some(d=>Number(d.apr||0)>0) ? Math.max(0, extraPayment*0.15*12) : null;
+
+  const persist = async (next) => { setDebts(next); try { localStorage.setItem('wp_debts', JSON.stringify(next)); } catch {} };
+  const addDebt = async () => { const payload = { ...draft, id: Date.now(), balance:Number(draft.balance||0), minimumPayment:Number(draft.minimumPayment||0), apr:Number(draft.apr||0), priority:Number(draft.priority||999) }; if (!payload.name || payload.balance<=0) return; try { const created = await debtsApi.create(payload); const next=[...safeDebts, created||payload]; await persist(next); addToast?.('Debt added.','success'); } catch { await persist([...safeDebts,payload]); addToast?.('Debt added locally.','info'); } };
+
+  return <div className="grid-2" style={{gap:16}}><div className="card"><div className="card-title">Add Debt</div>
+    <input className="input" placeholder="Debt name" value={draft.name} onChange={e=>setDraft(v=>({...v,name:e.target.value}))}/>
+    <select className="input" value={draft.type} onChange={e=>setDraft(v=>({...v,type:e.target.value}))}>{debtTypes.map(t=><option key={t} value={t}>{t}</option>)}</select>
+    <input className="input" placeholder="Balance" value={draft.balance} onChange={e=>setDraft(v=>({...v,balance:e.target.value}))}/>
+    <input className="input" placeholder="Minimum payment" value={draft.minimumPayment} onChange={e=>setDraft(v=>({...v,minimumPayment:e.target.value}))}/>
+    <input className="input" placeholder="APR %" value={draft.apr} onChange={e=>setDraft(v=>({...v,apr:e.target.value}))}/>
+    <input className="input" type="date" value={draft.dueDate} onChange={e=>setDraft(v=>({...v,dueDate:e.target.value}))}/>
+    <input className="input" placeholder="Lender/Creditor" value={draft.lender} onChange={e=>setDraft(v=>({...v,lender:e.target.value}))}/>
+    <input className="input" placeholder="Notes" value={draft.notes} onChange={e=>setDraft(v=>({...v,notes:e.target.value}))}/>
+    <input className="input" placeholder="Custom priority (1=highest)" value={draft.priority} onChange={e=>setDraft(v=>({...v,priority:e.target.value}))}/>
+    <button className="btn btn-primary" onClick={addDebt}>Save Debt</button></div>
+    <div className="card"><div className="card-title">Payoff Planner</div>
+      <div className="text-sm" style={{marginBottom:8}}>Educational planning tool only — no legal or financial guarantees.</div>
+      <select className="input" value={method} onChange={e=>setMethod(e.target.value)}><option value="snowball">Snowball (smallest balance first)</option><option value="avalanche">Avalanche (highest APR first)</option><option value="custom">Custom priority</option></select>
+      <input className="input" placeholder="Extra monthly payment" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value||0))}/>
+      <div>Total debt: <b>{fmt(totalDebt||0)}</b></div><div>Total minimum payments: <b>{fmt(totalMin||0)}</b></div><div>Estimated payoff date: <b>{estPayoffDate}</b></div>
+      <div>Recommended next debt: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)})` : 'None'}</b></div>
+      {estimatedInterestSaved!==null && <div>Estimated interest saved (illustrative): <b>{fmt(estimatedInterestSaved)}</b></div>}
+      <div style={{marginTop:10}}>{sorted.map((d,i)=><div key={d.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)'}}><span>{i+1}. {d.name} · {d.type}</span><span>{fmt(d.minimumPayment||0)} min · {Number(d.apr||0)}% APR</span></div>)}</div>
+    </div></div>;
 }
 
 function TransactionsPage({ transactions = [] }) {
@@ -4818,12 +4859,13 @@ const FAB_PAGES = [
   { id:"credit-score",  icon:"⭐", label:"Credit Score"  },
   { id:"goals",         icon:"🎯", label:"Goals"         },
   { id:"reports",       icon:"📊", label:"Reports"       },
+  { id:"debt-planner",  icon:"🧮", label:"Debt Planner"  },
   { id:"settings",      icon:"⚙",  label:"Settings"      },
 ];
 
 const PAGE_TITLES = {
   "credit-score":"Credit Score", "reports":"Reports", "profit-lock":"Profit Lock", "net-worth":"Net Worth Command Center", dashboard:"Dashboard", budget:"Budget", transactions:"Transactions",
-  bills:"Bills & Subscriptions", calendar:"Calendar", portfolio:"Portfolio",
+  bills:"Bills & Subscriptions", "debt-planner":"Debt Payoff Planner", calendar:"Calendar", portfolio:"Portfolio",
   goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", settings:"Settings",
 };
 
@@ -4846,6 +4888,7 @@ export default function WealthPilotOS() {
     budgets: [],
     portfolio: { ...MOCK.portfolio, connected: false, holdings: [], totalValue: 0, dayChange: 0, dayChangePct: 0 },
     creditScore: null,
+    debts: [],
   });
   const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
   const [manualAccounts, setManualAccounts] = useState([]);
@@ -4869,8 +4912,10 @@ export default function WealthPilotOS() {
       setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
       const localBudgets = JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]');
       const localBills = JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]');
+      const localDebts = JSON.parse(localStorage.getItem('wp_debts') || '[]');
       if (Array.isArray(localBudgets) && localBudgets.length) setLiveData(prev => ({ ...prev, budgets: localBudgets }));
       if (Array.isArray(localBills) && localBills.length) setLiveData(prev => ({ ...prev, bills: localBills }));
+      if (Array.isArray(localDebts) && localDebts.length) setLiveData(prev => ({ ...prev, debts: localDebts }));
     } catch {
       setManualIncomeEntries([]);
       setManualAccounts([]);
@@ -4911,13 +4956,15 @@ export default function WealthPilotOS() {
           return p || MOCK.portfolio;
         }, MOCK.portfolio);
         const creditScore = await safe(() => creditScoreApi.get(), null);
+        const debts = ensureArray(await safe(() => debtsApi.list(), []), []);
         setLiveData({
           accounts: ensureArray(accounts, acct.accounts),
           bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]'), []),
           transactions,
           budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]'), []),
           portfolio,
-          creditScore
+          creditScore,
+          debts: debts.length ? debts : ensureArray(JSON.parse(localStorage.getItem('wp_debts') || '[]'), [])
         });
       } catch (e) {
         console.error("Live data fetch failed", e);
@@ -5067,6 +5114,7 @@ export default function WealthPilotOS() {
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
+      case "debt-planner": return <DebtPlannerPage debts={liveData.debts} setDebts={(next)=>setLiveData(prev=>({...prev, debts: next}))} addToast={addToast} />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
       case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
