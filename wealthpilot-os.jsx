@@ -1978,19 +1978,17 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
   const safeDebts = ensureArray(debts, []);
   const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
   const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
-  const totalCreditBalance = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.balance || 0), 0);
-  const totalCreditLimit = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.creditLimit || 0), 0);
-  const overallUtilization = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
   const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
   const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
   const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
   const estMonths = monthlyBudget>0 ? Math.ceil(totalDebt / monthlyBudget) : null;
   const estPayoffDate = estMonths ? new Date(new Date().setMonth(new Date().getMonth()+estMonths)).toLocaleDateString() : 'Add minimum/extra payments';
   const estimatedInterestSaved = method==='avalanche' && safeDebts.some(d=>Number(d.apr||0)>0) ? Math.max(0, extraPayment*0.15*12) : null;
+  const interestPriority = [...safeDebts]
+    .filter((d) => Number(d.balance || 0) > 0)
+    .sort((a, b) => (Number(b.apr || 0) * Number(b.balance || 0)) - (Number(a.apr || 0) * Number(a.balance || 0)))
+    .slice(0, 3)
+    .map((d) => ({ ...d, estimatedAnnualInterest: Number(d.balance || 0) * (Number(d.apr || 0) / 100) }));
   const creditDebts = safeDebts.filter((d) => (d?.type || '').toLowerCase() === 'credit card');
   const totalCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
   const totalCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
@@ -2039,8 +2037,19 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
         <div>Recommended payment to get under 10%: <b>{paymentToTenPct === null ? 'Add credit limits' : fmt(paymentToTenPct)}</b></div>
         <div>Best payment timing before statement date: <b>{bestPaymentTiming ? `Pay 2-3 days before ${bestPaymentTiming.toLocaleDateString()}` : 'Add statement dates for your cards'}</b></div>
       </div>
-      <div>Recommended next debt: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)})` : 'None'}</b></div>
+      <div>Recommended debt to attack first: <b>{nextDebt ? `${nextDebt.name} (${fmt(nextDebt.balance||0)} at ${Number(nextDebt.apr||0)}% APR)` : 'Add a debt to generate a recommendation'}</b></div>
       {estimatedInterestSaved!==null && <div>Estimated interest saved (illustrative): <b>{fmt(estimatedInterestSaved)}</b></div>}
+      {method === 'avalanche' && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Interest Priority (Educational Estimate)</div>
+          {interestPriority.length ? interestPriority.map((d, i) => (
+            <div key={`${d.id || d.name}-interest-${i}`} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0' }}>
+              <span>{i + 1}. {d.cardName || d.name}</span>
+              <span>{fmt(d.estimatedAnnualInterest)} / year est.</span>
+            </div>
+          )) : <div>Add balances and APR values to estimate interest priority.</div>}
+        </div>
+      )}
       <div style={{marginTop:10}}>{sorted.map((d,i)=>{
         const limit = Number(d.creditLimit || 0);
         const cardUtilization = limit > 0 ? (Number(d.balance || 0) / limit) * 100 : null;
