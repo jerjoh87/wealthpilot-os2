@@ -168,6 +168,63 @@ const LoadingCard = ({ message="Loading…" }) => (
   <div className="card"><div className="text-sm text-muted">{message}</div></div>
 );
 
+const ONBOARDING_STORAGE_KEY = 'wp_onboarding_state';
+const ONBOARDING_GOALS = ["Save money", "Pay debt", "Build credit", "Invest", "Prepare for funding", "Track net worth"];
+
+function OnboardingWizard({ onComplete, onSkip }) {
+  const steps = ["Welcome", "Income", "Bills", "Accounts", "Categories", "Credit Score", "Goal"];
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({
+    monthlyIncome: "",
+    billName: "",
+    billAmount: "",
+    billDueDay: "",
+    accountMethod: "plaid",
+    accountName: "",
+    accountBalance: "",
+    categoryName: "",
+    creditScore: "",
+    goal: ONBOARDING_GOALS[0],
+  });
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (Number.isInteger(saved.step)) setStep(saved.step);
+      if (saved.form && typeof saved.form === 'object') setForm(prev => ({ ...prev, ...saved.form }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step, form })); } catch {}
+  }, [step, form]);
+
+  const next = () => setStep(s => Math.min(steps.length - 1, s + 1));
+  const prev = () => setStep(s => Math.max(0, s - 1));
+  const finish = () => onComplete(form);
+
+  return (
+    <div className="card" style={{maxWidth:640,margin:"18px auto"}}>
+      <div className="card-title">Setup Wizard · Step {step + 1} of {steps.length}</div>
+      <div className="text-sm text-muted" style={{marginBottom:12}}>{steps[step]}</div>
+      {step===0 && <p className="text-sm">Welcome to WealthPilot. Let’s set up your financial workspace in a minute.</p>}
+      {step===1 && <input className="input" placeholder="Monthly income (USD)" value={form.monthlyIncome} onChange={(e)=>setForm(f=>({...f,monthlyIncome:e.target.value}))} />}
+      {step===2 && <div style={{display:"grid",gap:8}}><input className="input" placeholder="Bill name" value={form.billName} onChange={(e)=>setForm(f=>({...f,billName:e.target.value}))} /><input className="input" placeholder="Amount" value={form.billAmount} onChange={(e)=>setForm(f=>({...f,billAmount:e.target.value}))} /><input className="input" placeholder="Due day (1-31)" value={form.billDueDay} onChange={(e)=>setForm(f=>({...f,billDueDay:e.target.value}))} /></div>}
+      {step===3 && <div style={{display:"grid",gap:8}}><select className="input" value={form.accountMethod} onChange={(e)=>setForm(f=>({...f,accountMethod:e.target.value}))}><option value="plaid">Connect bank with Plaid</option><option value="manual">Enter account manually</option></select>{form.accountMethod==="manual" && <><input className="input" placeholder="Account name" value={form.accountName} onChange={(e)=>setForm(f=>({...f,accountName:e.target.value}))} /><input className="input" placeholder="Starting balance" value={form.accountBalance} onChange={(e)=>setForm(f=>({...f,accountBalance:e.target.value}))} /></>}</div>}
+      {step===4 && <input className="input" placeholder="Budget category (example: Groceries)" value={form.categoryName} onChange={(e)=>setForm(f=>({...f,categoryName:e.target.value}))} />}
+      {step===5 && <input className="input" placeholder="Credit score (optional)" value={form.creditScore} onChange={(e)=>setForm(f=>({...f,creditScore:e.target.value}))} />}
+      {step===6 && <select className="input" value={form.goal} onChange={(e)=>setForm(f=>({...f,goal:e.target.value}))}>{ONBOARDING_GOALS.map(g=><option key={g} value={g}>{g}</option>)}</select>}
+
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+        {step>0 && <button className="btn btn-ghost btn-sm" onClick={prev}>Back</button>}
+        {step<steps.length-1 ? <button className="btn btn-primary btn-sm" onClick={next}>Continue</button> : <button className="btn btn-primary btn-sm" onClick={finish}>Finish Setup</button>}
+        {[3,5].includes(step) && <button className="btn btn-ghost btn-sm" onClick={next}>Skip</button>}
+        <button className="btn btn-ghost btn-sm" onClick={onSkip}>Skip all for now</button>
+      </div>
+    </div>
+  );
+}
+
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
 function useAuth() {
@@ -1396,8 +1453,8 @@ function Dashboard(props = {}) {
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const manualMonthlyIncome = (manualIncomeEntries || []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
-  const income = bankIncome + manualMonthlyIncome || MOCK.income;
-  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const income = bankIncome + manualMonthlyIncome;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const upcomingBills = safeBills.filter(b => !b.paid);
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
@@ -1416,6 +1473,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
           <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
           <div className="card-sub">Cash inflow this cycle</div>
+          {income <= 0 && <div className="text-sm text-muted">Add income to start your plan.</div>}
         </div>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
           <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
@@ -1450,13 +1508,13 @@ function Dashboard(props = {}) {
           <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
             {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">Create your first budget category.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div>}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p></div>}
         </div>
       </div>
 
@@ -1469,6 +1527,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
           <div className="card-title">Credit Score Tracker</div>
           <div className="card-value">{creditScoreValue}</div>
+          {!creditScore?.latest?.score && <div className="card-sub">Add your credit score to track progress.</div>}
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
@@ -2197,7 +2256,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts }) {
+function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts, onRestartSetup }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2418,6 +2477,11 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   return (
     <div>
+      <div className="card" style={{marginBottom:12}}>
+        <div className="card-title">Setup</div>
+        <div className="text-sm text-muted" style={{marginBottom:10}}>Need to run onboarding again?</div>
+        <button className="btn btn-ghost btn-sm" onClick={onRestartSetup}>Restart setup</button>
+      </div>
       <div className="grid-2" style={{alignItems:'start'}}>
         <div>
           <div className="card settings-section">
@@ -4560,6 +4624,7 @@ export default function WealthPilotOS() {
   });
   const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
   const [manualAccounts, setManualAccounts] = useState([]);
+  const [onboarding, setOnboarding] = useState({ completed: false, step: 0 });
   const [liveStatus, setLiveStatus] = useState({
     accounts: { loading: true, error: false },
     transactions: { loading: true, error: false },
@@ -4585,6 +4650,10 @@ export default function WealthPilotOS() {
       setManualIncomeEntries([]);
       setManualAccounts([]);
     }
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (saved && typeof saved === 'object') setOnboarding({ completed: Boolean(saved.completed), step: Number(saved.step || 0) });
+    } catch {}
   }, []);
 
   useEffect(() => { try { localStorage.setItem('wp_manual_income', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
@@ -4781,9 +4850,30 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
+  };
+
+  const completeOnboarding = async (formData = {}) => {
+    if (Number(formData.monthlyIncome) > 0) {
+      setManualIncomeEntries(prev => [...prev, { id: Date.now(), source_name: 'Primary income', amount: Number(formData.monthlyIncome), frequency: 'Monthly', created_at: new Date().toISOString() }]);
+    }
+    if (formData.billName && Number(formData.billAmount) > 0) {
+      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), { id: Date.now()+1, name: formData.billName, amount: Number(formData.billAmount), dueDay: Number(formData.billDueDay || 1), paid: false, category: 'Bills' }] }));
+    }
+    if (formData.categoryName) {
+      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), { id: Date.now()+2, category: formData.categoryName, limit: 0, spent: 0, color: '#4f8ef7' }] }));
+    }
+    if (formData.accountMethod === 'manual' && formData.accountName) {
+      setManualAccounts(prev => [...prev, { id: Date.now()+3, name: formData.accountName, type: 'checking', balance: Number(formData.accountBalance || 0), institution: 'Manual', last4: '0000', manual: true }]);
+    }
+    if (Number(formData.creditScore) > 0) {
+      setLiveData(prev => ({ ...prev, creditScore: { latest: { score: Number(formData.creditScore) } } }));
+    }
+    const nextState = { completed: true, step: 6, goal: formData.goal || ONBOARDING_GOALS[0] };
+    setOnboarding(nextState);
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(nextState)); } catch {}
   };
 
  return (
@@ -4896,7 +4986,11 @@ export default function WealthPilotOS() {
             <span style={{color:"var(--text2)",fontWeight:400}}>— {modeConfig.dashBanner}</span>
           </div>
 
-          {page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>}
+          {!onboarding.completed ? (
+            <div className="content">
+              <OnboardingWizard onComplete={completeOnboarding} onSkip={() => { setOnboarding({ completed: true, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: true, step: 0 })); } catch {} }} />
+            </div>
+          ) : (page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>)}
         </div>
 
         {/* ── Mobile Bottom Nav ── */}
