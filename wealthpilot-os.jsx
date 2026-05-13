@@ -4294,10 +4294,10 @@ Give me a concise 2-3 sentence recommendation on whether to lock profits now and
 }
 
 const INIT_GOALS = [
-  { id:1, name:"Emergency Fund",   type:"emergency",  target:10000, current:6200,  deadline:"2026-12-01", monthlyContrib:500,  notes:"3–6 months expenses" },
-  { id:2, name:"Vacation to Japan",type:"vacation",   target:4500,  current:1800,  deadline:"2026-09-01", monthlyContrib:450,  notes:"flights + hotel" },
-  { id:3, name:"Down Payment",     type:"home",       target:50000, current:12000, deadline:"2028-06-01", monthlyContrib:800,  notes:"20% on $250k home" },
-  { id:4, name:"Pay Off Car Loan", type:"debt",       target:8200,  current:5100,  deadline:"2027-01-01", monthlyContrib:350,  notes:"Extra $100/mo" },
+  { id:1, name:"Emergency Fund",   type:"emergency",  target:10000, current:6200,  deadline:"2026-12-01", priority:"high", monthlyContrib:500,  notes:"3–6 months expenses" },
+  { id:2, name:"Vacation to Japan",type:"vacation",   target:4500,  current:1800,  deadline:"2026-09-01", priority:"medium", monthlyContrib:450,  notes:"flights + hotel" },
+  { id:3, name:"Down Payment",     type:"home",       target:50000, current:12000, deadline:"2028-06-01", priority:"high", monthlyContrib:800,  notes:"20% on $250k home" },
+  { id:4, name:"Pay Off Car Loan", type:"debt",       target:8200,  current:5100,  deadline:"2027-01-01", priority:"medium", monthlyContrib:350,  notes:"Extra $100/mo" },
 ];
 
 function projectedDate(current, target, monthlyContrib) {
@@ -4310,22 +4310,59 @@ function projectedDate(current, target, monthlyContrib) {
 
 function GoalsPage({ addToast, modeConfig }) {
   const [goals, setGoals] = useState(INIT_GOALS);
+  const GOALS_STORAGE_KEY = "wp_savings_goals";
+  const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
   // Sort goals by mode priority order
   const sortedGoals = modeConfig?.goalPriority
     ? [...goals].sort((a, b) => {
         const ai = modeConfig.goalPriority.indexOf(a.type);
         const bi = modeConfig.goalPriority.indexOf(b.type);
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        if ((ai === -1 ? 99 : ai) !== (bi === -1 ? 99 : bi)) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        return (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
       })
-    : goals;
+    : [...goals].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99));
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState(null);
-  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", monthlyContrib:"", notes:"" };
+  const BLANK = { name:"", type:"savings", target:"", current:"", deadline:"", priority:"medium", monthlyContrib:"", notes:"" };
   const [form, setForm] = useState(BLANK);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [voiceUnsupported, setVoiceUnsupported] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const loadGoals = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("savings_goals")
+          .select("id,name,type,target,current,deadline,priority,monthlyContrib,notes")
+          .order("created_at", { ascending: true });
+        if (!error && Array.isArray(data) && data.length && mounted) {
+          setGoals(data.map((g) => ({ ...g, priority: g.priority || "medium" })));
+          return;
+        }
+      } catch {}
+      try {
+        const saved = JSON.parse(localStorage.getItem(GOALS_STORAGE_KEY) || "[]");
+        if (mounted && Array.isArray(saved) && saved.length) setGoals(saved.map((g) => ({ ...g, priority: g.priority || "medium" })));
+      } catch {}
+    };
+    loadGoals();
+    return () => { mounted = false; };
+  }, []);
+
+  const persistGoals = async (next) => {
+    try {
+      const payload = next.map(({ id, name, type, target, current, deadline, priority, monthlyContrib, notes }) => ({
+        id, name, type, target, current, deadline, priority, monthlyContrib, notes
+      }));
+      const { error } = await supabase.from("savings_goals").upsert(payload, { onConflict: "id" });
+      if (error) throw error;
+    } catch {
+      try { localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(next)); } catch {}
+    }
+  };
 
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
@@ -4336,13 +4373,30 @@ function GoalsPage({ addToast, modeConfig }) {
 
   const save = () => {
     if (!form.name.trim() || !form.target) return;
-    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0 };
-    if (editing) { setGoals(gs => gs.map(g => g.id===editing.id ? entry : g)); addToast&&addToast("Goal updated","success"); }
-    else         { setGoals(gs => [...gs, entry]); addToast&&addToast("Goal created 🎯","success"); }
+    const entry = { ...form, id: editing?.id || Date.now(), target: parseFloat(form.target)||0, current: parseFloat(form.current)||0, monthlyContrib: parseFloat(form.monthlyContrib)||0, priority: form.priority || "medium" };
+    if (editing) {
+      setGoals(gs => {
+        const next = gs.map(g => g.id===editing.id ? entry : g);
+        persistGoals(next);
+        return next;
+      }); addToast&&addToast("Goal updated","success");
+    }
+    else {
+      setGoals(gs => {
+        const next = [...gs, entry];
+        persistGoals(next);
+        return next;
+      }); addToast&&addToast("Goal created 🎯","success");
+    }
     setDrawer(false);
   };
 
-  const del = (id) => { setGoals(gs => gs.filter(g => g.id!==id)); addToast&&addToast("Goal deleted","info"); setDrawer(false); };
+  const del = (id) => {
+    setGoals(gs => { const next = gs.filter(g => g.id!==id); persistGoals(next); return next; });
+    supabase.from("savings_goals").delete().eq("id", id).then(() => {}).catch(() => {});
+    addToast&&addToast("Goal deleted","info");
+    setDrawer(false);
+  };
   const startVoiceForGoal = () => {
     const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
     if (!SR) return setVoiceUnsupported("Voice input is not supported in this browser yet.");
@@ -4361,7 +4415,11 @@ function GoalsPage({ addToast, modeConfig }) {
   };
 
   const addContrib = (id, amt) => {
-    setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, g.current+amt)} : g));
+    setGoals(gs => {
+      const next = gs.map(g => g.id===id ? {...g, current: Math.min(g.target, g.current+amt)} : g);
+      persistGoals(next);
+      return next;
+    });
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
   };
 
@@ -4433,6 +4491,7 @@ function GoalsPage({ addToast, modeConfig }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2,flexWrap:"wrap"}}>
                     <span style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>{g.name}</span>
+                    <span className="badge badge-gray">{(g.priority || "medium").toUpperCase()} priority</span>
                     {done && <span className="badge badge-green">Completed 🎉</span>}
                     {overdue && !done && <span className="badge badge-red">Behind schedule</span>}
                     {!done && !overdue && monthsLeft && <span className="badge badge-gray">{monthsLeft} mo left</span>}
@@ -4498,6 +4557,14 @@ function GoalsPage({ addToast, modeConfig }) {
                 <label className="form-label">Type</label>
                 <select className="form-select" value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
                   {Object.keys(GOAL_ICONS).map(t=><option key={t} value={t}>{GOAL_ICONS[t]} {t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Priority</label>
+                <select className="form-select" value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
                 </select>
               </div>
             </div>
