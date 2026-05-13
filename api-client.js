@@ -157,7 +157,7 @@ export const ai = {
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
 export const plaid = {
-  getLinkToken:  ()              => post('/plaid/create-link-token', {}),
+  getLinkToken:  ()              => post('/plaid/link-token', {}),
   exchange:      (public_token)  => post('/plaid/exchange', { public_token }),
   sync:          ()              => post('/plaid/sync', {}),
 };
