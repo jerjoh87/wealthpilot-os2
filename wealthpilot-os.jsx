@@ -1670,6 +1670,17 @@ function Dashboard(props = {}) {
   const creditLimitEstimate = safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Number(account?.limit || 0), 0);
   const creditBalance = Math.abs(safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Math.min(0, Number(account?.balance || 0)), 0));
   const creditUtilization = creditLimitEstimate > 0 ? creditBalance / creditLimitEstimate : null;
+  const financialHealth = calculateFinancialHealthScore({
+    budget: safeBudget,
+    bills: safeBills,
+    accounts: safeAccounts,
+    income,
+    spending,
+    creditDebt,
+    creditScore,
+    netWorth,
+    transactions: safeTransactions,
+  });
   const [moneyMove, setMoneyMove] = useState(() => buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash }));
 
   useEffect(() => {
@@ -1760,6 +1771,14 @@ function Dashboard(props = {}) {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(147,51,234,0.16), rgba(56,189,248,0.05))"}}>
+          <div className="card-title">Financial Health Score</div>
+          <div className="card-value">{Number(financialHealth.score || 0)}</div>
+          <div className="card-sub">{financialHealth.label || "Starter"} · {financialHealth.summary || "Based on your live data"}</div>
+          <div className="text-sm text-muted" style={{marginTop:8,display:"grid",gap:4}}>
+            {(financialHealth.tips || []).slice(0,2).map((tip, idx) => <div key={idx}>• {tip}</div>)}
+          </div>
+        </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
           <div className="card-title">Webull / Portfolio</div>
           <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
