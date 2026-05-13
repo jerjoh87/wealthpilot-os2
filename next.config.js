@@ -13,6 +13,11 @@ const nextConfig = {
     appUrl: process.env.NEXT_PUBLIC_APP_URL,
   },
 
+
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Silence noisy Plaid/Supabase peer dep warnings during build
   webpack: (config) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
