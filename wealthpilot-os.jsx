@@ -2078,11 +2078,11 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
     .slice(0, 3)
     .map((d) => ({ ...d, estimatedAnnualInterest: Number(d.balance || 0) * (Number(d.apr || 0) / 100) }));
   const creditDebts = safeDebts.filter((d) => (d?.type || '').toLowerCase() === 'credit card');
-  const totalCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
-  const totalCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
-  const utilizationPct = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
-  const paymentToThirtyPct = totalCreditLimit > 0 ? Math.max(0, totalCreditBalance - (totalCreditLimit * 0.3)) : null;
-  const paymentToTenPct = totalCreditLimit > 0 ? Math.max(0, totalCreditBalance - (totalCreditLimit * 0.1)) : null;
+  const debtCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
+  const debtCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
+  const utilizationPct = debtCreditLimit > 0 ? (debtCreditBalance / debtCreditLimit) * 100 : null;
+  const paymentToThirtyPct = debtCreditLimit > 0 ? Math.max(0, debtCreditBalance - (debtCreditLimit * 0.3)) : null;
+  const paymentToTenPct = debtCreditLimit > 0 ? Math.max(0, debtCreditBalance - (debtCreditLimit * 0.1)) : null;
   const dueDates = creditDebts
     .map((d) => d?.dueDate)
     .filter(Boolean)
@@ -2116,8 +2116,8 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
       <div className="text-sm text-muted" style={{marginTop:4}}>Estimates are illustrative and may differ from your lender&apos;s exact payoff schedule.</div>
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>Credit Utilization Totals</div>
-        <div>Total balance: <b>{fmt(totalCreditBalance)}</b></div>
-        <div>Total credit limit: <b>{fmt(totalCreditLimit)}</b></div>
+        <div>Total balance: <b>{fmt(debtCreditBalance)}</b></div>
+        <div>Total credit limit: <b>{fmt(debtCreditLimit)}</b></div>
         <div>Total utilization %: <b>{utilizationPct === null ? 'Add credit limits' : `${utilizationPct.toFixed(1)}%`}</b></div>
         <div>Recommended payment to get under 30%: <b>{paymentToThirtyPct === null ? 'Add credit limits' : fmt(paymentToThirtyPct)}</b></div>
         <div>Recommended payment to get under 10%: <b>{paymentToTenPct === null ? 'Add credit limits' : fmt(paymentToTenPct)}</b></div>
