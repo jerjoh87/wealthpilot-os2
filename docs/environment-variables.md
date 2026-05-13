@@ -22,4 +22,10 @@
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (optional for email 2FA)
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (optional for SMS reminders)
 
+## Billing / Stripe
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRO_PRICE_ID`
+- `STRIPE_PREMIUM_PRICE_ID`
+
 If optional variables are missing, the UI should continue to load and show fallback notices instead of crashing.

@@ -2647,7 +2647,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts, onRestartSetup }) {
+function SettingsPage({ addToast, user, currentPlan = 'free', billingStatus = 'free', setPricingOpen, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts, onRestartSetup }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2692,7 +2692,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     budgetMethod: '50/30/20',
     sessionTimeout: '30 minutes',
     accentColor: 'Electric Blue',
-    currentPlan: MOCK.user.plan,
+    currentPlan: currentPlan,
   });
 
 
@@ -2706,7 +2706,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
   const [accountForm, setAccountForm] = useState({ account_name:'', account_type:'Cash', starting_balance:'0', income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });
-  const MAX_ACCOUNTS = 6;
+  const MAX_ACCOUNTS = currentPlan === 'free' ? 1 : 6;
 
   const [reminderPrefs, setReminderPrefs] = useState({ categories: [], frequency: 'both', reminderTime: '09:00', phoneNumber: '', inAppEnabled: true });
   const [reminderLoading, setReminderLoading] = useState(false);
@@ -3033,8 +3033,8 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
           <div className="card settings-section">
             <h3>10. Billing</h3>
-            <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · $9.99 / month</div></div><span className="badge badge-green">Active</span></div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm">Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
+            <div className="setting-row"><div><div className="setting-label">Current plan</div><div className="setting-desc">{form.currentPlan} · status: {billingStatus}</div></div><span className="badge badge-green">Active</span></div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><button className="btn btn-primary btn-sm" onClick={()=>setPricingOpen?.(true)}>Upgrade</button><button className="btn btn-ghost btn-sm">Manage Subscription</button><button className="btn btn-danger btn-sm">Cancel Subscription</button></div>
             <div style={{marginTop:14,padding:12,border:'1px dashed var(--border2)',borderRadius:12,color:'var(--text2)',fontSize:12}}>Billing history placeholder · Invoice download and payment history will appear here.</div>
           </div>
         </div>
@@ -4955,6 +4955,12 @@ const NAV_GROUPS = [
   ]},
 ];
 
+const PLAN_RANK = { free: 0, pro: 1, premium: 2 };
+const BILLING_STATUSES = new Set(['free', 'pro', 'premium', 'canceled', 'past_due']);
+const FEATURE_GATES = { 'ai-coach': 'pro', reports: 'pro', 'debt-planner': 'pro', 'net-worth': 'pro', portfolio: 'premium', 'profit-lock': 'premium' };
+const normalizePlan = (plan) => String(plan || 'free').toLowerCase();
+const canAccessPlan = (plan, required = 'free') => (PLAN_RANK[normalizePlan(plan)] ?? 0) >= (PLAN_RANK[required] ?? 0);
+
 const ALL_NAV = NAV_GROUPS.flatMap(g => g.items);
 
 // Bottom nav: 5 primary pages
@@ -4996,6 +5002,8 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [billingStatus, setBillingStatus] = useState('free');
   const [liveDataLoading, setLiveDataLoading] = useState(true);
   const [liveDataError, setLiveDataError] = useState("");
   const [liveData, setLiveData] = useState({
@@ -5161,8 +5169,21 @@ export default function WealthPilotOS() {
     </div>
   );
   if (!user) return <AuthGate onAuth={handleAuth} />;
+  const currentPlan = normalizePlan(user?.plan || user?.user_metadata?.plan || MOCK.user.plan || 'free');
+  useEffect(() => {
+    if (BILLING_STATUSES.has(currentPlan)) setBillingStatus(currentPlan);
+  }, [currentPlan]);
 
-  const showPage = (id) => { setPage(id); setFabOpen(false); };
+  const showPage = (id) => {
+    const requiredPlan = FEATURE_GATES[id];
+    if (requiredPlan && !canAccessPlan(currentPlan, requiredPlan)) {
+      addToast(`This feature requires the ${requiredPlan} plan.`, "info");
+      setPricingOpen(true);
+      return;
+    }
+    setPage(id);
+    setFabOpen(false);
+  };
 
   const handleAddCategory = async (input = {}) => {
     const category = String(input.category || "").trim();
@@ -5241,7 +5262,7 @@ export default function WealthPilotOS() {
       case "reports":      return <ReportsPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} debts={liveData.debts} />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
       case "learning-center": return <LearningCenterPage />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} currentPlan={currentPlan} billingStatus={billingStatus} setPricingOpen={setPricingOpen} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
   };
@@ -5301,7 +5322,7 @@ export default function WealthPilotOS() {
               <span className="nav-icon">👤</span>
               <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
             </div>
-            <div className="plan-badge">✦ Pro Plan</div>
+            <div className="plan-badge">✦ {currentPlan} · {billingStatus}</div>
             <div className="nav-item" style={{marginTop:4,color:"var(--red)"}} onClick={logout}>
               <span className="nav-icon">⎋</span>
               <span>Sign Out</span>
@@ -5383,6 +5404,34 @@ export default function WealthPilotOS() {
             </div>
           ) : (page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>)}
         </div>
+
+        {pricingOpen && (
+          <div style={{position:"fixed", inset:0, zIndex:600, background:"rgba(2,6,23,0.72)", display:"flex", alignItems:"center", justifyContent:"center"}} onClick={()=>setPricingOpen(false)}>
+            <div className="card" style={{width:"min(980px, 94%)", maxHeight:"90vh", overflow:"auto"}} onClick={(e)=>e.stopPropagation()}>
+              <div className="section-title">Subscription plans</div>
+              <div className="grid-3" style={{marginTop:12}}>
+                {[
+                  { id:'free', price:'$0/mo', items:['manual budget','manual bills','3 budget categories','1 manual account','basic AI Coach/offline coach','basic credit score entry','basic goals']},
+                  { id:'pro', price:'$9.99/mo', items:['unlimited categories','up to 6 bank accounts with Plaid','AI Coach','voice commands','SMS reminders','debt payoff planner','credit utilization tracker','net worth tracker','weekly money report']},
+                  { id:'premium', price:'$19.99/mo', items:['everything in Pro','SmartCredit sync','SnapTrade portfolio sync','advanced AI recommendations','funding readiness score','advanced reports','priority features']},
+                ].map((plan) => (
+                  <div key={plan.id} className="card">
+                    <div style={{fontWeight:700,textTransform:'capitalize'}}>{plan.id}</div>
+                    <div className="text-sm mb-2">{plan.price}</div>
+                    <ul className="text-sm">{plan.items.map((item) => <li key={item}>{item}</li>)}</ul>
+                    <button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={async()=>{
+                      if (plan.id === 'free') { setPricingOpen(false); return; }
+                      const res = await fetch('/api/billing/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ plan: plan.id }) });
+                      const data = await res.json();
+                      if (data?.url) window.location.href = data.url;
+                      else addToast(data?.message || 'Billing setup required.', 'info');
+                    }}>Upgrade</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Mobile Bottom Nav ── */}
         <nav className="bottom-nav" style={{display:"none"}}>
