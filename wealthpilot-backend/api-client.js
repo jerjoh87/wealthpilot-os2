@@ -2,9 +2,7 @@
 // Thin fetch wrapper. All API calls go through here.
 // Token stored in localStorage. Replace with httpOnly cookies in production.
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL
-  ? `${process.env.NEXT_PUBLIC_APP_URL}/api`
-  : '/api';
+const BASE = '/api';
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 export const getToken  = () => (typeof window !== 'undefined' ? localStorage.getItem('wp_token') : null);
@@ -24,9 +22,23 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Request failed');
-  return json.data;
+  const text = await res.text();
+  let payload = null;
+
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error('Unexpected server response. Please try again.');
+    }
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid server response. Please try again.');
+  }
+
+  if (!res.ok) throw new Error('Request failed. Please try again.');
+  return payload.data;
 }
 
 const get    = (path)         => request(path);
@@ -38,7 +50,12 @@ const del    = (path)         => request(path, { method: 'DELETE' });
 export const auth = {
   signup: (email, password, name) => post('/auth/signup', { email, password, name }),
   login:  (email, password)       => post('/auth/login',  { email, password }),
+  logout: ()                      => post('/auth/logout', {}),
   me:     ()                      => get('/users/me'),
+  enableTwoFactor: (email)        => post('/auth/2fa/enable', { email }),
+  disableTwoFactor: (email)       => post('/auth/2fa/disable', { email }),
+  sendTwoFactorCode: (email)      => post('/auth/2fa/send-code', { email }),
+  verifyTwoFactorCode: (email, code) => post('/auth/2fa/verify', { email, code }),
 };
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
@@ -59,7 +76,10 @@ export const calendarEvents = {
 
 // ── Transactions ──────────────────────────────────────────────────────────────
 export const transactions = {
-  list:           (params = {}) => get(`/transactions?${new URLSearchParams(params)}`),
+  list:           async (params = {}) => {
+    const data = await get(`/transactions?${new URLSearchParams(params)}`);
+    return Array.isArray(data) ? data : (data?.transactions || []);
+  },
   updateCategory: (id, cat)     => put(`/transactions/${id}`, { category: cat }),
 };
 
@@ -68,11 +88,15 @@ export const budgets = {
   list:   (month, year) => get(`/budgets?month=${month}&year=${year}`),
   create: (data)        => post('/budgets', data),
   update: (id, limit)   => put(`/budgets/${id}`, { limit }),
+  remove: (id)          => del(`/budgets/${id}`),
 };
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────
 export const portfolio = {
-  list: ()     => get('/portfolio'),
+  list: async () => {
+    const data = await get('/portfolio');
+    return data || { holdings: [], summary: { totalValue: 0, dayChangePct: 0 }, connected: false };
+  },
   sync: ()     => post('/portfolio/sync', {}),
   add:  (data) => post('/portfolio', data),
 };
@@ -85,7 +109,7 @@ export const creditScore = {
 
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 export const ai = {
-  chat: (message, history, mode) => post('/ai/chat', { message, history, ...(mode ? { mode } : {}) }),
+  chat: (message, history, mode, context) => post('/ai/chat', { message, history, ...(mode ? { mode } : {}), ...(context ? { context } : {}) }),
 };
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
@@ -93,4 +117,13 @@ export const plaid = {
   getLinkToken:  ()              => post('/plaid/link-token', {}),
   exchange:      (public_token)  => post('/plaid/exchange', { public_token }),
   sync:          ()              => post('/plaid/sync', {}),
+};
+
+// ── Reminders ─────────────────────────────────────────────────────────────────
+
+export const reminders = {
+  getPreferences: () => get('/reminders/preferences'),
+  savePreferences: (data) => post('/reminders/preferences', data),
+  sendTest: () => post('/reminders/test', {}),
+  sendBudgetSummary: (userId) => post('/reminders/send-budget-summary', { userId }),
 };
