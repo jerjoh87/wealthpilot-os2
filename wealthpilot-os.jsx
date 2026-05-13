@@ -1978,13 +1978,6 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
   const safeDebts = ensureArray(debts, []);
   const totalDebt = safeDebts.reduce((s,d)=>s+Number(d.balance||0),0);
   const totalMin = safeDebts.reduce((s,d)=>s+Number(d.minimumPayment||0),0);
-  const totalCreditBalance = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.balance || 0), 0);
-  const totalCreditLimit = safeDebts
-    .filter((d) => (d.type || '').toLowerCase() === 'credit card')
-    .reduce((sum, d) => sum + Number(d.creditLimit || 0), 0);
-  const overallUtilization = totalCreditLimit > 0 ? (totalCreditBalance / totalCreditLimit) * 100 : null;
   const sorted = [...safeDebts].sort((a,b)=> method==='snowball' ? Number(a.balance||0)-Number(b.balance||0) : method==='avalanche' ? Number(b.apr||0)-Number(a.apr||0) : Number(a.priority||999)-Number(b.priority||999));
   const nextDebt = sorted.find(d=>Number(d.balance||0)>0);
   const monthlyBudget = Math.max(0,totalMin + Number(extraPayment||0));
