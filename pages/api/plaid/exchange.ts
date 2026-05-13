@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
-import { plaidClient } from '../../../lib/plaid'
+import { plaidClient, getMissingPlaidEnvVars } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { encryptPlaidToken } from '../../../lib/plaid-crypto'
 import { z } from 'zod'
@@ -25,6 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
   const db = supabaseAdmin()
+  const missingEnvVars = getMissingPlaidEnvVars()
+  if (missingEnvVars.length) {
+    return res.status(503).json({
+      ok: false,
+      code: 'PLAID_NOT_CONFIGURED',
+      message: 'Plaid is not configured for this environment.',
+      missing: missingEnvVars,
+    })
+  }
 
   try {
     // 1. Exchange public_token → access_token + item_id
