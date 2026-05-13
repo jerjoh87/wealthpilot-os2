@@ -4442,7 +4442,6 @@ function LineChart({ data, color="#4f8ef7", height=100 }) {
 
 function ReportsPage(props = {}) {
   const { accounts = [], bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, debts = [] } = props;
-  const [period, setPeriod] = useState("6m");
   const [weeklyReports, setWeeklyReports] = useState([]);
   const [delivery, setDelivery] = useState({ inApp: true, email: false, sms: false });
 
@@ -4518,13 +4517,8 @@ function ReportsPage(props = {}) {
   }, [generateWeeklyReport, weeklyReports.length]);
 
   const currentWeekly = weeklyReports[0];
-  const months = period === "3m" ? REPORT_MONTHS.slice(-3) : period === "6m" ? REPORT_MONTHS.slice(-6) : REPORT_MONTHS;
-  const nwMonths = period === "3m" ? NET_WORTH_HISTORY.slice(-3) : period === "6m" ? NET_WORTH_HISTORY.slice(-6) : NET_WORTH_HISTORY;
-  const avgIncome = Math.round(months.reduce((s,m)=>s+m.income,0)/months.length);
-  const avgSpending = Math.round(months.reduce((s,m)=>s+m.spending,0)/months.length);
-  const avgSavings = avgIncome - avgSpending;
-  const savingsRate = Math.round((avgSavings/avgIncome)*100);
-  const nwStart = nwMonths[0].value; const nwEnd = nwMonths[nwMonths.length-1].value; const nwGain = nwEnd - nwStart;
+  const hasEmailService = Boolean(remindersApi?.sendBudgetSummary || remindersApi?.test);
+  const hasTwilioService = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ACCOUNT_SID || process?.env?.NEXT_PUBLIC_TWILIO_ENABLED);
 
   return <div style={{display:'grid',gap:14}}>
     <div className="card" style={{padding:16,borderRadius:16,border:'1px solid rgba(16,185,129,0.35)',background:'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(59,130,246,0.05))'}}>
@@ -4534,15 +4528,18 @@ function ReportsPage(props = {}) {
         <div>Income received: <strong>{fmt(currentWeekly.incomeReceived)}</strong> · Bills paid: <strong>{currentWeekly.billsPaid.length}</strong> · Upcoming bills: <strong>{currentWeekly.upcomingBills.length}</strong></div>
         <div>Credit score: <strong>{currentWeekly.creditScore}</strong> · Utilization: <strong>{currentWeekly.creditUtilization==null?'N/A':`${Math.round(currentWeekly.creditUtilization*100)}%`}</strong> · Net worth: <strong>{fmt(currentWeekly.netWorth)}</strong></div>
         <div>Savings goal: <strong>{Math.round((currentWeekly.savingsGoalProgress.current/Math.max(1,currentWeekly.savingsGoalProgress.target))*100)}%</strong> · Debt payoff: <strong>{currentWeekly.debtPayoffProgress.paidPct}%</strong></div>
-        <div>Subscriptions detected: {currentWeekly.subscriptions.length ? currentWeekly.subscriptions.map(s=>s.name).join(', ') : 'None detected'}.</div>
+        <div><strong>Budget left by category:</strong> {currentWeekly.budgetLeft.length ? currentWeekly.budgetLeft.map((b)=>`${b.category}: ${fmt(b.left)}`).join(' · ') : 'No budget categories configured'}</div>
+        <div><strong>Overspending alerts:</strong> {currentWeekly.overspendingAlerts.length ? currentWeekly.overspendingAlerts.join(' · ') : 'No overspending detected'}</div>
+        <div>Subscriptions detected: {currentWeekly.subscriptions.length ? currentWeekly.subscriptions.map((s)=>`${s.name} (${fmt(Math.abs(Number(s.amount || 0)))})`).join(', ') : 'None detected'}.</div>
+        <div><strong>Portfolio snapshot:</strong> {currentWeekly.portfolioSnapshot ? `${fmt(currentWeekly.portfolioSnapshot.total)} (${currentWeekly.portfolioSnapshot.change >= 0 ? '+' : ''}${Number(currentWeekly.portfolioSnapshot.change).toFixed(2)}%)` : 'Portfolio data not connected'}</div>
         <div>Next week action plan: {currentWeekly.actionPlan.join(' · ')}</div>
       </div>}
     </div>
     <div className="card" style={{padding:16,borderRadius:16}}>
       <div className="section-title" style={{marginBottom:10}}>Delivery Options</div>
       <label><input type="checkbox" checked={delivery.inApp} onChange={(e)=>setDelivery(d=>({...d,inApp:e.target.checked}))}/> In-app</label>{' '}
-      <label><input type="checkbox" checked={delivery.email} onChange={(e)=>setDelivery(d=>({...d,email:e.target.checked}))}/> Email (if service exists)</label>{' '}
-      <label><input type="checkbox" checked={delivery.sms} onChange={(e)=>setDelivery(d=>({...d,sms:e.target.checked}))}/> SMS (if Twilio exists)</label>
+      <label><input type="checkbox" checked={delivery.email} disabled={!hasEmailService} onChange={(e)=>setDelivery(d=>({...d,email:e.target.checked}))}/> Email {hasEmailService ? '(service detected)' : '(service unavailable)'}</label>{' '}
+      <label><input type="checkbox" checked={delivery.sms} disabled={!hasTwilioService} onChange={(e)=>setDelivery(d=>({...d,sms:e.target.checked}))}/> SMS {hasTwilioService ? '(Twilio detected)' : '(Twilio unavailable)'}</label>
     </div>
     <div className="card" style={{padding:16,borderRadius:16}}><div className="section-title" style={{marginBottom:10}}>Previous Reports History</div>{weeklyReports.slice(1).length===0?<div className="text-sm text-muted">No previous reports yet.</div>:weeklyReports.slice(1).map((r,i)=><div key={i} style={{padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:12}}>{r.weekRange} · Income {fmt(r.incomeReceived)} · Net worth {fmt(r.netWorth)}</div>)}</div>
   </div>;
