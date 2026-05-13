@@ -227,6 +227,21 @@ const incomeToMonthly = (entry) => {
 };
 const today = new Date();
 const daysLeft = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - today.getDate();
+const startOfWeek = (date = new Date()) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+const endOfWeek = (date = new Date()) => {
+  const s = startOfWeek(date);
+  const e = new Date(s);
+  e.setDate(s.getDate() + 6);
+  e.setHours(23, 59, 59, 999);
+  return e;
+};
 
 function safeToSpend() {
   const totalCash = MOCK.accounts.filter(a => a.type !== "credit").reduce((s, a) => s + a.balance, 0);
@@ -1760,6 +1775,12 @@ function Dashboard(props = {}) {
           <div className="card-value">{upcomingBills.length}</div>
           <div className="card-sub">{fmt(billRunway)} due this cycle</div>
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
+        </div>
+        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(20,184,166,0.14), rgba(56,189,248,0.04))"}}>
+          <div className="card-title">Weekly Money Report</div>
+          <div className="card-value">Ready</div>
+          <div className="card-sub">Your Weekly Money Report is ready.</div>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("reports")}>Open Report</button>
         </div>
       </div>
 
@@ -4318,165 +4339,112 @@ function LineChart({ data, color="#4f8ef7", height=100 }) {
   );
 }
 
-function ReportsPage() {
+function ReportsPage(props = {}) {
+  const { accounts = [], bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, debts = [] } = props;
   const [period, setPeriod] = useState("6m");
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [delivery, setDelivery] = useState({ inApp: true, email: false, sms: false });
 
-  const months = period === "3m" ? REPORT_MONTHS.slice(-3)
-               : period === "6m" ? REPORT_MONTHS.slice(-6)
-               : REPORT_MONTHS;
+  const safeAccounts = pickCollection(accounts, ["accounts"], []);
+  const safeBills = pickCollection(bills, ["bills"], []);
+  const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
+  const safeTransactions = pickCollection(transactions, ["transactions"], []);
+  const safeDebts = pickCollection(debts, ["debts"], []);
 
-  const nwMonths = period === "3m" ? NET_WORTH_HISTORY.slice(-3)
-                 : period === "6m" ? NET_WORTH_HISTORY.slice(-6)
-                 : NET_WORTH_HISTORY;
+  const weekStart = startOfWeek();
+  const weekEnd = endOfWeek();
+  const thisWeekTx = safeTransactions.filter((t) => {
+    const d = new Date(t.date);
+    return !Number.isNaN(d.getTime()) && d >= weekStart && d <= weekEnd;
+  });
 
-  const avgIncome   = Math.round(months.reduce((s,m)=>s+m.income,0)/months.length);
+  const generateWeeklyReport = useCallback(async () => {
+    const incomeReceived = thisWeekTx.filter((t) => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+    const upcomingBills = safeBills.filter((b) => !b.paid).sort((a,b) => getDueInDays(a)-getDueInDays(b)).slice(0,5);
+    const billsPaid = safeBills.filter((b) => b.paid);
+    const overspendingAlerts = safeBudget.filter((b) => Number(b.spent||0) > Number(b.limit||0)).map((b) => `${b.category}: ${fmt((b.spent||0)-(b.limit||0))} over`);
+    const budgetLeft = safeBudget.map((b) => ({ category: b.category, left: Math.max(0, Number(b.limit||0) - Number(b.spent||0)) }));
+    const savingsGoal = INIT_GOALS.find((g) => g.type === 'emergency') || INIT_GOALS[0];
+    const debtTotal = safeDebts.reduce((s, d) => s + Number(d.balance || 0), 0) || Math.abs((safeAccounts||[]).filter((a)=>a.type==='credit').reduce((s,a)=>s+Math.min(0,Number(a.balance||0)),0));
+    const debtTarget = debtTotal > 0 ? debtTotal + 5000 : 5000;
+    const creditLimitEstimate = safeAccounts.filter((a) => a.type === 'credit').reduce((sum, a) => sum + Number(a.limit || 0), 0);
+    const creditBalance = Math.abs(safeAccounts.filter((a)=>a.type==='credit').reduce((sum,a)=>sum + Math.min(0, Number(a.balance||0)),0));
+    const utilization = creditLimitEstimate > 0 ? creditBalance / creditLimitEstimate : null;
+    const netWorth = safeAccounts.reduce((s, a) => s + Number(a.balance || 0), 0) + Number(portfolio?.totalValue || 0);
+    const subscriptions = safeTransactions.filter((t) => /netflix|spotify|hulu|apple|prime|planet fitness|gym/i.test(String(t.name || ''))).slice(0,6);
+
+    const base = {
+      createdAt: new Date().toISOString(),
+      weekRange: `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`,
+      incomeReceived,
+      billsPaid,
+      upcomingBills,
+      budgetLeft,
+      overspendingAlerts,
+      savingsGoalProgress: { name: savingsGoal?.name || 'Savings Goal', current: Number(savingsGoal?.current || 0), target: Number(savingsGoal?.target || 1) },
+      debtPayoffProgress: { paidPct: Math.round(((debtTarget - debtTotal) / debtTarget) * 100), remaining: Math.max(0, debtTotal) },
+      creditScore: creditScore?.latest?.score || 742,
+      creditUtilization: utilization,
+      netWorth,
+      portfolioSnapshot: portfolio?.connected ? { total: Number(portfolio?.totalValue || 0), change: Number(portfolio?.dayChangePct || 0) } : null,
+      subscriptions,
+      actionPlan: [
+        upcomingBills[0] ? `Pay ${upcomingBills[0].name} (${fmt(upcomingBills[0].amount)})` : 'Review recurring bills and due dates',
+        overspendingAlerts[0] ? `Reduce ${safeBudget.find((b)=>Number(b.spent||0)>Number(b.limit||0))?.category || 'high'} spending` : 'Keep category spending inside budget limits',
+        utilization && utilization > 0.3 ? 'Pay down credit card balance before statement close' : 'Continue on-time payments to build credit',
+      ],
+      delivery,
+    };
+
+    if (aiApi?.chat) {
+      try {
+        const prompt = 'Write a friendly weekly money summary in under 120 words. Mention wins and 2 next actions.';
+        const context = { ...base };
+        const res = await aiApi.chat(prompt, [], 'steady', context);
+        base.friendlySummary = res?.content || res?.reply || res?.message || '';
+      } catch {
+        base.friendlySummary = `Great work this week. You brought in ${fmt(base.incomeReceived)} and kept moving forward on your plan. Focus next week on ${base.actionPlan[0].toLowerCase()} and ${base.actionPlan[1].toLowerCase()}.`;
+      }
+    } else {
+      base.friendlySummary = `Weekly recap: income ${fmt(base.incomeReceived)}, remaining debt ${fmt(base.debtPayoffProgress.remaining)}, and net worth ${fmt(base.netWorth)}. Next: ${base.actionPlan.join('; ')}.`;
+    }
+
+    setWeeklyReports((prev) => [base, ...prev]);
+  }, [thisWeekTx, safeBills, safeBudget, safeDebts, safeAccounts, portfolio, creditScore, delivery, weekStart, weekEnd]);
+
+  useEffect(() => {
+    if (!weeklyReports.length) generateWeeklyReport();
+  }, [generateWeeklyReport, weeklyReports.length]);
+
+  const currentWeekly = weeklyReports[0];
+  const months = period === "3m" ? REPORT_MONTHS.slice(-3) : period === "6m" ? REPORT_MONTHS.slice(-6) : REPORT_MONTHS;
+  const nwMonths = period === "3m" ? NET_WORTH_HISTORY.slice(-3) : period === "6m" ? NET_WORTH_HISTORY.slice(-6) : NET_WORTH_HISTORY;
+  const avgIncome = Math.round(months.reduce((s,m)=>s+m.income,0)/months.length);
   const avgSpending = Math.round(months.reduce((s,m)=>s+m.spending,0)/months.length);
-  const avgSavings  = avgIncome - avgSpending;
+  const avgSavings = avgIncome - avgSpending;
   const savingsRate = Math.round((avgSavings/avgIncome)*100);
+  const nwStart = nwMonths[0].value; const nwEnd = nwMonths[nwMonths.length-1].value; const nwGain = nwEnd - nwStart;
 
-  const nwStart = nwMonths[0].value;
-  const nwEnd   = nwMonths[nwMonths.length-1].value;
-  const nwGain  = nwEnd - nwStart;
-
-  if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading bills…" />;
-  return (
-    <div>
-      {typeof error !== "undefined" && error && <ErrorNotice message={error} />}
-      {/* Period toggle + header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <div className="section-title">Financial Reports</div>
-        <div className="tab-group">
-          {["3m","6m","all"].map(p=>(
-            <div key={p} className={`tab ${period===p?"active":""}`} onClick={()=>setPeriod(p)}>
-              {p==="all"?"All":p.toUpperCase()}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Summary KPIs */}
-      <div className="grid-4 mb-4" style={{gap:12}}>
-        {[
-          {label:"Avg Monthly Income",   val:fmt(avgIncome),   color:"var(--green)", icon:"💵"},
-          {label:"Avg Monthly Spending", val:fmt(avgSpending), color:"var(--red)",   icon:"🛍️"},
-          {label:"Avg Monthly Savings",  val:fmt(avgSavings),  color:"var(--accent)",icon:"💰"},
-          {label:"Savings Rate",         val:`${savingsRate}%`,color:savingsRate>=20?"var(--green)":"var(--yellow)",icon:"📊"},
-        ].map(k=>(
-          <div key={k.label} className="card" style={{padding:"14px 16px",borderLeft:`3px solid ${k.color}`}}>
-            <div style={{fontSize:18,marginBottom:6}}>{k.icon}</div>
-            <div className="card-title">{k.label}</div>
-            <div className="card-value" style={{fontSize:20,color:k.color}}>{k.val}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid-2 mb-4" style={{gap:16}}>
-        {/* Income vs Spending bar chart */}
-        <div className="card">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <div className="section-title">Income vs Spending</div>
-            <div style={{display:"flex",gap:12,fontSize:11}}>
-              <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:"var(--green)",display:"inline-block"}}/> Income</span>
-              <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:2,background:"var(--red)",display:"inline-block"}}/> Spending</span>
-            </div>
-          </div>
-          <BarChart data={months} keys={["income","spending"]} colors={["var(--green)","var(--red)"]} />
-        </div>
-
-        {/* Net worth trend */}
-        <div className="card">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-            <div className="section-title">Net Worth Trend</div>
-            <span className={`change-badge ${nwGain>=0?"pos":"neg"}`}>
-              {nwGain>=0?"↑":"↓"} {fmt(Math.abs(nwGain))}
-            </span>
-          </div>
-          <div style={{display:"flex",gap:16,marginBottom:12}}>
-            <div><div className="card-title">Start</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>{fmtK(nwStart)}</div></div>
-            <div><div className="card-title">Current</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:15,color:"var(--green)"}}>{fmtK(nwEnd)}</div></div>
-            <div><div className="card-title">Growth</div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:15,color:"var(--accent)"}}>{Math.round((nwGain/nwStart)*100)}%</div></div>
-          </div>
-          <LineChart data={nwMonths} color="var(--accent)" height={110}/>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-            {nwMonths.map((m,i)=>(
-              <span key={i} style={{fontSize:9,color:"var(--text3)"}}>{m.month}</span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly cash flow table */}
-      <div className="card mb-4">
-        <div className="section-title" style={{marginBottom:14}}>Monthly Cash Flow</div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th style={{textAlign:"right"}}>Income</th>
-                <th style={{textAlign:"right"}}>Spending</th>
-                <th style={{textAlign:"right"}}>Saved</th>
-                <th style={{textAlign:"right"}}>Rate</th>
-                <th>Progress</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...months].reverse().map((m,i)=>{
-                const saved = m.income - m.spending;
-                const rate  = Math.round((saved/m.income)*100);
-                return (
-                  <tr key={i}>
-                    <td style={{fontWeight:600}}>{m.month}</td>
-                    <td style={{textAlign:"right",color:"var(--green)",fontWeight:600}}>{fmt(m.income)}</td>
-                    <td style={{textAlign:"right",color:"var(--red)",fontWeight:600}}>{fmt(m.spending)}</td>
-                    <td style={{textAlign:"right",fontWeight:700,color:saved>=0?"var(--accent)":"var(--red)"}}>{fmt(saved)}</td>
-                    <td style={{textAlign:"right"}}>
-                      <span className={`badge ${rate>=20?"badge-green":rate>=10?"badge-blue":"badge-yellow"}`}>{rate}%</span>
-                    </td>
-                    <td style={{minWidth:80}}>
-                      <div className="progress-bar" style={{height:5,margin:0}}>
-                        <div className="progress-fill" style={{width:`${Math.min(100,rate*2)}%`,background:rate>=20?"var(--green)":"var(--accent)"}}/>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            {months.length===0 && <tr><td colSpan="6"><EmptyState message="No report data available yet." /></td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Category breakdown */}
-      <div className="card">
-        <div className="section-title" style={{marginBottom:14}}>Spending by Category</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
-          {MOCK.budget.map(b=>{
-            const pct = Math.min(100,Math.round((b.spent/b.limit)*100));
-            const over = b.spent > b.limit;
-            return (
-              <div key={b.category} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:16}}>{CATEGORY_ICONS[b.category]||"💳"}</span>
-                    <span style={{fontSize:12,fontWeight:600}}>{b.category}</span>
-                  </div>
-                  {over && <span className="badge badge-red" style={{fontSize:9}}>Over</span>}
-                </div>
-                <div style={{fontFamily:"Syne",fontWeight:700,fontSize:16,marginBottom:4,color:over?"var(--red)":"var(--text)"}}>{fmt(b.spent)}</div>
-                <div className="progress-bar" style={{height:5}}>
-                  <div className="progress-fill" style={{width:`${pct}%`,background:over?"var(--red)":b.color}}/>
-                </div>
-                <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:"var(--text3)"}}>
-                  <span>{pct}% of budget</span><span>Limit: {fmt(b.limit)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+  return <div style={{display:'grid',gap:14}}>
+    <div className="card" style={{padding:16,borderRadius:16,border:'1px solid rgba(16,185,129,0.35)',background:'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(59,130,246,0.05))'}}>
+      <div className="section-header"><div className="section-title">Current Week Report</div><button className="btn btn-primary btn-sm" onClick={generateWeeklyReport}>Generate Report</button></div>
+      {currentWeekly && <div style={{marginTop:10,display:'grid',gap:8,fontSize:12}}>
+        <div><strong>{currentWeekly.weekRange}</strong></div><div>{currentWeekly.friendlySummary}</div>
+        <div>Income received: <strong>{fmt(currentWeekly.incomeReceived)}</strong> · Bills paid: <strong>{currentWeekly.billsPaid.length}</strong> · Upcoming bills: <strong>{currentWeekly.upcomingBills.length}</strong></div>
+        <div>Credit score: <strong>{currentWeekly.creditScore}</strong> · Utilization: <strong>{currentWeekly.creditUtilization==null?'N/A':`${Math.round(currentWeekly.creditUtilization*100)}%`}</strong> · Net worth: <strong>{fmt(currentWeekly.netWorth)}</strong></div>
+        <div>Savings goal: <strong>{Math.round((currentWeekly.savingsGoalProgress.current/Math.max(1,currentWeekly.savingsGoalProgress.target))*100)}%</strong> · Debt payoff: <strong>{currentWeekly.debtPayoffProgress.paidPct}%</strong></div>
+        <div>Subscriptions detected: {currentWeekly.subscriptions.length ? currentWeekly.subscriptions.map(s=>s.name).join(', ') : 'None detected'}.</div>
+        <div>Next week action plan: {currentWeekly.actionPlan.join(' · ')}</div>
+      </div>}
     </div>
-  );
+    <div className="card" style={{padding:16,borderRadius:16}}>
+      <div className="section-title" style={{marginBottom:10}}>Delivery Options</div>
+      <label><input type="checkbox" checked={delivery.inApp} onChange={(e)=>setDelivery(d=>({...d,inApp:e.target.checked}))}/> In-app</label>{' '}
+      <label><input type="checkbox" checked={delivery.email} onChange={(e)=>setDelivery(d=>({...d,email:e.target.checked}))}/> Email (if service exists)</label>{' '}
+      <label><input type="checkbox" checked={delivery.sms} onChange={(e)=>setDelivery(d=>({...d,sms:e.target.checked}))}/> SMS (if Twilio exists)</label>
+    </div>
+    <div className="card" style={{padding:16,borderRadius:16}}><div className="section-title" style={{marginBottom:10}}>Previous Reports History</div>{weeklyReports.slice(1).length===0?<div className="text-sm text-muted">No previous reports yet.</div>:weeklyReports.slice(1).map((r,i)=><div key={i} style={{padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:12}}>{r.weekRange} · Income {fmt(r.incomeReceived)} · Net worth {fmt(r.netWorth)}</div>)}</div>
+  </div>;
 }
 
 // ─── NET WORTH COMMAND CENTER ─────────────────────────────────────────────────
@@ -5169,7 +5137,7 @@ export default function WealthPilotOS() {
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
       case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
-      case "reports":      return <ReportsPage />;
+      case "reports":      return <ReportsPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} debts={liveData.debts} />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
       case "learning-center": return <LearningCenterPage />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
