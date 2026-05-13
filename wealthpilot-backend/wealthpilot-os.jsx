@@ -1388,7 +1388,8 @@ function Sparkline({ data, color = "#4f8ef7", width = 80, height = 30 }) {
 
 // ─── PAGES ────────────────────────────────────────────────────────────────────
 
-function Dashboard({ setPage, accounts, totalCash, creditDebt, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [] }) {
+function Dashboard(props = {}) {
+  const { setPage, accounts, totalCash = 0, creditDebt = 0, syncing, lastSync, onRefresh, bills = [], budget = [], transactions = [], portfolio = MOCK.portfolio, creditScore = null, manualIncomeEntries = [] } = props;
   const safeAccounts = pickCollection(accounts, ["accounts"], []);
   const safeBills = pickCollection(bills, ["bills"], []);
   const safeBudget = pickCollection(budget, ["budgets", "budget"], []);
@@ -4328,9 +4329,26 @@ export default function WealthPilotOS() {
 
   const showPage = (id) => { setPage(id); setFabOpen(false); };
 
+  const dashboardProps = {
+    setPage: showPage,
+    accounts: [...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])],
+    totalCash: acct.totalCash,
+    creditDebt: acct.creditDebt,
+    syncing: acct.syncing,
+    lastSync: acct.lastSync,
+    onRefresh: acct.refresh,
+    bills: liveData.bills,
+    budget: liveData.budgets,
+    transactions: liveData.transactions,
+    portfolio: liveData.portfolio,
+    creditScore: liveData.creditScore,
+    manualIncomeEntries,
+    status: liveStatus,
+  };
+
   const renderPage = () => {
     switch (page) {
-      case "dashboard":    return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
+      case "dashboard":    return <Dashboard {...dashboardProps} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
@@ -4344,7 +4362,7 @@ export default function WealthPilotOS() {
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
-      default:             return <Dashboard setPage={showPage} accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} syncing={acct.syncing} lastSync={acct.lastSync} onRefresh={acct.refresh} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} manualIncomeEntries={manualIncomeEntries} status={liveStatus} />;
+      default:             return <Dashboard {...dashboardProps} />;
     }
   };
 
