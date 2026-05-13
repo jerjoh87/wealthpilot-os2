@@ -1852,6 +1852,18 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
+  const [connectState, setConnectState] = useState({ status: connected ? "connected" : "not_configured", message: connected ? "Brokerage connected." : "SnapTrade credentials missing." });
+  const handleSnapTradeConnect = async () => {
+    setConnectState({ status: "loading", message: "Connecting to SnapTrade..." });
+    try {
+      const res = await fetch('/api/portfolio/sync', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'SnapTrade is not configured.');
+      setConnectState({ status: "connected", message: data?.message || "SnapTrade connected." });
+    } catch (e) {
+      setConnectState({ status: "error", message: e?.message || "Unable to connect SnapTrade. Use manual holdings as fallback." });
+    }
+  };
   return (
     <div>
       <div className="portfolio-placeholder mb-4">
@@ -1861,9 +1873,12 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           Sync your Webull, TD Ameritrade, or any SnapTrade-supported brokerage to see your portfolio here in real time.
         </p>
         <div className="flex items-center gap-3" style={{justifyContent:"center", flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={()=>window.alert("SnapTrade connection is not configured yet. Add your SnapTrade client ID and consumer key in environment variables to enable live brokerage sync.")}>🔌 Connect via SnapTrade</button>
+          <button className="btn btn-primary" onClick={handleSnapTradeConnect} disabled={connectState.status === "loading"}>🔌 {connectState.status === "loading" ? "Connecting..." : "Connect via SnapTrade"}</button>
           <button className="btn btn-ghost" onClick={()=>window.alert("Webull direct sync is not available yet. You can connect supported brokerages through SnapTrade, upload a CSV, or enter holdings manually.")}>📊 Connect Webull</button>
         </div>
+        <p className="text-xs text-muted" style={{marginTop:8}}>
+          Status: {connectState.status.replace('_',' ')} · {connectState.message}
+        </p>
         <p className="text-xs text-muted" style={{marginTop:12}}>Read-only access · Bank-level encryption · Coming Q3 2026</p>
       </div>
 
@@ -2245,6 +2260,16 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   const twilioReady = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ENABLED === 'true');
 
   const totalConnectedAccounts = (manualAccounts||[]).length + (plaid.accounts||[]).length;
+  useEffect(() => {
+    try {
+      const savedReminders = JSON.parse(localStorage.getItem('wp_reminders') || 'null');
+      const savedSecurity = JSON.parse(localStorage.getItem('wp_security_settings') || 'null');
+      if (savedReminders) setReminderPrefs((p) => ({ ...p, ...savedReminders }));
+      if (savedSecurity) setToggles((t) => ({ ...t, ...savedSecurity }));
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem('wp_reminders', JSON.stringify(reminderPrefs)); } catch {} }, [reminderPrefs]);
+  useEffect(() => { try { localStorage.setItem('wp_security_settings', JSON.stringify({ twoFactor: toggles.twoFactor, privacyMode: toggles.privacyMode })); } catch {} }, [toggles.twoFactor, toggles.privacyMode]);
 
   const saveIncome = () => {
     const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
@@ -3113,6 +3138,7 @@ function CreditScorePage({ addToast, initialScore }) {
   });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
+  const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
   const hasHistory = history.length > 0;
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
@@ -3159,7 +3185,8 @@ function CreditScorePage({ addToast, initialScore }) {
             onClick={()=>setShowForm(s=>!s)}>
             {showForm ? "Cancel" : "+ Log Score"}
           </button>
-          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={()=>window.alert("SmartCredit sync is not configured yet. Add SmartCredit API credentials or connection URL in the backend to enable live credit report syncing.")}>Connect SmartCredit</button>
+          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={connectSmartCredit} disabled={smartCreditState.status==="loading"}>{smartCreditState.status==="loading" ? "Connecting..." : "Connect SmartCredit"}</button>
+          <div className="text-xs text-muted" style={{marginTop:6}}>Status: {smartCreditState.status.replace('_',' ')} · {smartCreditState.message}</div>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
@@ -4495,12 +4522,12 @@ export default function WealthPilotOS() {
 
   useEffect(() => {
     try {
-      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]');
-      const savedAccounts = JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]');
+      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income') || localStorage.getItem('wp_manual_income_entries') || '[]');
+      const savedAccounts = JSON.parse(localStorage.getItem('wp_accounts') || localStorage.getItem('wp_manual_accounts') || '[]');
       setManualIncomeEntries(Array.isArray(savedIncome) ? savedIncome : []);
       setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
-      const localBudgets = JSON.parse(localStorage.getItem('wp_local_budgets') || '[]');
-      const localBills = JSON.parse(localStorage.getItem('wp_local_bills') || '[]');
+      const localBudgets = JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]');
+      const localBills = JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]');
       if (Array.isArray(localBudgets) && localBudgets.length) setLiveData(prev => ({ ...prev, budgets: localBudgets }));
       if (Array.isArray(localBills) && localBills.length) setLiveData(prev => ({ ...prev, bills: localBills }));
     } catch {
@@ -4509,8 +4536,8 @@ export default function WealthPilotOS() {
     }
   }, []);
 
-  useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
-  useEffect(() => { try { localStorage.setItem('wp_manual_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
+  useEffect(() => { try { localStorage.setItem('wp_manual_income', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
+  useEffect(() => { try { localStorage.setItem('wp_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
   useEffect(() => {
     const fetchData = async () => {
       setLiveDataLoading(true);
@@ -4541,9 +4568,9 @@ export default function WealthPilotOS() {
         const creditScore = await safe(() => creditScoreApi.get(), null);
         setLiveData({
           accounts: ensureArray(accounts, acct.accounts),
-          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_local_bills') || '[]'), []),
+          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]'), []),
           transactions,
-          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_local_budgets') || '[]'), []),
+          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]'), []),
           portfolio,
           creditScore
         });
@@ -4650,7 +4677,7 @@ export default function WealthPilotOS() {
     } catch {
       setLiveData(prev => {
         const fallback = [...ensureArray(prev.budgets, []), draft];
-        try { localStorage.setItem('wp_local_budgets', JSON.stringify(fallback)); } catch {}
+        try { localStorage.setItem('wp_budget_categories', JSON.stringify(fallback)); } catch {}
         return { ...prev, budgets: fallback };
       });
       return true;
@@ -4673,7 +4700,7 @@ export default function WealthPilotOS() {
     } catch {
       setLiveData(prev => {
         const fallback = [...ensureArray(prev.bills, []), draft];
-        try { localStorage.setItem('wp_local_bills', JSON.stringify(fallback)); } catch {}
+        try { localStorage.setItem('wp_bills', JSON.stringify(fallback)); } catch {}
         return { ...prev, bills: fallback };
       });
       return true;
@@ -4867,3 +4894,12 @@ export default function WealthPilotOS() {
     </>
   );
 }
+  const connectSmartCredit = async () => {
+    setSmartCreditState({ status: "loading", message: "Connecting SmartCredit..." });
+    try {
+      await creditScoreApi.get();
+      setSmartCreditState({ status: "connected", message: "Credit provider reachable." });
+    } catch (e) {
+      setSmartCreditState({ status: "error", message: e?.message || "Connection failed. Manual score entry available." });
+    }
+  };

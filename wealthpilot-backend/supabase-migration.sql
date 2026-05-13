@@ -15,6 +15,7 @@ create table public.accounts (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.users(id) on delete cascade,
   plaid_item_id text,
+  plaid_account_id text,
   name          text not null,
   type          text not null,   -- checking | savings | credit
   balance       numeric not null default 0,
@@ -161,9 +162,39 @@ alter table public.plaid_items enable row level security;
 create policy "owner" on public.plaid_items for all using (user_id = auth.uid());
 
 -- accounts: add unique constraint for plaid upsert (user_id + plaid_item_id)
-alter table public.accounts add constraint accounts_user_item_unique unique (user_id, plaid_item_id);
+alter table public.accounts add constraint accounts_user_plaid_account_unique unique (user_id, plaid_account_id);
 
+-- Compatibility tables for UI persistence/integration flows
+create table if not exists public.budget_categories as table public.budgets with no data;
+create table if not exists public.manual_income (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  source_name text not null,
+  amount numeric not null default 0,
+  frequency text default 'weekly',
+  created_at timestamptz default now()
+);
+create table if not exists public.credit_score_history as table public.credit_scores with no data;
+create table if not exists public.reminder_preferences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  categories text[] default '{}',
+  frequency text default 'both',
+  reminder_time text default '09:00',
+  phone_number text,
+  in_app_enabled boolean default true,
+  updated_at timestamptz default now()
+);
+create table if not exists public.user_security_settings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  two_factor boolean default false,
+  privacy_mode boolean default false,
+  updated_at timestamptz default now()
+);
+create table if not exists public.ai_chat_messages as table public.ai_messages with no data;
+
+-- TODO(PROD): plaid_items.access_token is plaintext text currently. Encrypt at rest before production using PLAID_TOKEN_ENCRYPTION_KEY + KMS/Vault.
 -- Recommended: encrypt access_token column using pgcrypto or Vault
 -- alter table public.plaid_items alter column access_token set data type bytea
 --   using pgp_sym_encrypt(access_token, current_setting('app.encryption_key'))::bytea;
-
