@@ -4922,14 +4922,14 @@ function ReportsPage(props = {}) {
 // ─── NET WORTH COMMAND CENTER ─────────────────────────────────────────────────
 // Formulas:
 //   totalAssets   = cash + savings + investments + crypto + realEstateEquity
-//   totalLiabilities = |creditDebt| + studentLoan + carLoan + mortgage
+//   totalLiabilities = creditCards + loans + mortgage + collections + studentLoans + autoLoans + otherDebt
 //   netWorth      = totalAssets - totalLiabilities
 //   debtRatio     = totalLiabilities / totalAssets  (healthy < 0.36)
 //   cashflowNet   = MOCK.income - MOCK.spending
 //   fundingReady  = cashflowNet > 0 && emergencyFundPct >= 1.0
 //   monthlyGrowth = (netWorth - prevMonthNW) / prevMonthNW
 
-function NetWorthPage({ accounts, totalCash, creditDebt }) {
+function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
   const [expanded, setExpanded] = useState({});
   const toggle = (k) => setExpanded(e => ({...e, [k]: !e[k]}));
 
@@ -4941,11 +4941,24 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
   const totalAssets      = cashAssets + investAssets + cryptoAssets + realEstateEquity;
 
   // ── Liability calculations ──────────────────────────────────────────────────
-  const creditLiab   = Math.abs(creditDebt);                     // live from useAccounts
-  const studentLiab  = MOCK.studentLoan;
-  const carLiab      = MOCK.carLoan;
-  const mortgageLiab = MOCK.realEstate.properties.reduce((s,p) => s + p.mortgage, 0);
-  const totalLiab    = creditLiab + studentLiab + carLiab + mortgageLiab;
+  const safeDebts = ensureArray(debts, []);
+  const sumDebtType = (types = []) => safeDebts
+    .filter((d) => types.includes(String(d?.type || '').toLowerCase()))
+    .reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
+
+  const creditCardsLiab = Math.abs(Number(creditDebt || 0));     // live from linked credit accounts
+  const loansLiab       = sumDebtType(['loan']);
+  const mortgageFromDebts = sumDebtType(['mortgage']);
+  const mortgageFromHomes = MOCK.realEstate.properties.reduce((s,p) => s + Math.max(0, Number(p?.mortgage || 0)), 0);
+  const mortgageLiab    = mortgageFromDebts > 0 ? mortgageFromDebts : mortgageFromHomes;
+  const collectionsLiab = sumDebtType(['collections']);
+  const studentFromDebts = sumDebtType(['student loans', 'student loan']);
+  const studentLiab     = studentFromDebts > 0 ? studentFromDebts : Math.max(0, Number(MOCK.studentLoan || 0));
+  const autoFromDebts   = sumDebtType(['auto loans', 'auto loan']);
+  const autoLiab        = autoFromDebts > 0 ? autoFromDebts : Math.max(0, Number(MOCK.carLoan || 0));
+  const otherDebtLiab   = sumDebtType(['other debt']);
+
+  const totalLiab = creditCardsLiab + loansLiab + mortgageLiab + collectionsLiab + studentLiab + autoLiab + otherDebtLiab;
 
   // ── Net worth ───────────────────────────────────────────────────────────────
   const netWorth   = totalAssets - totalLiab;
@@ -4970,10 +4983,13 @@ function NetWorthPage({ accounts, totalCash, creditDebt }) {
   ].filter(d => d.value > 0);
 
   const liabData = [
-    { value: creditLiab,   color: "#f43f5e", label: "Credit" },
-    { value: studentLiab,  color: "#f97316", label: "Student Loan" },
-    { value: carLiab,      color: "#fb923c", label: "Car Loan" },
+    { value: creditCardsLiab, color: "#f43f5e", label: "Credit Cards" },
+    { value: loansLiab,       color: "#fb7185", label: "Loans" },
     { value: mortgageLiab, color: "#8b5cf6", label: "Mortgage" },
+    { value: collectionsLiab, color: "#f59e0b", label: "Collections" },
+    { value: studentLiab,  color: "#f97316", label: "Student Loans" },
+    { value: autoLiab,     color: "#fb923c", label: "Auto Loans" },
+    { value: otherDebtLiab, color: "#ef4444", label: "Other Debt" },
   ].filter(d => d.value > 0);
 
   // ── NW trend (reuse NET_WORTH_HISTORY + append live calc) ──────────────────
@@ -5651,14 +5667,14 @@ export default function WealthPilotOS() {
   const renderPage = () => {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
-      case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
+      case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} debts={liveData.debts} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
       case "debt-planner": return <DebtPlannerPage debts={liveData.debts} setDebts={(next)=>setLiveData(prev=>({...prev, debts: next}))} addToast={addToast} />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
-      case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
+      case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} debts={liveData.debts} />;
       case "profit-lock":  return <ProfitLockPage addToast={addToast} />;
       case "credit-score": return <CreditScorePage addToast={addToast} initialScore={liveData.creditScore} />;
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
