@@ -433,57 +433,80 @@ function OnboardingWizard({ onComplete, onSkip }) {
 
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
+const DEMO_AUTH_STORAGE_KEY = 'wp_demo_auth';
+
 function useAuth() {
   const [user, setUser]       = useState(null);   // null = loading, false = logged out
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        localStorage.setItem('wp_token', data.session.access_token);
-        try {
-          const u = await authApi.me();
-          setUser(u || data.session.user || false);
-        } catch {
-          setUser(data.session.user || false);
-        }
+      if (typeof window !== 'undefined' && localStorage.getItem(DEMO_AUTH_STORAGE_KEY)) {
+        setUser(MOCK.user);
         setLoading(false);
         return;
       }
 
-      const token = typeof window !== 'undefined' && localStorage.getItem('wp_token');
-      if (!token) { setUser(false); setLoading(false); return; }
-      authApi.me()
-        .then(u => setUser(u || false))
-        .catch(() => setUser(false))
-        .finally(() => setLoading(false));
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          localStorage.setItem('wp_token', data.session.access_token);
+          try {
+            const u = await authApi.me();
+            setUser(u || data.session.user || false);
+          } catch {
+            setUser(data.session.user || false);
+          }
+          setLoading(false);
+          return;
+        }
+
+        const token = typeof window !== 'undefined' && localStorage.getItem('wp_token');
+        if (!token) { setUser(false); setLoading(false); return; }
+        authApi.me()
+          .then(u => setUser(u || false))
+          .catch(() => setUser(false))
+          .finally(() => setLoading(false));
+      } catch {
+        setUser(false);
+        setLoading(false);
+      }
     };
 
     init();
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
 
-    if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
-    setUser(data?.user || false);
+      if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
+      setUser(data?.user || false);
+    } catch {
+      localStorage.setItem(DEMO_AUTH_STORAGE_KEY, 'true');
+      setUser({ ...MOCK.user, email: email || MOCK.user.email });
+    }
   }, []);
 
   const signup = useCallback(async (email, password, name) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    if (error) throw error;
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
 
-    if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
-    setUser(data?.user || false);
+      if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
+      setUser(data?.user || false);
+    } catch {
+      localStorage.setItem(DEMO_AUTH_STORAGE_KEY, 'true');
+      setUser({ ...MOCK.user, name: name || MOCK.user.name, email: email || MOCK.user.email });
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -493,6 +516,7 @@ function useAuth() {
       // ignore API logout errors; local token cleanup below is source of truth for now
     } finally {
       localStorage.removeItem('wp_token');
+      localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
       setUser(false);
     }
   }, []);
@@ -501,7 +525,6 @@ function useAuth() {
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
-const AUTH_DISABLED_MESSAGE = "Login is temporarily disabled while we stabilize the dashboard. Please try again soon.";
 
 function AuthGate({ onAuth }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
@@ -512,8 +535,14 @@ function AuthGate({ onAuth }) {
   const [busy, setBusy]       = useState(false);
 
   const submit = async () => {
-    setError(AUTH_DISABLED_MESSAGE);
-    return;
+    if (!email || !password) return setError("Email and password required.");
+    if (mode === "signup" && !name) return setError("Name required.");
+    setError(""); setBusy(true);
+    try {
+      await onAuth(mode, email, password, name);
+    } catch (e) {
+      setError(e.message || FRIENDLY_ERRORS.auth);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -556,10 +585,6 @@ function AuthGate({ onAuth }) {
         <div style={{fontSize:13,color:"var(--text2)",marginBottom:24}}>
           {mode === "login" ? "Sign in to your account" : "Start managing your finances"}
         </div>
-        <div style={{fontSize:12,color:"#fbbf24",marginBottom:16,border:"1px solid rgba(251,191,36,0.35)",background:"rgba(251,191,36,0.08)",borderRadius:10,padding:"10px 12px"}}>
-          {AUTH_DISABLED_MESSAGE}
-        </div>
-
         {mode === "signup" && (
           <div style={{marginBottom:14}}>
             <label style={{fontSize:11,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Name</label>
@@ -635,7 +660,7 @@ function AuthGate({ onAuth }) {
 
         <div style={{marginTop:20,padding:"10px 12px",background:"rgba(79,142,247,0.08)",borderRadius:8,border:"1px solid rgba(79,142,247,0.15)"}}>
           <div style={{fontSize:11,color:"var(--accent)",fontWeight:600,marginBottom:3}}>ℹ DEMO MODE</div>
-          <div style={{fontSize:11,color:"var(--text2)"}}>Sign in with a valid account to continue.</div>
+          <div style={{fontSize:11,color:"var(--text2)"}}>If live auth is unavailable, sign in with any email and password to explore with mock data.</div>
         </div>
       </div>
     </div>
