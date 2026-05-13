@@ -5093,6 +5093,15 @@ export default function WealthPilotOS() {
     const fetchData = async () => {
       setLiveDataLoading(true);
       setLiveDataError("");
+      setLiveStatus({
+        accounts: { loading: true, error: false },
+        transactions: { loading: true, error: false },
+        bills: { loading: true, error: false },
+        budgets: { loading: true, error: false },
+        calendarEvents: { loading: false, error: false },
+        creditScore: { loading: true, error: false },
+        portfolio: { loading: true, error: false },
+      });
       try {
         const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
         const accounts = await safe(async () => {
@@ -5127,9 +5136,27 @@ export default function WealthPilotOS() {
           creditScore,
           debts: debts.length ? debts : ensureArray(JSON.parse(localStorage.getItem('wp_debts') || '[]'), [])
         });
+        setLiveStatus({
+          accounts: { loading: false, error: false },
+          transactions: { loading: false, error: false },
+          bills: { loading: false, error: false },
+          budgets: { loading: false, error: false },
+          calendarEvents: { loading: false, error: false },
+          creditScore: { loading: false, error: false },
+          portfolio: { loading: false, error: false },
+        });
       } catch (e) {
         console.error("Live data fetch failed", e);
         setLiveDataError("Unable to refresh live account data. Showing available data.");
+        setLiveStatus({
+          accounts: { loading: false, error: true },
+          transactions: { loading: false, error: true },
+          bills: { loading: false, error: true },
+          budgets: { loading: false, error: true },
+          calendarEvents: { loading: false, error: true },
+          creditScore: { loading: false, error: true },
+          portfolio: { loading: false, error: true },
+        });
       } finally {
         setLiveDataLoading(false);
       }
@@ -5229,7 +5256,8 @@ export default function WealthPilotOS() {
     const draft = { id: Date.now(), category, limit, spent: 0, month: now.getMonth()+1, year: now.getFullYear(), color: '#4f8ef7' };
     try {
       const created = await budgetsApi.create({ category: draft.category, limit: draft.limit, month: draft.month, year: draft.year });
-      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), created || draft] }));
+      const nextBudgets = [...ensureArray(liveData.budgets, []), created || draft];
+      setLiveData(prev => ({ ...prev, budgets: nextBudgets }));
       return true;
     } catch {
       setLiveData(prev => {
@@ -5252,7 +5280,9 @@ export default function WealthPilotOS() {
     const draft = { id: Date.now(), name, amount, dueDay, due_day: dueDay, autopay, paid: false, category: 'Bills' };
     try {
       const created = await billsApi.create({ name: draft.name, amount: draft.amount, due_day: dueDay, autopay });
-      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), created ? { ...created, dueDay: created.dueDay ?? created.due_day } : draft] }));
+      const normalized = created ? { ...created, dueDay: created.dueDay ?? created.due_day } : draft;
+      const nextBills = [...ensureArray(liveData.bills, []), normalized];
+      setLiveData(prev => ({ ...prev, bills: nextBills }));
       return true;
     } catch {
       setLiveData(prev => {
@@ -5267,7 +5297,9 @@ export default function WealthPilotOS() {
   const dashboardProps = {
     setPage: showPage,
     accounts: [...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])],
-    totalCash: acct.totalCash,
+    totalCash: [...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]
+      .filter((a) => a?.type !== "credit")
+      .reduce((sum, account) => sum + Number(account?.balance || 0), 0),
     creditDebt: acct.creditDebt,
     syncing: acct.syncing,
     lastSync: acct.lastSync,
