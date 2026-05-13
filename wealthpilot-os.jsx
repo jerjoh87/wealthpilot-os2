@@ -106,6 +106,109 @@ const pickCollection = (value, keys = [], fallback = []) => {
   return ensureArray(value, fallback);
 };
 
+
+
+const getDueInDays = (bill, now = new Date()) => {
+  if (bill?.dueDate) {
+    const due = new Date(bill.dueDate);
+    if (!Number.isNaN(due.getTime())) {
+      return Math.ceil((due.setHours(0,0,0,0) - new Date(now).setHours(0,0,0,0)) / (1000*60*60*24));
+    }
+  }
+  const dueDay = Number(bill?.dueDay);
+  if (!Number.isFinite(dueDay) || dueDay <= 0) return 999;
+  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay);
+  const due = dueThisMonth >= current ? dueThisMonth : new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
+  return Math.ceil((due - current) / (1000*60*60*24));
+};
+
+const buildRuleBasedMoneyMove = ({ income, upcomingBills = [], budget = [], spending = 0, goals = [], creditScoreValue = 0, creditUtilization = null, totalCash = 0 }) => {
+  const highBudget = budget
+    .map((item) => ({ ...item, pct: (Number(item?.spent || 0) / Math.max(1, Number(item?.limit || 0))) * 100 }))
+    .filter((item) => Number(item.limit || 0) > 0)
+    .sort((a, b) => b.pct - a.pct)[0];
+  const dueSoonBill = upcomingBills
+    .map((bill) => ({ ...bill, dueInDays: getDueInDays(bill) }))
+    .filter((bill) => bill.dueInDays >= 0)
+    .sort((a, b) => a.dueInDays - b.dueInDays)[0];
+  const billTotal = upcomingBills.reduce((sum, bill) => sum + Number(bill?.amount || 0), 0);
+  const leftAfterBills = Math.max(0, income - billTotal);
+  const utilization = Number(creditUtilization);
+
+  if (Number.isFinite(utilization) && utilization >= 0.35) {
+    const paydown = Math.max(50, Math.round((utilization - 0.3) * 1000 / 10) * 10);
+    return {
+      source: 'rules',
+      main: `Your utilization is ${Math.round(utilization * 100)}%. Pay ${fmt(paydown)} before your statement date.`,
+      why: 'Lower utilization can improve your score and reduce borrowing risk.',
+      actionLabel: 'Ask AI Coach',
+      actionPage: 'ai-coach',
+    };
+  }
+
+  if (dueSoonBill && dueSoonBill.dueInDays <= 3) {
+    return {
+      source: 'rules',
+      main: `${dueSoonBill.name} is due in ${dueSoonBill.dueInDays} day${dueSoonBill.dueInDays === 1 ? '' : 's'}. Pay ${fmt(dueSoonBill.amount)} now to avoid a late fee.`,
+      why: 'Staying current on bills protects cash flow and your credit profile.',
+      actionLabel: 'Mark Bill Paid',
+      actionPage: 'bills',
+    };
+  }
+
+  if (highBudget && highBudget.pct >= 80) {
+    const daysWindow = Math.max(1, Math.min(7, daysLeft));
+    const remaining = Math.max(0, Number(highBudget.limit || 0) - Number(highBudget.spent || 0));
+    return {
+      source: 'rules',
+      main: `You spent ${Math.round(highBudget.pct)}% of your ${highBudget.category} budget. Limit spending to ${fmt(remaining / daysWindow)} for the next ${daysWindow} days.`,
+      why: 'Pacing spending now helps you avoid budget overruns before month-end.',
+      actionLabel: 'View Budget',
+      actionPage: 'budget',
+    };
+  }
+
+  if (leftAfterBills > 0) {
+    const saveAmt = Math.max(25, Math.round((leftAfterBills * 0.3) / 5) * 5);
+    const essentials = Math.max(50, Math.round((leftAfterBills * 0.45) / 5) * 5);
+    return {
+      source: 'rules',
+      main: `You have ${fmt(leftAfterBills)} left after bills. Put ${fmt(saveAmt)} toward savings and keep ${fmt(essentials)} for food and gas.`,
+      why: 'Automating a split between savings and essentials keeps progress consistent.',
+      actionLabel: goals.length ? 'Add Goal' : 'Add Goal',
+      actionPage: 'goals',
+    };
+  }
+
+  if (!upcomingBills.length) {
+    return {
+      source: 'rules',
+      main: 'No upcoming bills found. Add your recurring bills so your plan is accurate.',
+      why: 'Reliable due dates make your cash-flow guidance and reminders smarter.',
+      actionLabel: 'Add Bill',
+      actionPage: 'bills',
+    };
+  }
+
+  if (!budget.length) {
+    return {
+      source: 'rules',
+      main: 'You do not have budget categories yet. Set one up to unlock targeted spending coaching.',
+      why: 'Category limits are needed for next-best-move recommendations.',
+      actionLabel: 'Add Category',
+      actionPage: 'budget',
+    };
+  }
+
+  return {
+    source: 'rules',
+    main: `Your score is ${creditScoreValue}. Keep paying on time and monitor balances weekly.`,
+    why: 'Small weekly actions build long-term financial momentum.',
+    actionLabel: 'Ask AI Coach',
+    actionPage: 'ai-coach',
+  };
+};
 const incomeToMonthly = (entry) => {
   const amount = Number(entry?.amount || 0);
   switch ((entry?.frequency || '').toLowerCase()) {
@@ -167,6 +270,63 @@ const EmptyState = ({ icon="📭", message }) => (
 const LoadingCard = ({ message="Loading…" }) => (
   <div className="card"><div className="text-sm text-muted">{message}</div></div>
 );
+
+const ONBOARDING_STORAGE_KEY = 'wp_onboarding_state';
+const ONBOARDING_GOALS = ["Save money", "Pay debt", "Build credit", "Invest", "Prepare for funding", "Track net worth"];
+
+function OnboardingWizard({ onComplete, onSkip }) {
+  const steps = ["Welcome", "Income", "Bills", "Accounts", "Categories", "Credit Score", "Goal"];
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({
+    monthlyIncome: "",
+    billName: "",
+    billAmount: "",
+    billDueDay: "",
+    accountMethod: "plaid",
+    accountName: "",
+    accountBalance: "",
+    categoryName: "",
+    creditScore: "",
+    goal: ONBOARDING_GOALS[0],
+  });
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (Number.isInteger(saved.step)) setStep(saved.step);
+      if (saved.form && typeof saved.form === 'object') setForm(prev => ({ ...prev, ...saved.form }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step, form })); } catch {}
+  }, [step, form]);
+
+  const next = () => setStep(s => Math.min(steps.length - 1, s + 1));
+  const prev = () => setStep(s => Math.max(0, s - 1));
+  const finish = () => onComplete(form);
+
+  return (
+    <div className="card" style={{maxWidth:640,margin:"18px auto"}}>
+      <div className="card-title">Setup Wizard · Step {step + 1} of {steps.length}</div>
+      <div className="text-sm text-muted" style={{marginBottom:12}}>{steps[step]}</div>
+      {step===0 && <p className="text-sm">Welcome to WealthPilot. Let’s set up your financial workspace in a minute.</p>}
+      {step===1 && <input className="input" placeholder="Monthly income (USD)" value={form.monthlyIncome} onChange={(e)=>setForm(f=>({...f,monthlyIncome:e.target.value}))} />}
+      {step===2 && <div style={{display:"grid",gap:8}}><input className="input" placeholder="Bill name" value={form.billName} onChange={(e)=>setForm(f=>({...f,billName:e.target.value}))} /><input className="input" placeholder="Amount" value={form.billAmount} onChange={(e)=>setForm(f=>({...f,billAmount:e.target.value}))} /><input className="input" placeholder="Due day (1-31)" value={form.billDueDay} onChange={(e)=>setForm(f=>({...f,billDueDay:e.target.value}))} /></div>}
+      {step===3 && <div style={{display:"grid",gap:8}}><select className="input" value={form.accountMethod} onChange={(e)=>setForm(f=>({...f,accountMethod:e.target.value}))}><option value="plaid">Connect bank with Plaid</option><option value="manual">Enter account manually</option></select>{form.accountMethod==="manual" && <><input className="input" placeholder="Account name" value={form.accountName} onChange={(e)=>setForm(f=>({...f,accountName:e.target.value}))} /><input className="input" placeholder="Starting balance" value={form.accountBalance} onChange={(e)=>setForm(f=>({...f,accountBalance:e.target.value}))} /></>}</div>}
+      {step===4 && <input className="input" placeholder="Budget category (example: Groceries)" value={form.categoryName} onChange={(e)=>setForm(f=>({...f,categoryName:e.target.value}))} />}
+      {step===5 && <input className="input" placeholder="Credit score (optional)" value={form.creditScore} onChange={(e)=>setForm(f=>({...f,creditScore:e.target.value}))} />}
+      {step===6 && <select className="input" value={form.goal} onChange={(e)=>setForm(f=>({...f,goal:e.target.value}))}>{ONBOARDING_GOALS.map(g=><option key={g} value={g}>{g}</option>)}</select>}
+
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+        {step>0 && <button className="btn btn-ghost btn-sm" onClick={prev}>Back</button>}
+        {step<steps.length-1 ? <button className="btn btn-primary btn-sm" onClick={next}>Continue</button> : <button className="btn btn-primary btn-sm" onClick={finish}>Finish Setup</button>}
+        {[3,5].includes(step) && <button className="btn btn-ghost btn-sm" onClick={next}>Skip</button>}
+        <button className="btn btn-ghost btn-sm" onClick={onSkip}>Skip all for now</button>
+      </div>
+    </div>
+  );
+}
 
 
 // ─── AUTH HOOK ────────────────────────────────────────────────────────────────
@@ -1396,8 +1556,8 @@ function Dashboard(props = {}) {
   const netWorth = totalCash + creditDebt + (portfolio?.totalValue || 0);
   const bankIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const manualMonthlyIncome = (manualIncomeEntries || []).reduce((sum, i) => sum + incomeToMonthly(i), 0);
-  const income = bankIncome + manualMonthlyIncome || MOCK.income;
-  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0) || MOCK.spending;
+  const income = bankIncome + manualMonthlyIncome;
+  const spending = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const upcomingBills = safeBills.filter(b => !b.paid);
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
@@ -1405,6 +1565,32 @@ function Dashboard(props = {}) {
   const creditScoreValue = creditScore?.latest?.score || 742;
   const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
+  const creditLimitEstimate = safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Number(account?.limit || 0), 0);
+  const creditBalance = Math.abs(safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Math.min(0, Number(account?.balance || 0)), 0));
+  const creditUtilization = creditLimitEstimate > 0 ? creditBalance / creditLimitEstimate : null;
+  const [moneyMove, setMoneyMove] = useState(() => buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash }));
+
+  useEffect(() => {
+    const fallback = buildRuleBasedMoneyMove({ income, upcomingBills, budget: safeBudget, spending, goals: [], creditScoreValue, creditUtilization, totalCash });
+    let active = true;
+    setMoneyMove(fallback);
+
+    const fetchAiMove = async () => {
+      try {
+        const prompt = `Generate one concise next-best money move for today. Return JSON only with keys: main, why, actionLabel. Allowed actionLabel values: Add Bill, Add Category, Add Goal, Mark Bill Paid, View Budget, Ask AI Coach.`;
+        const context = { income, spending, budgets: safeBudget, bills: upcomingBills, creditScore: creditScoreValue, creditUtilization, accountBalances: safeAccounts.map((a) => ({ name: a.name, type: a.type, balance: a.balance })), upcomingDueDates: upcomingBills.map((b) => ({ name: b.name, dueDay: b.dueDay, dueDate: b.dueDate, amount: b.amount })) };
+        const result = await aiApi.chat(prompt, [], 'steady', context);
+        const content = result?.content || result?.message || result?.reply || '';
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (!active || !parsed?.main) return;
+        const actionMap = { 'Add Bill': 'bills', 'Add Category': 'budget', 'Add Goal': 'goals', 'Mark Bill Paid': 'bills', 'View Budget': 'budget', 'Ask AI Coach': 'ai-coach' };
+        setMoneyMove({ source: 'ai', main: parsed.main, why: parsed.why || fallback.why, actionLabel: actionMap[parsed.actionLabel] ? parsed.actionLabel : 'Ask AI Coach', actionPage: actionMap[parsed.actionLabel] || 'ai-coach' });
+      } catch (_) {}
+    };
+
+    fetchAiMove();
+    return () => { active = false; };
+  }, [income, spending, safeBudget, upcomingBills, creditScoreValue, creditUtilization, totalCash, safeAccounts]);
 
   return (
     <div style={{display:"grid",gap:14,paddingBottom:8}}>
@@ -1416,6 +1602,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
           <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
           <div className="card-sub">Cash inflow this cycle</div>
+          {income <= 0 && <div className="text-sm text-muted">Add income to start your plan.</div>}
         </div>
         <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
           <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
@@ -1425,6 +1612,16 @@ function Dashboard(props = {}) {
           <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
           <div className="card-sub">{daysLeft} days left in month</div>
         </div>
+      </div>
+
+      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(56,189,248,0.14), rgba(147,51,234,0.08))",border:"1px solid rgba(56,189,248,0.35)"}}>
+        <div className="section-header" style={{marginBottom:6}}>
+          <div className="section-title">Today’s Money Move</div>
+          <span className="badge badge-gray" style={{fontSize:10}}>{moneyMove?.source === 'ai' ? 'AI' : 'Offline rules'}</span>
+        </div>
+        <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
+        <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
+        <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
@@ -1450,13 +1647,13 @@ function Dashboard(props = {}) {
           <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
             {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 && <div className="text-sm text-muted">No budget categories yet.</div>}
+            {safeBudget.length===0 && <div className="text-sm text-muted">Create your first budget category.</div>}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill</p></div>}
+          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p></div>}
         </div>
       </div>
 
@@ -1469,6 +1666,7 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
           <div className="card-title">Credit Score Tracker</div>
           <div className="card-value">{creditScoreValue}</div>
+          {!creditScore?.latest?.score && <div className="card-sub">Add your credit score to track progress.</div>}
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
@@ -1852,6 +2050,18 @@ function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
 
 function PortfolioPage({ portfolioData = MOCK.portfolio }) {
   const { totalValue, dayChange, dayChangePct, holdings = [], connected } = portfolioData || {};
+  const [connectState, setConnectState] = useState({ status: connected ? "connected" : "not_configured", message: connected ? "Brokerage connected." : "SnapTrade credentials missing." });
+  const handleSnapTradeConnect = async () => {
+    setConnectState({ status: "loading", message: "Connecting to SnapTrade..." });
+    try {
+      const res = await fetch('/api/portfolio/sync', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'SnapTrade is not configured.');
+      setConnectState({ status: "connected", message: data?.message || "SnapTrade connected." });
+    } catch (e) {
+      setConnectState({ status: "error", message: e?.message || "Unable to connect SnapTrade. Use manual holdings as fallback." });
+    }
+  };
   return (
     <div>
       <div className="portfolio-placeholder mb-4">
@@ -1861,9 +2071,12 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           Sync your Webull, TD Ameritrade, or any SnapTrade-supported brokerage to see your portfolio here in real time.
         </p>
         <div className="flex items-center gap-3" style={{justifyContent:"center", flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={async()=>{try{const r=await fetch('/api/integrations/snaptrade/connect',{method:'POST'});const d=await r.json();window.alert(d?.message||'SnapTrade flow started.');}catch{window.alert('Unable to start SnapTrade right now.')}}}>🔌 Connect via SnapTrade</button>
+          <button className="btn btn-primary" onClick={handleSnapTradeConnect} disabled={connectState.status === "loading"}>🔌 {connectState.status === "loading" ? "Connecting..." : "Connect via SnapTrade"}</button>
           <button className="btn btn-ghost" onClick={()=>window.alert("Webull direct sync is not available yet. You can connect supported brokerages through SnapTrade, upload a CSV, or enter holdings manually.")}>📊 Connect Webull</button>
         </div>
+        <p className="text-xs text-muted" style={{marginTop:8}}>
+          Status: {connectState.status.replace('_',' ')} · {connectState.message}
+        </p>
         <p className="text-xs text-muted" style={{marginTop:12}}>Read-only access · Bank-level encryption · Coming Q3 2026</p>
       </div>
 
@@ -2182,7 +2395,7 @@ function usePlaidConnect({ onSuccess, onExit }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts }) {
+function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncomeEntries, manualAccounts = [], setManualAccounts, onRestartSetup }) {
   const [toggles, setToggles] = useState({
     notifications: true,
     autopay: true,
@@ -2248,6 +2461,16 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   const twilioReady = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ENABLED === 'true');
 
   const totalConnectedAccounts = (manualAccounts||[]).length + (plaid.accounts||[]).length;
+  useEffect(() => {
+    try {
+      const savedReminders = JSON.parse(localStorage.getItem('wp_reminders') || 'null');
+      const savedSecurity = JSON.parse(localStorage.getItem('wp_security_settings') || 'null');
+      if (savedReminders) setReminderPrefs((p) => ({ ...p, ...savedReminders }));
+      if (savedSecurity) setToggles((t) => ({ ...t, ...savedSecurity }));
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem('wp_reminders', JSON.stringify(reminderPrefs)); } catch {} }, [reminderPrefs]);
+  useEffect(() => { try { localStorage.setItem('wp_security_settings', JSON.stringify({ twoFactor: toggles.twoFactor, privacyMode: toggles.privacyMode })); } catch {} }, [toggles.twoFactor, toggles.privacyMode]);
 
   const saveIncome = () => {
     const entry = { id: editingIncomeId || Date.now(), user_id: user?.id || 'local-user', source_name: incomeForm.source_name, amount: Number(incomeForm.amount||0), frequency: incomeForm.frequency, next_pay_date: incomeForm.next_pay_date, payment_method: incomeForm.payment_method, notes: incomeForm.notes, monthly_estimate: Number(incomeForm.monthly_estimate||0), created_at: new Date().toISOString() };
@@ -2393,6 +2616,11 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   return (
     <div>
+      <div className="card" style={{marginBottom:12}}>
+        <div className="card-title">Setup</div>
+        <div className="text-sm text-muted" style={{marginBottom:10}}>Need to run onboarding again?</div>
+        <button className="btn btn-ghost btn-sm" onClick={onRestartSetup}>Restart setup</button>
+      </div>
       <div className="grid-2" style={{alignItems:'start'}}>
         <div>
           <div className="card settings-section">
@@ -3164,6 +3392,7 @@ function CreditScorePage({ addToast, initialScore }) {
   });
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
+  const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
   const hasHistory = history.length > 0;
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
@@ -3210,7 +3439,8 @@ function CreditScorePage({ addToast, initialScore }) {
             onClick={()=>setShowForm(s=>!s)}>
             {showForm ? "Cancel" : "+ Log Score"}
           </button>
-          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={async()=>{try{const r=await fetch('/api/integrations/smartcredit/connect',{method:'POST'});const d=await r.json();window.alert(d?.message||'SmartCredit flow started.');}catch{window.alert('Unable to start SmartCredit right now.')}}}>Connect SmartCredit</button>
+          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={connectSmartCredit} disabled={smartCreditState.status==="loading"}>{smartCreditState.status==="loading" ? "Connecting..." : "Connect SmartCredit"}</button>
+          <div className="text-xs text-muted" style={{marginTop:6}}>Status: {smartCreditState.status.replace('_',' ')} · {smartCreditState.message}</div>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
@@ -4533,6 +4763,7 @@ export default function WealthPilotOS() {
   });
   const [manualIncomeEntries, setManualIncomeEntries] = useState([]);
   const [manualAccounts, setManualAccounts] = useState([]);
+  const [onboarding, setOnboarding] = useState({ completed: false, step: 0 });
   const [liveStatus, setLiveStatus] = useState({
     accounts: { loading: true, error: false },
     transactions: { loading: true, error: false },
@@ -4546,22 +4777,26 @@ export default function WealthPilotOS() {
 
   useEffect(() => {
     try {
-      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income_entries') || '[]');
-      const savedAccounts = JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]');
+      const savedIncome = JSON.parse(localStorage.getItem('wp_manual_income') || localStorage.getItem('wp_manual_income_entries') || '[]');
+      const savedAccounts = JSON.parse(localStorage.getItem('wp_accounts') || localStorage.getItem('wp_manual_accounts') || '[]');
       setManualIncomeEntries(Array.isArray(savedIncome) ? savedIncome : []);
       setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
-      const localBudgets = JSON.parse(localStorage.getItem('wp_local_budgets') || '[]');
-      const localBills = JSON.parse(localStorage.getItem('wp_local_bills') || '[]');
+      const localBudgets = JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]');
+      const localBills = JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]');
       if (Array.isArray(localBudgets) && localBudgets.length) setLiveData(prev => ({ ...prev, budgets: localBudgets }));
       if (Array.isArray(localBills) && localBills.length) setLiveData(prev => ({ ...prev, bills: localBills }));
     } catch {
       setManualIncomeEntries([]);
       setManualAccounts([]);
     }
+    try {
+      const saved = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || '{}');
+      if (saved && typeof saved === 'object') setOnboarding({ completed: Boolean(saved.completed), step: Number(saved.step || 0) });
+    } catch {}
   }, []);
 
-  useEffect(() => { try { localStorage.setItem('wp_manual_income_entries', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
-  useEffect(() => { try { localStorage.setItem('wp_manual_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
+  useEffect(() => { try { localStorage.setItem('wp_manual_income', JSON.stringify(manualIncomeEntries || [])); } catch {} }, [manualIncomeEntries]);
+  useEffect(() => { try { localStorage.setItem('wp_accounts', JSON.stringify(manualAccounts || [])); } catch {} }, [manualAccounts]);
   useEffect(() => {
     const fetchData = async () => {
       setLiveDataLoading(true);
@@ -4592,9 +4827,9 @@ export default function WealthPilotOS() {
         const creditScore = await safe(() => creditScoreApi.get(), null);
         setLiveData({
           accounts: ensureArray(accounts, acct.accounts),
-          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_local_bills') || '[]'), []),
+          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_bills') || localStorage.getItem('wp_local_bills') || '[]'), []),
           transactions,
-          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_local_budgets') || '[]'), []),
+          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_budget_categories') || localStorage.getItem('wp_local_budgets') || '[]'), []),
           portfolio,
           creditScore
         });
@@ -4692,7 +4927,7 @@ export default function WealthPilotOS() {
     } catch {
       setLiveData(prev => {
         const fallback = [...ensureArray(prev.budgets, []), draft];
-        try { localStorage.setItem('wp_local_budgets', JSON.stringify(fallback)); } catch {}
+        try { localStorage.setItem('wp_budget_categories', JSON.stringify(fallback)); } catch {}
         return { ...prev, budgets: fallback };
       });
       return true;
@@ -4715,7 +4950,7 @@ export default function WealthPilotOS() {
     } catch {
       setLiveData(prev => {
         const fallback = [...ensureArray(prev.bills, []), draft];
-        try { localStorage.setItem('wp_local_bills', JSON.stringify(fallback)); } catch {}
+        try { localStorage.setItem('wp_bills', JSON.stringify(fallback)); } catch {}
         return { ...prev, bills: fallback };
       });
       return true;
@@ -4754,9 +4989,30 @@ export default function WealthPilotOS() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} />;
+      case "settings":     return <SettingsPage addToast={addToast} user={user} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
+  };
+
+  const completeOnboarding = async (formData = {}) => {
+    if (Number(formData.monthlyIncome) > 0) {
+      setManualIncomeEntries(prev => [...prev, { id: Date.now(), source_name: 'Primary income', amount: Number(formData.monthlyIncome), frequency: 'Monthly', created_at: new Date().toISOString() }]);
+    }
+    if (formData.billName && Number(formData.billAmount) > 0) {
+      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), { id: Date.now()+1, name: formData.billName, amount: Number(formData.billAmount), dueDay: Number(formData.billDueDay || 1), paid: false, category: 'Bills' }] }));
+    }
+    if (formData.categoryName) {
+      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), { id: Date.now()+2, category: formData.categoryName, limit: 0, spent: 0, color: '#4f8ef7' }] }));
+    }
+    if (formData.accountMethod === 'manual' && formData.accountName) {
+      setManualAccounts(prev => [...prev, { id: Date.now()+3, name: formData.accountName, type: 'checking', balance: Number(formData.accountBalance || 0), institution: 'Manual', last4: '0000', manual: true }]);
+    }
+    if (Number(formData.creditScore) > 0) {
+      setLiveData(prev => ({ ...prev, creditScore: { latest: { score: Number(formData.creditScore) } } }));
+    }
+    const nextState = { completed: true, step: 6, goal: formData.goal || ONBOARDING_GOALS[0] };
+    setOnboarding(nextState);
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(nextState)); } catch {}
   };
 
  return (
@@ -4869,7 +5125,11 @@ export default function WealthPilotOS() {
             <span style={{color:"var(--text2)",fontWeight:400}}>— {modeConfig.dashBanner}</span>
           </div>
 
-          {page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>}
+          {!onboarding.completed ? (
+            <div className="content">
+              <OnboardingWizard onComplete={completeOnboarding} onSkip={() => { setOnboarding({ completed: true, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: true, step: 0 })); } catch {} }} />
+            </div>
+          ) : (page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>)}
         </div>
 
         {/* ── Mobile Bottom Nav ── */}
@@ -4909,3 +5169,12 @@ export default function WealthPilotOS() {
     </>
   );
 }
+  const connectSmartCredit = async () => {
+    setSmartCreditState({ status: "loading", message: "Connecting SmartCredit..." });
+    try {
+      await creditScoreApi.get();
+      setSmartCreditState({ status: "connected", message: "Credit provider reachable." });
+    } catch (e) {
+      setSmartCreditState({ status: "error", message: e?.message || "Connection failed. Manual score entry available." });
+    }
+  };
