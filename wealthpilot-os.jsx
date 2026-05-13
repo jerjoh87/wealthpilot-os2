@@ -1663,7 +1663,8 @@ function Dashboard(props = {}) {
   const totalSpent = safeBudget.reduce((s, b) => s + (b.spent || 0), 0);
   const safe = Math.max(0, totalCash - upcomingBills.reduce((s, b) => s + b.amount, 0) - (spending / 30) * daysLeft * 0.5);
   const spendPct = income > 0 ? Math.round((spending / income) * 100) : 0;
-  const creditScoreValue = creditScore?.latest?.score || 742;
+  const latestCreditScore = Number(creditScore?.latest?.score || 0);
+  const creditScoreValue = latestCreditScore > 0 ? latestCreditScore : null;
   const billRunway = upcomingBills.reduce((s, b) => s + b.amount, 0);
   const portfolioPnl = portfolio?.dayChangePct ?? 0;
   const creditLimitEstimate = safeAccounts.filter((a) => a.type === "credit").reduce((sum, account) => sum + Number(account?.limit || 0), 0);
@@ -1766,8 +1767,20 @@ function Dashboard(props = {}) {
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
           <div className="card-title">Credit Score Tracker</div>
-          <div className="card-value">{creditScoreValue}</div>
-          {!creditScore?.latest?.score && <div className="card-sub">Add your credit score to track progress.</div>}
+          <div className="card-value">{creditScoreValue ?? "—"}</div>
+          {creditScoreValue ? (
+            <div className="card-sub">
+              {Array.isArray(creditScore?.history) && creditScore.history.length >= 2
+                ? `Trend: ${Number(creditScore?.trend || 0) >= 0 ? "↑" : "↓"} ${Math.abs(Number(creditScore?.trend || 0))} pts`
+                : "No trend yet"}
+            </div>
+          ) : <div className="card-sub">No credit score data yet.</div>}
+          <div className="card-sub" style={{marginTop:6}}>
+            Utilization: {creditUtilization == null ? "N/A" : `${Math.round(creditUtilization * 100)}%`}
+          </div>
+          {creditUtilization != null && creditUtilization >= 0.3 && (
+            <div className="text-sm text-red" style={{marginTop:6}}>High utilization warning: Keep below 30%.</div>
+          )}
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
