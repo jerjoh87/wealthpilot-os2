@@ -2545,8 +2545,6 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
   const [reminderPrefs, setReminderPrefs] = useState({ categories: [], frequency: 'both', reminderTime: '09:00', phoneNumber: '', inAppEnabled: true });
   const [reminderLoading, setReminderLoading] = useState(false);
   const twilioReady = Boolean(process?.env?.NEXT_PUBLIC_TWILIO_ENABLED === 'true');
-
-  const totalConnectedAccounts = (manualAccounts||[]).length + (plaid.accounts||[]).length;
   useEffect(() => {
     try {
       const savedReminders = JSON.parse(localStorage.getItem('wp_reminders') || 'null');
@@ -2637,6 +2635,8 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
     },
     onExit: () => {},
   });
+
+  const totalConnectedAccounts = (manualAccounts || []).length + (plaid.accounts || []).length;
 
   useEffect(() => { plaid.fetchLinkToken(); }, []);
 

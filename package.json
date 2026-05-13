@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "lint": "node -e \"console.log('Lint placeholder: eslint not installed in this environment')\""
+    "lint": "npm run -s type-check"
   },
   "dependencies": {
     "next": "^14.2.0",
