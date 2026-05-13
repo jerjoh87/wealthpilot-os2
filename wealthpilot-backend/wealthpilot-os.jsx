@@ -4888,6 +4888,7 @@ export default function WealthPilotOS() {
   const [toasts, setToasts]       = useState([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
+  const [billingStatus, setBillingStatus] = useState('free');
   const [liveDataLoading, setLiveDataLoading] = useState(true);
   const [liveDataError, setLiveDataError] = useState("");
   const [liveData, setLiveData] = useState({
