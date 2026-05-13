@@ -37,7 +37,14 @@ async function request(path, options = {}) {
     throw new Error('Invalid server response. Please try again.');
   }
 
-  if (!res.ok) throw new Error('Request failed. Please try again.');
+  if (!res.ok) {
+    const message = payload?.message || payload?.error || 'Request failed. Please try again.';
+    const e = new Error(message);
+    e.code = payload?.code;
+    e.status = res.status;
+    e.details = payload;
+    throw e;
+  }
   return payload.data;
 }
 
@@ -150,7 +157,7 @@ export const ai = {
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
 export const plaid = {
-  getLinkToken:  ()              => post('/plaid/link-token', {}),
+  getLinkToken:  ()              => post('/plaid/create-link-token', {}),
   exchange:      (public_token)  => post('/plaid/exchange', { public_token }),
   sync:          ()              => post('/plaid/sync', {}),
 };

@@ -2583,8 +2583,14 @@ function usePlaidConnect({ onSuccess, onExit }) {
       const data = await plaidApi.getLinkToken();
       if (!data?.link_token) throw new Error("Missing Plaid link token");
       setLinkToken(data.link_token);
+      return data.link_token;
     } catch (e) {
-      setError(FRIENDLY_ERRORS.plaidConnect);
+      if (e?.code === 'PLAID_NOT_CONFIGURED') {
+        setError('Plaid is not configured yet. You can still add a manual account below.');
+      } else {
+        setError(FRIENDLY_ERRORS.plaidConnect);
+      }
+      return null;
     } finally { setLoading(false); }
   }, []);
 
@@ -2811,8 +2817,11 @@ function SettingsPage({ addToast, user, currentPlan = 'free', billingStatus = 'f
       addToast && addToast(`You can connect up to ${MAX_ACCOUNTS} accounts. Remove one to add another.`, 'error');
       return;
     }
-    if (!plaid.linkToken) { plaid.fetchLinkToken(); return; }
-    plaid.open();
+    (async () => {
+      const token = plaid.linkToken || await plaid.fetchLinkToken();
+      if (!token) return;
+      plaid.open();
+    })();
   };
 
 

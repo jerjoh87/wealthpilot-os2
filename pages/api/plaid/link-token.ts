@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
-import { plaidClient, PLAID_PRODUCTS, PLAID_COUNTRIES, PLAID_REDIRECT_URI } from '../../../lib/plaid'
+import { plaidClient, PLAID_PRODUCTS, PLAID_COUNTRIES, PLAID_REDIRECT_URI, getMissingPlaidEnvVars } from '../../../lib/plaid'
 
 // POST /api/plaid/link-token
 // Frontend calls this first → gets link_token → opens Plaid Link UI
@@ -10,8 +10,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await requireUser(req, res)
   if (!user) return
 
-  if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
-    return err(res, 'Plaid is not configured. Set PLAID_CLIENT_ID and PLAID_SECRET.', 503)
+  const missingEnvVars = getMissingPlaidEnvVars()
+  if (missingEnvVars.length) {
+    return res.status(503).json({
+      ok: false,
+      code: 'PLAID_NOT_CONFIGURED',
+      message: 'Plaid is not configured for this environment.',
+      missing: missingEnvVars,
+    })
   }
 
   try {
