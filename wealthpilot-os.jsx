@@ -106,6 +106,26 @@ const pickCollection = (value, keys = [], fallback = []) => {
   return ensureArray(value, fallback);
 };
 
+const hasWindow = typeof window !== "undefined";
+const safeWindowOrigin = () => (hasWindow && window.location?.origin ? window.location.origin : "");
+const safeStorageGet = (key, fallback = null) => {
+  if (!hasWindow) return fallback;
+  try {
+    const value = localStorage.getItem(key);
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const safeStorageSet = (key, value) => {
+  if (!hasWindow) return;
+  try { localStorage.setItem(key, value); } catch {}
+};
+const safeStorageRemove = (key) => {
+  if (!hasWindow) return;
+  try { localStorage.removeItem(key); } catch {}
+};
+
 
 
 const getDueInDays = (bill, now = new Date()) => {
@@ -478,7 +498,7 @@ function useAuth() {
     const init = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        localStorage.setItem('wp_token', data.session.access_token);
+        safeStorageSet('wp_token', data.session.access_token);
         try {
           const u = await authApi.me();
           setUser(u || data.session.user || false);
@@ -489,7 +509,7 @@ function useAuth() {
         return;
       }
 
-      const token = typeof window !== 'undefined' && localStorage.getItem('wp_token');
+      const token = safeStorageGet('wp_token');
       if (!token) { setUser(false); setLoading(false); return; }
       authApi.me()
         .then(u => setUser(u || false))
@@ -504,7 +524,7 @@ function useAuth() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
 
-    if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
+    if (data?.session?.access_token) safeStorageSet('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
 
@@ -514,12 +534,12 @@ function useAuth() {
       password,
       options: {
         data: { name },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: safeWindowOrigin() || undefined,
       },
     });
     if (error) throw error;
 
-    if (data?.session?.access_token) localStorage.setItem('wp_token', data.session.access_token);
+    if (data?.session?.access_token) safeStorageSet('wp_token', data.session.access_token);
     setUser(data?.user || false);
   }, []);
 
@@ -529,7 +549,7 @@ function useAuth() {
     } catch (_) {
       // ignore API logout errors; local token cleanup below is source of truth for now
     } finally {
-      localStorage.removeItem('wp_token');
+      safeStorageRemove('wp_token');
       setUser(false);
     }
   }, []);
@@ -640,7 +660,7 @@ function AuthGate({ onAuth }) {
             const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: `${window.location.origin}/auth/callback`,
+              redirectTo: `${safeWindowOrigin()}/auth/callback`,
             }
           });
             if (error) throw error;
