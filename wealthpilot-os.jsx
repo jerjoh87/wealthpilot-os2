@@ -3708,10 +3708,21 @@ function ScoreLineChart({ history }) {
 
 function CreditScorePage({ addToast, initialScore }) {
   const [history, setHistory] = useState(() => {
-    if (initialScore?.score) return [...SCORE_HISTORY.slice(0, -1), { score: initialScore.score, date: toISO(new Date()), provider: initialScore.provider || "api" }];
-    return [];
+    const apiHistory = Array.isArray(initialScore?.history) ? initialScore.history.map((row) => ({
+      score: Number(row?.score || 0),
+      bureau: row?.bureau || (row?.provider === 'experian' ? 'Experian' : row?.provider === 'equifax' ? 'Equifax' : row?.provider === 'transunion' ? 'TransUnion' : 'Other'),
+      date: row?.score_date || row?.recorded_at || toISO(new Date()),
+      notes: row?.notes || '',
+    })) : [];
+    if (apiHistory.length) return apiHistory;
+    try {
+      const local = JSON.parse(localStorage.getItem('wp_manual_credit_scores') || '[]');
+      return Array.isArray(local) ? local : [];
+    } catch {
+      return [];
+    }
   });
-  const [form, setForm]       = useState({ score:"", provider:"manual" });
+  const [form, setForm]       = useState({ score:'', bureau:'Other', date: toISO(new Date()).slice(0,10), notes:'' });
   const [showForm, setShowForm] = useState(false);
   const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
   const [scanState, setScanState] = useState({ loading:false, progress:0, message:'', error:'' });
@@ -3726,14 +3737,25 @@ function CreditScorePage({ addToast, initialScore }) {
   const color   = hasHistory ? scoreColor(latestScore) : "#8892a4";
 
   const submit = async () => {
-    const s = parseInt(form.score);
+    const s = parseInt(form.score, 10);
     if (isNaN(s) || s < 300 || s > 850) return;
-    const entry = { score: s, date: toISO(new Date()), provider: form.provider };
-    setHistory(h => [...h, entry]);
-    setForm({ score:"", provider:"manual" });
+    const entry = { score: s, bureau: form.bureau, date: form.date || toISO(new Date()).slice(0,10), notes: form.notes || '' };
+
+    try {
+      await creditScoreApi.record(entry);
+    } catch {
+      const merged = [...history, entry];
+      try { localStorage.setItem('wp_manual_credit_scores', JSON.stringify(merged)); } catch {}
+    }
+
+    setHistory(h => {
+      const next = [...h, entry];
+      try { localStorage.setItem('wp_manual_credit_scores', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setForm({ score:'', bureau:'Other', date: toISO(new Date()).slice(0,10), notes:'' });
     setShowForm(false);
-    // Real: await creditScore.record(entry)
-    addToast && addToast("Score recorded ✓", "success");
+    addToast && addToast('Score recorded ✓', 'success');
   };
 
   // Upload credit report PDF, trigger backend scan, and cache scan output locally.
@@ -3810,13 +3832,25 @@ function CreditScorePage({ addToast, initialScore }) {
                   placeholder="e.g. 740" onKeyDown={e=>e.key==="Enter"&&submit()}/>
               </div>
               <div className="form-group">
-                <label className="form-label">Source</label>
-                <select className="form-select" value={form.provider}
-                  onChange={e=>setForm(f=>({...f,provider:e.target.value}))}>
-                  {["manual","experian","equifax","transunion"].map(p=>(
-                    <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>
+                <label className="form-label">Bureau</label>
+                <select className="form-select" value={form.bureau}
+                  onChange={e=>setForm(f=>({...f,bureau:e.target.value}))}>
+                  {["Experian","Equifax","TransUnion","Other"].map(p=>(
+                    <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Date</label>
+                <input className="form-input" type="date"
+                  value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Notes</label>
+                <textarea className="form-input"
+                  value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}
+                  placeholder="Optional notes" rows={3}/>
               </div>
               <button className="btn btn-primary" style={{width:"100%",justifyContent:"center"}} onClick={submit}>
                 Save Score
@@ -3844,6 +3878,20 @@ function CreditScorePage({ addToast, initialScore }) {
                 </span>
               ))}
             </div>
+          </div>
+
+          <div className="card">
+            <div className="section-title" style={{marginBottom:10}}>History Log</div>
+            {hasHistory ? history.slice().reverse().map((item, idx) => (
+              <div key={`${item.date}-${idx}`} style={{display:'grid',gridTemplateColumns:'80px 1fr auto',gap:10,padding:'8px 0',borderTop: idx===0?'none':'1px solid var(--border)'}}>
+                <div className="text-xs text-muted">{item.date}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{item.bureau || 'Other'}</div>
+                  {item.notes ? <div className="text-xs text-muted">{item.notes}</div> : null}
+                </div>
+                <div style={{fontFamily:'Syne',fontWeight:700}}>{item.score}</div>
+              </div>
+            )) : <div className="text-sm text-muted">No manual scores logged yet.</div>}
           </div>
 
           {/* Score bands */}

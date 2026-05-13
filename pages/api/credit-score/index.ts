@@ -4,8 +4,10 @@ import { supabaseAdmin } from '../../../lib/supabase'
 import { z } from 'zod'
 
 const CreditScoreSchema = z.object({
-  score:    z.number().int().min(300).max(850),
-  provider: z.enum(['manual', 'experian', 'equifax', 'transunion']).default('manual'),
+  score: z.number().int().min(300).max(850),
+  bureau: z.enum(['Experian', 'Equifax', 'TransUnion', 'Other']).default('Other'),
+  date: z.string().date().optional(),
+  notes: z.string().max(1000).optional(),
 })
 
 // GET  /api/credit-score          — latest score + history (last 12 entries)
@@ -19,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     const { data, error } = await db
       .from('credit_scores')
-      .select('id, score, provider, recorded_at')
+      .select('id, score, provider, recorded_at, bureau, notes, score_date')
       .eq('user_id', user.id)
       .order('recorded_at', { ascending: false })
       .limit(12)
@@ -41,9 +43,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsed = CreditScoreSchema.safeParse(req.body)
     if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
+    const payload = parsed.data
+    const provider = payload.bureau.toLowerCase() === 'transunion' ? 'transunion' : payload.bureau.toLowerCase() === 'equifax' ? 'equifax' : payload.bureau.toLowerCase() === 'experian' ? 'experian' : 'manual'
+
     const { data, error } = await db
       .from('credit_scores')
-      .insert({ ...parsed.data, user_id: user.id })
+      .insert({
+        user_id: user.id,
+        score: payload.score,
+        provider,
+        bureau: payload.bureau,
+        notes: payload.notes || null,
+        score_date: payload.date || null,
+      })
       .select()
       .single()
 
