@@ -1861,7 +1861,7 @@ function PortfolioPage({ portfolioData = MOCK.portfolio }) {
           Sync your Webull, TD Ameritrade, or any SnapTrade-supported brokerage to see your portfolio here in real time.
         </p>
         <div className="flex items-center gap-3" style={{justifyContent:"center", flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={()=>window.alert("SnapTrade connection is not configured yet. Add your SnapTrade client ID and consumer key in environment variables to enable live brokerage sync.")}>🔌 Connect via SnapTrade</button>
+          <button className="btn btn-primary" onClick={async()=>{try{const r=await fetch('/api/integrations/snaptrade/connect',{method:'POST'});const d=await r.json();window.alert(d?.message||'SnapTrade flow started.');}catch{window.alert('Unable to start SnapTrade right now.')}}}>🔌 Connect via SnapTrade</button>
           <button className="btn btn-ghost" onClick={()=>window.alert("Webull direct sync is not available yet. You can connect supported brokerages through SnapTrade, upload a CSV, or enter holdings manually.")}>📊 Connect Webull</button>
         </div>
         <p className="text-xs text-muted" style={{marginTop:12}}>Read-only access · Bank-level encryption · Coming Q3 2026</p>
@@ -3210,7 +3210,7 @@ function CreditScorePage({ addToast, initialScore }) {
             onClick={()=>setShowForm(s=>!s)}>
             {showForm ? "Cancel" : "+ Log Score"}
           </button>
-          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={()=>window.alert("SmartCredit sync is not configured yet. Add SmartCredit API credentials or connection URL in the backend to enable live credit report syncing.")}>Connect SmartCredit</button>
+          <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={async()=>{try{const r=await fetch('/api/integrations/smartcredit/connect',{method:'POST'});const d=await r.json();window.alert(d?.message||'SmartCredit flow started.');}catch{window.alert('Unable to start SmartCredit right now.')}}}>Connect SmartCredit</button>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
