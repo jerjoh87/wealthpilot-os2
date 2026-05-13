@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, creditReport as creditReportApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
+import { auth as authApi, accounts as accountsApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, creditReport as creditReportApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -5553,12 +5553,7 @@ export default function WealthPilotOS() {
       });
       try {
         const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
-        const accounts = await safe(async () => {
-          const res = await fetch("/api/accounts");
-          if (!res.ok) throw new Error("accounts unavailable");
-          const payload = await res.json();
-          return ensureArray(payload?.data ?? payload, []);
-        }, acct.accounts);
+        const accounts = ensureArray(await safe(() => accountsApi.list(), acct.accounts), acct.accounts);
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();

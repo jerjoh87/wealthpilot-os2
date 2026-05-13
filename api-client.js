@@ -65,6 +65,12 @@ export const auth = {
   verifyTwoFactorCode: (email, code) => post('/auth/2fa/verify', { email, code }),
 };
 
+
+// ── Accounts ──────────────────────────────────────────────────────────────
+export const accounts = {
+  list: () => get('/accounts'),
+};
+
 // ── Bills ─────────────────────────────────────────────────────────────────────
 export const bills = {
   list:   ()          => get('/bills'),
