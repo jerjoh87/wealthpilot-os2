@@ -1773,7 +1773,10 @@ function Dashboard(props = {}) {
         </div>
         <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
         <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
-        <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
+          <button className="btn btn-ghost" onClick={() => setPage("goals")}>Add Goal</button>
+        </div>
       </div>
 
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
@@ -1799,13 +1802,22 @@ function Dashboard(props = {}) {
           <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
           <div style={{marginTop:8}}>
             {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 && <div className="text-sm text-muted">Create your first budget category.</div>}
+            {safeBudget.length===0 ? (
+              <div>
+                <div className="text-sm text-muted">Create your first budget category.</div>
+                <button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>Add Category</button>
+              </div>
+            ) : (
+              <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>View Budget</button>
+            )}
           </div>
         </div>
         <div className="card" style={{padding:18,borderRadius:18}}>
           <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
           {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 && <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p></div>}
+          {upcomingBills.length===0 ? (
+            <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p><button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button></div>
+          ) : <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button>}
         </div>
       </div>
 
@@ -1839,7 +1851,7 @@ function Dashboard(props = {}) {
           {creditUtilization != null && creditUtilization >= 0.3 && (
             <div className="text-sm text-red" style={{marginTop:6}}>High utilization warning: Keep below 30%.</div>
           )}
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>Open Tracker</button>
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>View Credit</button>
         </div>
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
           <div className="card-title">Bill Calendar</div>
@@ -1850,8 +1862,10 @@ function Dashboard(props = {}) {
         <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(20,184,166,0.14), rgba(56,189,248,0.04))"}}>
           <div className="card-title">Weekly Money Report</div>
           <div className="card-value">Ready</div>
-          <div className="card-sub">Your Weekly Money Report is ready.</div>
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("reports")}>Open Report</button>
+          <div className="card-sub">{transactions.length ? "Your Weekly Money Report is ready." : "Generate activity to unlock your weekly report."}</div>
+          {transactions.length > 0 && (
+            <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("reports")}>View Report</button>
+          )}
         </div>
       </div>
 
