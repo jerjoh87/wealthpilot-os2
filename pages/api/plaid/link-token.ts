@@ -10,6 +10,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await requireUser(req, res)
   if (!user) return
 
+  if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
+    return err(res, 'Plaid is not configured. Set PLAID_CLIENT_ID and PLAID_SECRET.', 503)
+  }
+
   try {
     const response = await plaidClient.linkTokenCreate({
       user:          { client_user_id: user.id },
