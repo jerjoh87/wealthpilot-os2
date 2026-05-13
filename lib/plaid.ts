@@ -1,6 +1,22 @@
 import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid'
 
-if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
+const REQUIRED_PLAID_ENV_VARS = [
+  'PLAID_CLIENT_ID',
+  'PLAID_SECRET',
+  'PLAID_ENV',
+  'PLAID_PRODUCTS',
+  'PLAID_COUNTRY_CODES',
+] as const
+
+export function getMissingPlaidEnvVars() {
+  return REQUIRED_PLAID_ENV_VARS.filter((key) => !process.env[key] || !process.env[key]?.trim())
+}
+
+export function isPlaidConfigured() {
+  return getMissingPlaidEnvVars().length === 0
+}
+
+if (!isPlaidConfigured()) {
   console.warn('[WealthPilot] Plaid env vars not set — bank sync disabled')
 }
 
@@ -16,8 +32,16 @@ const config = new Configuration({
 
 export const plaidClient = new PlaidApi(config)
 
-export const PLAID_PRODUCTS    = [Products.Transactions, Products.Auth] as Products[]
-export const PLAID_COUNTRIES   = [CountryCode.Us] as CountryCode[]
+export const PLAID_PRODUCTS = ((process.env.PLAID_PRODUCTS ?? 'transactions,auth')
+  .split(',')
+  .map((p) => p.trim().toLowerCase())
+  .filter(Boolean) as Products[])
+
+export const PLAID_COUNTRIES = ((process.env.PLAID_COUNTRY_CODES ?? 'US')
+  .split(',')
+  .map((c) => c.trim().toUpperCase())
+  .filter(Boolean) as CountryCode[])
+
 export const PLAID_REDIRECT_URI = process.env.PLAID_REDIRECT_URI ?? ''
 
 // TODO(PROD): implement robust KMS-backed encryption for Plaid access tokens.

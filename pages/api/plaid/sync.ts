@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
-import { plaidClient } from '../../../lib/plaid'
+import { plaidClient, getMissingPlaidEnvVars } from '../../../lib/plaid'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { decryptPlaidToken } from '../../../lib/plaid-crypto'
 
@@ -12,6 +12,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const user = await requireUser(req, res)
   if (!user) return
+
+  const missingEnvVars = getMissingPlaidEnvVars()
+  if (missingEnvVars.length) {
+    return res.status(503).json({
+      ok: false,
+      code: 'PLAID_NOT_CONFIGURED',
+      message: 'Plaid is not configured for this environment.',
+      missing: missingEnvVars,
+    })
+  }
 
   const db = supabaseAdmin()
 
