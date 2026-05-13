@@ -23,10 +23,10 @@
     "typescript": "^5.4.0"
   },
   "notes": {
-    "ai": "Anthropic called via fetch server-side \u2014 API key never exposed to client",
+    "ai": "Anthropic called via fetch server-side — API key never exposed to client",
     "future": [
-      "plaid \u2014 add when connecting bank accounts",
-      "snaptrade-node \u2014 add when connecting portfolio"
+      "plaid — add when connecting bank accounts",
+      "snaptrade-node — add when connecting portfolio"
     ]
   }
 }

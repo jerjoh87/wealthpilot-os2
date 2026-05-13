@@ -17,6 +17,7 @@
 
 ## AI Coach
 - `ANTHROPIC_API_KEY` (when missing, AI Coach falls back to offline mode)
+- `OPENAI_API_KEY` (used by credit report PDF scan extraction and any OpenAI-backed AI flows)
 
 ## 2FA / Reminders
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (optional for email 2FA)

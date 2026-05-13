@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase";
 // LIVE: uncomment the import below and remove the stub block beneath it.
 // Place api-client.js in the same directory as this file before enabling.
 //
-import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
+import { auth as authApi, bills as billsApi, calendarEvents as calApi, ai as aiApi, transactions as txApi, budgets as budgetsApi, portfolio as portfolioApi, creditScore as creditScoreApi, creditReport as creditReportApi, debts as debtsApi, plaid as plaidApi, reminders as remindersApi } from './api-client';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3645,6 +3645,10 @@ function CreditScorePage({ addToast, initialScore }) {
   const [form, setForm]       = useState({ score:"", provider:"manual" });
   const [showForm, setShowForm] = useState(false);
   const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
+  const [scanState, setScanState] = useState({ loading:false, progress:0, message:'', error:'' });
+  const [scanData, setScanData] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wp_credit_report_scan') || 'null'); } catch { return null; }
+  });
   const hasHistory = history.length > 0;
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
@@ -3661,6 +3665,26 @@ function CreditScorePage({ addToast, initialScore }) {
     setShowForm(false);
     // Real: await creditScore.record(entry)
     addToast && addToast("Score recorded ✓", "success");
+  };
+
+  // Upload credit report PDF, trigger backend scan, and cache scan output locally.
+  const onUploadCreditReport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') return setScanState({ loading:false, progress:0, message:'', error:'Wrong file type. Please upload a PDF.' });
+    if (file.size > 10 * 1024 * 1024) return setScanState({ loading:false, progress:0, message:'', error:'File too large. Maximum size is 10MB.' });
+    setScanState({ loading:true, progress:0, message:'Uploading and scanning report...', error:'' });
+    try {
+      const result = await creditReportApi.scan(file, (progress) => setScanState((s) => ({ ...s, progress })));
+      setScanData(result);
+      try { localStorage.setItem('wp_credit_report_scan', JSON.stringify(result)); } catch {}
+      if (result?.creditScore) setHistory(h => [...h, { score: Number(result.creditScore), date: result.reportDate || toISO(new Date()), provider: 'credit-report-scan' }]);
+      setScanState({ loading:false, progress:100, message:`Scan complete. ${result?.databaseMessage || ''}`.trim(), error:'' });
+      addToast && addToast("Credit report scanned successfully.", "success");
+    } catch (e) {
+      setScanState({ loading:false, progress:0, message:'', error:e?.message || 'Scan failed.' });
+      addToast && addToast(e?.message || "Scan failed.", "error");
+    }
   };
 
   const TIPS = [
@@ -3693,6 +3717,21 @@ function CreditScorePage({ addToast, initialScore }) {
           </button>
           <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={connectSmartCredit} disabled={smartCreditState.status==="loading"}>{smartCreditState.status==="loading" ? "Connecting..." : "Connect SmartCredit"}</button>
           <div className="text-xs text-muted" style={{marginTop:6}}>Status: {smartCreditState.status.replace('_',' ')} · {smartCreditState.message}</div>
+          <div className="card" style={{marginTop:12,textAlign:"left"}}>
+            <div className="section-title">Credit Report</div>
+            <p className="text-xs text-muted" style={{marginTop:6}}>Upload a PDF report to auto-populate dashboard credit metrics.</p>
+            <label className="btn btn-ghost" style={{marginTop:10,display:"inline-flex",justifyContent:"center",cursor:"pointer"}}>
+              Upload Credit Report
+              <input type="file" accept="application/pdf" onChange={onUploadCreditReport} style={{display:"none"}} disabled={scanState.loading} />
+            </label>
+            {scanState.loading && <div className="text-xs" style={{marginTop:8}}>Scanning... {scanState.progress}%</div>}
+            {scanState.message && <div className="text-xs" style={{marginTop:8,color:"var(--green)"}}>{scanState.message}</div>}
+            {scanState.error && <div className="text-xs" style={{marginTop:8,color:"var(--red)"}}>{scanState.error}</div>}
+            {scanData && <div className="text-xs text-muted" style={{marginTop:8}}>
+              Score: {scanData.creditScore ?? 'N/A'} · Negative Items: {scanData.negativeItems ?? 0} · Total Debt: {fmt(Number(scanData.totalDebt || 0))} · Utilization: {scanData.revolvingUtilization ?? 0}% · Hard Inquiries: {scanData.hardInquiries ?? 0} · Funding Readiness: {scanData.fundingReadinessScore ?? 0}
+              <div style={{marginTop:4}}>Next Best Action: {Array.isArray(scanData.recommendedNextActions) ? scanData.recommendedNextActions[0] : 'N/A'}</div>
+            </div>}
+          </div>
           {showForm && (
             <div style={{marginTop:12,textAlign:"left"}}>
               <div className="form-group">
