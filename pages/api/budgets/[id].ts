@@ -38,17 +38,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const payload: BudgetUpdatePayload = { limit: Number(parsed.data.limit ?? 0) }
 
-  const { data, error } = await db
-    .from('budgets')
-    .update(payload)
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select('*')
-    .single()
+  if (req.method === 'DELETE') {
+    const { error } = await db
+      .from('budgets')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
 
-  if (error) {
-    return err(res, error.message)
+    if (error) return err(res, error.message)
+    return ok(res, { id })
   }
 
-  return ok(res, data)
+  return methodNotAllowed(res, ['PUT', 'DELETE'])
 }

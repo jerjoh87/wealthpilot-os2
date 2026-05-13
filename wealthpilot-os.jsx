@@ -1625,6 +1625,10 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
                   </div>
                 </div>
               </div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>startEdit(b)}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>onDeleteCategory?.(b.id)}>Delete</button>
+              </div>
               <div className="progress-bar" style={{height:8}}>
                 <div className="progress-fill" style={{
                   width:`${pct}%`,
@@ -2149,6 +2153,10 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
   const [incomeFormOpen, setIncomeFormOpen] = useState(false);
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const [balanceFormAccountId, setBalanceFormAccountId] = useState(null);
+  const [incomeTopUpAccountId, setIncomeTopUpAccountId] = useState(null);
+  const [balanceInput, setBalanceInput] = useState('');
+  const [incomeTopUpInput, setIncomeTopUpInput] = useState('');
   const [editingIncomeId, setEditingIncomeId] = useState(null);
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [incomeForm, setIncomeForm] = useState({ source_name:'', amount:'', frequency:'Weekly', next_pay_date:'', payment_method:'Cash', notes:'', monthly_estimate:'' });
@@ -2167,19 +2175,20 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
 
 
   const addIncomeToManualAccount = (accountId) => {
-    const raw = window.prompt('Enter income amount to add to this account balance:');
-    const amt = Number(raw || 0);
-    if (!amt || amt <= 0) return;
+    const amt = Number(incomeTopUpInput || 0);
+    if (!amt || amt <= 0) return addToast && addToast("Income amount must be greater than 0.", "error");
     setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: Number(a.balance||0) + amt } : a));
+    setIncomeTopUpAccountId(null);
+    setIncomeTopUpInput('');
     addToast && addToast(`Added ${fmt(amt)} to account balance`, 'success');
   };
 
   const updateManualAccountBalance = (accountId) => {
-    const account = (manualAccounts||[]).find(a => a.id === accountId);
-    const raw = window.prompt('Set new balance for this account:', String(account?.balance || 0));
-    const next = Number(raw || 0);
-    if (Number.isNaN(next)) return;
+    const next = Number(balanceInput || 0);
+    if (Number.isNaN(next)) return addToast && addToast("Please enter a valid number.", "error");
     setManualAccounts((manualAccounts||[]).map(a => a.id === accountId ? { ...a, balance: next } : a));
+    setBalanceFormAccountId(null);
+    setBalanceInput('');
     addToast && addToast('Account balance updated', 'success');
   };
   const saveManualAccount = () => {
@@ -2327,7 +2336,7 @@ function SettingsPage({ addToast, user, manualIncomeEntries = [], setManualIncom
               <div className="integration-card"><div className="int-icon">💼</div><div className="int-info"><div className="int-name">Add Manual Account</div><div className="int-status">Create a manual account for cash income, prepaid cards, check income, gig work, or users without a bank account.</div></div><button className="btn btn-ghost btn-sm" onClick={()=>setAccountFormOpen(v=>!v)} disabled={totalConnectedAccounts >= MAX_ACCOUNTS}>Add Manual Account</button></div>
             </div>
             {accountFormOpen && <div style={{marginTop:10,display:'grid',gap:8}}><input className="form-input" placeholder="Account name" value={accountForm.account_name} onChange={e=>setAccountForm(f=>({...f,account_name:e.target.value}))}/><select className="form-select" value={accountForm.account_type} onChange={e=>setAccountForm(f=>({...f,account_type:e.target.value}))}>{['Cash','Checking','Savings','Prepaid Card','Gig Work','Business Income','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" placeholder="Starting balance" value={accountForm.starting_balance} onChange={e=>setAccountForm(f=>({...f,starting_balance:e.target.value}))}/><input className="form-input" placeholder="Income source name" value={accountForm.income_source_name} onChange={e=>setAccountForm(f=>({...f,income_source_name:e.target.value}))}/><input className="form-input" placeholder="Income amount" value={accountForm.income_amount} onChange={e=>setAccountForm(f=>({...f,income_amount:e.target.value}))}/><select className="form-select" value={accountForm.income_frequency} onChange={e=>setAccountForm(f=>({...f,income_frequency:e.target.value}))}>{['Weekly','Bi-weekly','Monthly','Twice per month','One-time','Custom'].map(o=><option key={o}>{o}</option>)}</select><select className="form-select" value={accountForm.payment_method} onChange={e=>setAccountForm(f=>({...f,payment_method:e.target.value}))}>{['Cash','Check','Prepaid card','App payment','Other'].map(o=><option key={o}>{o}</option>)}</select><input className="form-input" type="date" value={accountForm.next_pay_date} onChange={e=>setAccountForm(f=>({...f,next_pay_date:e.target.value}))}/><input className="form-input" placeholder="Notes" value={accountForm.notes} onChange={e=>setAccountForm(f=>({...f,notes:e.target.value}))}/><button className="btn btn-primary" onClick={saveManualAccount}>Save Account</button></div>}
-            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>)}</div>
+            <div style={{marginTop:10}}>{(manualAccounts||[]).map(a=><div key={a.id} className="integration-card" style={{marginBottom:6,display:'grid',gap:8}}><div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}><div className="int-info"><div className="int-name">{a.name}</div><div className="int-status">{a.type} · {fmt(a.balance)}</div></div><div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}><button className="btn btn-ghost btn-sm" onClick={()=>{setIncomeTopUpAccountId(a.id);setIncomeTopUpInput('');}}>+ Income</button><button className="btn btn-ghost btn-sm" onClick={()=>{setBalanceFormAccountId(a.id);setBalanceInput(String(a.balance||0));}}>Update Balance</button><button className="btn btn-ghost btn-sm" onClick={()=>{setEditingAccountId(a.id);setAccountForm({ account_name:a.name||'', account_type:a.type||'Cash', starting_balance:String(a.balance||0), income_source_name:'', income_amount:'', income_frequency:'Weekly', payment_method:'Cash', next_pay_date:'', notes:'' });setAccountFormOpen(true);}}>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setManualAccounts((manualAccounts||[]).filter(x=>x.id!==a.id))}>Delete</button></div></div>{incomeTopUpAccountId===a.id && <div style={{display:'flex',gap:8}}><input className="form-input" placeholder="Income amount" value={incomeTopUpInput} onChange={e=>setIncomeTopUpInput(e.target.value)} /><button className="btn btn-primary btn-sm" onClick={()=>addIncomeToManualAccount(a.id)}>Apply</button><button className="btn btn-ghost btn-sm" onClick={()=>setIncomeTopUpAccountId(null)}>Cancel</button></div>}{balanceFormAccountId===a.id && <div style={{display:'flex',gap:8}}><input className="form-input" placeholder="New balance" value={balanceInput} onChange={e=>setBalanceInput(e.target.value)} /><button className="btn btn-primary btn-sm" onClick={()=>updateManualAccountBalance(a.id)}>Save</button><button className="btn btn-ghost btn-sm" onClick={()=>setBalanceFormAccountId(null)}>Cancel</button></div>}</div>)}</div>
           </div>
 
 <div className="card settings-section">
@@ -4430,6 +4439,45 @@ export default function WealthPilotOS() {
   const createBudget = async (payload) => { await budgetsApi.create(payload); await refreshBudgets(); };
   const updateBudget = async (id, limit) => { await budgetsApi.update(id, limit); await refreshBudgets(); };
   const deleteBudget = async (id) => { await budgetsApi.remove(id); await refreshBudgets(); };
+
+  const refreshBudgets = async () => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const budgets = ensureArray(await budgetsApi.list(currentMonth, currentYear), []);
+    setLiveData((d) => ({ ...d, budgets }));
+  };
+
+  const addBudgetCategory = async ({ category, limit }) => {
+    try {
+      const now = new Date();
+      await budgetsApi.create({ category, limit, month: now.getMonth() + 1, year: now.getFullYear() });
+      await refreshBudgets();
+      addToast("Budget category added.", "success");
+    } catch {
+      addToast("Unable to add budget category.", "error");
+    }
+  };
+
+  const updateBudgetCategory = async (id, limit) => {
+    try {
+      await budgetsApi.update(id, limit);
+      await refreshBudgets();
+      addToast("Budget category updated.", "success");
+    } catch {
+      addToast("Unable to update budget category.", "error");
+    }
+  };
+
+  const deleteBudgetCategory = async (id) => {
+    try {
+      await budgetsApi.remove(id);
+      await refreshBudgets();
+      addToast("Budget category deleted.", "success");
+    } catch {
+      addToast("Unable to delete budget category.", "error");
+    }
+  };
 
   // Alert engine — uses live account + bill + budget data
   const alertEngine = useAlerts({
