@@ -2098,11 +2098,11 @@ function DebtPlannerPage({ debts = [], setDebts, addToast }) {
     .slice(0, 3)
     .map((d) => ({ ...d, estimatedAnnualInterest: Number(d.balance || 0) * (Number(d.apr || 0) / 100) }));
   const creditDebts = safeDebts.filter((d) => (d?.type || '').toLowerCase() === 'credit card');
-  const debtCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
-  const debtCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
-  const utilizationPct = debtCreditLimit > 0 ? (debtCreditBalance / debtCreditLimit) * 100 : null;
-  const paymentToThirtyPct = debtCreditLimit > 0 ? Math.max(0, debtCreditBalance - (debtCreditLimit * 0.3)) : null;
-  const paymentToTenPct = debtCreditLimit > 0 ? Math.max(0, debtCreditBalance - (debtCreditLimit * 0.1)) : null;
+  const plannerCreditBalance = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.balance || 0)), 0);
+  const plannerCreditLimit = creditDebts.reduce((sum, d) => sum + Math.max(0, Number(d?.creditLimit || 0)), 0);
+  const utilizationPct = plannerCreditLimit > 0 ? (plannerCreditBalance / plannerCreditLimit) * 100 : null;
+  const paymentToThirtyPct = plannerCreditLimit > 0 ? Math.max(0, plannerCreditBalance - (plannerCreditLimit * 0.3)) : null;
+  const paymentToTenPct = plannerCreditLimit > 0 ? Math.max(0, plannerCreditBalance - (plannerCreditLimit * 0.1)) : null;
   const dueDates = creditDebts
     .map((d) => d?.dueDate)
     .filter(Boolean)
