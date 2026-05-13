@@ -104,7 +104,7 @@ export const creditScore = {
 
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 export const ai = {
-  chat: (message, history, mode) => post('/ai/chat', { message, history, ...(mode ? { mode } : {}) }),
+  chat: (message, history, mode, context) => post('/ai/chat', { message, history, ...(mode ? { mode } : {}), ...(context ? { context } : {}) }),
 };
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
