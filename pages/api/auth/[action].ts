@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { ok, err, methodNotAllowed } from '../../../lib/api'
 import { SignupSchema, LoginSchema } from '../../../lib/schemas'
 import { z } from 'zod'
+import { isTwoFactorEnabled } from '../../../lib/two-factor'
 
 function getSiteUrl(req: NextApiRequest) {
   const host = req.headers['x-forwarded-host'] || req.headers.host
@@ -48,10 +49,14 @@ export async function login(req: NextApiRequest, res: NextApiResponse) {
 
   const { email, password } = parsed.data
 
+  if (isTwoFactorEnabled(email)) {
+    return ok(res, { requiresTwoFactor: true, email, method: 'email' })
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return err(res, error.message, 401)
 
-  return ok(res, { user: data.user, session: data.session })
+  return ok(res, { user: data.user, session: data.session, requiresTwoFactor: false })
 }
 
 // POST /api/auth/logout
