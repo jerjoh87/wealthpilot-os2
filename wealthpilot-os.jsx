@@ -4330,6 +4330,8 @@ function GoalsPage({ addToast, modeConfig }) {
   const totalSaved  = goals.reduce((s,g) => s + g.current, 0);
   const totalTarget = goals.reduce((s,g) => s + g.target, 0);
   const completed   = goals.filter(g => g.current >= g.target).length;
+  const activeGoals = sortedGoals.filter(g => g.current < g.target);
+  const completedGoals = sortedGoals.filter(g => g.current >= g.target);
 
   const openAdd  = () => { setForm(BLANK); setEditing(null); setDrawer(true); };
   const openEdit = (g) => { setForm({...g, target:String(g.target), current:String(g.current), monthlyContrib:String(g.monthlyContrib)}); setEditing(g); setDrawer(true); };
@@ -4363,6 +4365,25 @@ function GoalsPage({ addToast, modeConfig }) {
   const addContrib = (id, amt) => {
     setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, g.current+amt)} : g));
     addToast&&addToast(`+${fmt(amt)} added ✓`,"success");
+  };
+
+  const updateProgress = (id) => {
+    const goal = goals.find(g => g.id === id);
+    if (!goal) return;
+    const raw = window.prompt(`Update progress for ${goal.name} (current: ${fmt(goal.current)} / ${fmt(goal.target)}).\nEnter new saved amount:`, String(goal.current));
+    if (raw === null) return;
+    const value = parseFloat(raw);
+    if (!Number.isFinite(value) || value < 0) {
+      addToast&&addToast("Enter a valid amount","error");
+      return;
+    }
+    setGoals(gs => gs.map(g => g.id===id ? {...g, current: Math.min(g.target, value)} : g));
+    addToast&&addToast("Goal progress updated","success");
+  };
+
+  const markComplete = (id) => {
+    setGoals(gs => gs.map(g => g.id===id ? {...g, current: g.target} : g));
+    addToast&&addToast("Goal marked complete 🎉","success");
   };
 
   if (typeof loading !== "undefined" && loading) return <LoadingCard message="Loading goals…" />;
@@ -4410,7 +4431,8 @@ function GoalsPage({ addToast, modeConfig }) {
           </div>
         )}
 
-        {sortedGoals.map(g => {
+        {activeGoals.length > 0 && <div className="section-title" style={{fontSize:13}}>Active Goals</div>}
+        {activeGoals.map(g => {
           const pct      = Math.min(100, Math.round((g.current/g.target)*100));
           const color    = GOAL_COLORS[g.type] || "#4f8ef7";
           const icon     = GOAL_ICONS[g.type]  || "🎯";
@@ -4472,12 +4494,54 @@ function GoalsPage({ addToast, modeConfig }) {
                       + Add
                     </button>
                   )}
+                  {!done && <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>updateProgress(g.id)}>Update</button>}
+                  {!done && <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>markComplete(g.id)}>Complete</button>}
                   <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>openEdit(g)}>Edit</button>
                 </div>
               </div>
             </div>
           );
         })}
+
+        {completedGoals.length > 0 && (
+          <>
+            <div className="section-title" style={{fontSize:13,marginTop:8}}>Completed Goals</div>
+            {completedGoals.map(g => {
+              const pct      = 100;
+              const color    = GOAL_COLORS[g.type] || "#4f8ef7";
+              const icon     = GOAL_ICONS[g.type]  || "🎯";
+              return (
+                <div key={g.id} className="card" style={{borderLeft:"3px solid var(--green)",opacity:0.9}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+                    <div style={{width:44,height:44,borderRadius:12,background:`${color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
+                      ✅
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2,flexWrap:"wrap"}}>
+                        <span style={{fontFamily:"Syne",fontWeight:700,fontSize:15}}>{g.name}</span>
+                        <span className="badge badge-green">Completed 🎉</span>
+                        <span style={{fontSize:12,color:"var(--text3)"}}>{icon} {g.type}</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:10,margin:"8px 0"}}>
+                        <div className="progress-bar" style={{flex:1,height:8}}>
+                          <div className="progress-fill" style={{width:`${pct}%`,background:"var(--green)"}}/>
+                        </div>
+                        <span style={{fontSize:12,fontWeight:700,color:"var(--green)",minWidth:36,textAlign:"right"}}>{pct}%</span>
+                      </div>
+                      <div style={{display:"flex",gap:20,flexWrap:"wrap",fontSize:12}}>
+                        <span style={{color:"var(--text2)"}}>Saved: <b style={{color:"var(--text)"}}>{fmt(g.current)}</b></span>
+                        <span style={{color:"var(--text2)"}}>Target: <b style={{color:"var(--text)"}}>{fmt(g.target)}</b></span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px",fontSize:11}} onClick={()=>openEdit(g)}>Edit</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* Drawer */}
