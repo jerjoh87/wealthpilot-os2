@@ -1526,10 +1526,13 @@ function Dashboard(props = {}) {
   );
 }
 
-function BudgetPage({ modeConfig, budgets = [] }) {
+function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
   const totalLimit = budgets.reduce((s, b) => s + (b.limit || 0), 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent || 0), 0);
   const suggestions = modeConfig?.budgetSuggestions || [];
+  const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState("");
+  const [limit, setLimit] = useState("");
   return (
     <div>
       {/* Mode suggestions banner */}
@@ -1575,8 +1578,18 @@ function BudgetPage({ modeConfig, budgets = [] }) {
       <div className="card">
         <div className="section-header">
           <div className="section-title">Category Budgets</div>
-          <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Category creation form is not configured yet in this view. Use Settings > manual entries as a temporary fallback.")}>+ Add Category</button>
+          <button className="btn btn-primary btn-sm" onClick={()=>setOpen(v=>!v)}>+ Add Category</button>
         </div>
+        {open && (
+          <div style={{display:"grid",gap:8,marginBottom:12}}>
+            <input className="form-input" placeholder="Category name" value={category} onChange={(e)=>setCategory(e.target.value)} />
+            <input className="form-input" placeholder="Monthly limit" value={limit} onChange={(e)=>setLimit(e.target.value)} />
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddCategory?.({ category, limit }); if (ok) { setCategory(""); setLimit(""); setOpen(false); } }}>Save Category</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
         {budgets.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No budget categories yet. Create your first budget.</p></div> : budgets.map(b => {
           const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
           const remaining = b.limit - b.spent;
@@ -1677,25 +1690,30 @@ function TransactionsPage({ transactions = [] }) {
   );
 }
 
-function BillsPage() {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
+function BillsPage({ bills = [], onAddBill, onUpdateBills }) {
+  const [localBills, setLocalBills] = useState(ensureArray(bills, []));
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueDay, setDueDay] = useState("");
+  const [autopay, setAutopay] = useState(false);
   const [error, setError] = useState("");
-  const unpaid = bills.filter(b => !b.paid);
-  const paid = bills.filter(b => b.paid);
+  const normalizedBills = localBills.map(b => ({ ...b, dueDay: b.dueDay ?? b.due_day ?? 1, paid: Boolean(b.paid) }));
+  const unpaid = normalizedBills.filter(b => !b.paid);
+  const paid = normalizedBills.filter(b => b.paid);
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
   const totalPaid = paid.reduce((s, b) => s + b.amount, 0);
 
-  // Load from API on mount; fallback to MOCK if backend not connected
   useEffect(() => {
-    setLoading(true);
-    billsApi.list().then(data => { if (data) setBills(data); }).catch(() => setError(FRIENDLY_ERRORS.bills)).finally(() => setLoading(false));
-  }, []);
+    setLocalBills(ensureArray(bills, []));
+  }, [bills]);
 
   const toggle = async (id) => {
-    const bill = bills.find(b => b.id === id);
+    const bill = localBills.find(b => b.id === id);
     const updated = { ...bill, paid: !bill.paid };
-    setBills(bs => bs.map(b => b.id === id ? updated : b));   // optimistic
+    const next = localBills.map(b => b.id === id ? updated : b);
+    setLocalBills(next);
+    onUpdateBills?.(next);
     try { await billsApi.update(id, { paid: updated.paid }); } catch { setError(FRIENDLY_ERRORS.settings); }
   };
 
@@ -1714,8 +1732,8 @@ function BillsPage() {
         </div>
         <div className="card">
           <div className="card-title">Autopay Active</div>
-          <div className="card-value">{bills.filter(b => b.autopay).length}</div>
-          <div className="card-sub">of {bills.length} total bills</div>
+          <div className="card-value">{normalizedBills.filter(b => b.autopay).length}</div>
+          <div className="card-sub">of {normalizedBills.length} total bills</div>
         </div>
       </div>
 
@@ -1723,8 +1741,21 @@ function BillsPage() {
         <div className="card">
           <div className="section-header">
             <div className="section-title">Upcoming Bills</div>
-            <button className="btn btn-primary btn-sm" onClick={()=>window.alert("Bill creation form is not configured yet in this view. Use Calendar to add recurring bill events as a temporary fallback.")}>+ Add Bill</button>
+            <button className="btn btn-primary btn-sm" onClick={()=>setOpen(v=>!v)}>+ Add Bill</button>
           </div>
+          {open && (
+            <div style={{display:"grid",gap:8,marginBottom:12}}>
+              <input className="form-input" placeholder="Bill name" value={name} onChange={(e)=>setName(e.target.value)} />
+              <input className="form-input" placeholder="Amount" value={amount} onChange={(e)=>setAmount(e.target.value)} />
+              <input className="form-input" placeholder="Due day (1-31)" value={dueDay} onChange={(e)=>setDueDay(e.target.value)} />
+              <label className="text-sm text-muted" style={{display:"flex",gap:6,alignItems:"center"}}><input type="checkbox" checked={autopay} onChange={(e)=>setAutopay(e.target.checked)} /> Autopay enabled</label>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-primary btn-sm" onClick={async ()=>{ const ok = await onAddBill?.({ name, amount, dueDay, autopay }); if (ok) { setName(""); setAmount(""); setDueDay(""); setAutopay(false); setOpen(false); } }}>Save Bill</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {error && <div className="text-xs text-red" style={{marginBottom:8}}>{error}</div>}
           {unpaid.length === 0 ? <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No bills yet. Add your first bill.</p></div> : unpaid.map(b => (
             <div key={b.id} className="bill-item">
               <div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div>
@@ -4266,6 +4297,10 @@ export default function WealthPilotOS() {
       const savedAccounts = JSON.parse(localStorage.getItem('wp_manual_accounts') || '[]');
       setManualIncomeEntries(Array.isArray(savedIncome) ? savedIncome : []);
       setManualAccounts(Array.isArray(savedAccounts) ? savedAccounts : []);
+      const localBudgets = JSON.parse(localStorage.getItem('wp_local_budgets') || '[]');
+      const localBills = JSON.parse(localStorage.getItem('wp_local_bills') || '[]');
+      if (Array.isArray(localBudgets) && localBudgets.length) setLiveData(prev => ({ ...prev, budgets: localBudgets }));
+      if (Array.isArray(localBills) && localBills.length) setLiveData(prev => ({ ...prev, bills: localBills }));
     } catch {
       setManualIncomeEntries([]);
       setManualAccounts([]);
@@ -4304,9 +4339,9 @@ export default function WealthPilotOS() {
         const creditScore = await safe(() => creditScoreApi.get(), null);
         setLiveData({
           accounts: ensureArray(accounts, acct.accounts),
-          bills,
+          bills: bills.length ? bills : ensureArray(JSON.parse(localStorage.getItem('wp_local_bills') || '[]'), []),
           transactions,
-          budgets,
+          budgets: budgets.length ? budgets : ensureArray(JSON.parse(localStorage.getItem('wp_local_budgets') || '[]'), []),
           portfolio,
           creditScore
         });
@@ -4353,6 +4388,49 @@ export default function WealthPilotOS() {
 
   const showPage = (id) => { setPage(id); setFabOpen(false); };
 
+  const handleAddCategory = async (input = {}) => {
+    const category = String(input.category || "").trim();
+    const limit = Number(input.limit || 0);
+    if (!category || !Number.isFinite(limit) || limit <= 0) return false;
+    const now = new Date();
+    const draft = { id: Date.now(), category, limit, spent: 0, month: now.getMonth()+1, year: now.getFullYear(), color: '#4f8ef7' };
+    try {
+      const created = await budgetsApi.create({ category: draft.category, limit: draft.limit, month: draft.month, year: draft.year });
+      setLiveData(prev => ({ ...prev, budgets: [...ensureArray(prev.budgets, []), created || draft] }));
+      return true;
+    } catch {
+      setLiveData(prev => {
+        const fallback = [...ensureArray(prev.budgets, []), draft];
+        try { localStorage.setItem('wp_local_budgets', JSON.stringify(fallback)); } catch {}
+        return { ...prev, budgets: fallback };
+      });
+      return true;
+    }
+  };
+
+  const handleAddBill = async (input = {}) => {
+    const name = String(input.name || "").trim();
+    const amount = Number(input.amount || 0);
+    const dueDay = Number(input.dueDay || 0);
+    const autopay = Boolean(input.autopay);
+    if (!name || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
+      return false;
+    }
+    const draft = { id: Date.now(), name, amount, dueDay, due_day: dueDay, autopay, paid: false, category: 'Bills' };
+    try {
+      const created = await billsApi.create({ name: draft.name, amount: draft.amount, due_day: dueDay, autopay });
+      setLiveData(prev => ({ ...prev, bills: [...ensureArray(prev.bills, []), created ? { ...created, dueDay: created.dueDay ?? created.due_day } : draft] }));
+      return true;
+    } catch {
+      setLiveData(prev => {
+        const fallback = [...ensureArray(prev.bills, []), draft];
+        try { localStorage.setItem('wp_local_bills', JSON.stringify(fallback)); } catch {}
+        return { ...prev, bills: fallback };
+      });
+      return true;
+    }
+  };
+
   const dashboardProps = {
     setPage: showPage,
     accounts: [...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])],
@@ -4374,9 +4452,9 @@ export default function WealthPilotOS() {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
       case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
-      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} />;
+      case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
-      case "bills":        return <BillsPage />;
+      case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
       case "calendar":     return <CalendarPage addToast={addToast} />;
       case "portfolio":    return <PortfolioPage portfolioData={liveData.portfolio} />;
       case "net-worth":    return <NetWorthPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} totalCash={acct.totalCash} creditDebt={acct.creditDebt} />;
