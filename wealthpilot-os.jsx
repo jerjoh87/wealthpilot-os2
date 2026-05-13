@@ -148,7 +148,7 @@ const FRIENDLY_ERRORS = {
   calendar: "We couldn’t load your calendar. Please refresh.",
   transactions: "We couldn’t load your transactions. Please refresh.",
   budgets: "We couldn’t load your budgets. Please refresh.",
-  ai: "I’m running in offline coach mode right now. I can still help with budget, bills, savings goals, and credit planning.",
+  ai: "I can still coach you right now with practical steps for budget, bills, savings, debt payoff, and credit planning.",
   creditScore: "We couldn’t load your credit score. Please try again.",
   portfolio: "We couldn’t load your portfolio. Please refresh.",
   settings: "Settings update failed. Please try again.",
@@ -1611,6 +1611,18 @@ function BudgetPage({ modeConfig, budgets = [], onAddCategory }) {
                     {over ? "Over by " : ""}{fmt(Math.abs(remaining))}
                   </div>
                   <div className="text-xs text-muted">{pct}% used</div>
+                  <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} onClick={async()=>{
+                      const raw = window.prompt(`Set new monthly limit for ${b.category}:`, String(b.limit || 0));
+                      const next = Number(raw);
+                      if (!Number.isFinite(next) || next <= 0) return addToast?.('Please enter a valid limit greater than 0.', 'error');
+                      try { setSavingId(b.id); await onUpdateBudget?.(b.id, next); addToast?.('Budget updated.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to update budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm" disabled={savingId===b.id} style={{color:"var(--red)"}} onClick={async()=>{
+                      if (!window.confirm(`Delete budget category "${b.category}"?`)) return;
+                      try { setSavingId(b.id); await onDeleteBudget?.(b.id); addToast?.('Budget category deleted.', 'success'); } catch (e) { addToast?.(e?.message || 'Unable to delete budget.', 'error'); } finally { setSavingId(null); }
+                    }}>Delete</button>
+                  </div>
                 </div>
               </div>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -1845,14 +1857,42 @@ function AICoachPage({ modeConfig }) {
   const [messages, setMessages] = useState(MOCK.aiMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [aiMode, setAiMode] = useState("offline");
+  const [aiErrorFallback, setAiErrorFallback] = useState(false);
+  const [voiceState, setVoiceState] = useState("idle");
+  const [voiceUnsupported, setVoiceUnsupported] = useState("");
+  const [confirmIntent, setConfirmIntent] = useState(null);
   const bottomRef = useRef(null);
+  const voiceRef = useRef(null);
 
   const suggestions = [
-    "How can I save more each month?",
-    "Am I on track for my goals?",
-    "Where am I overspending?",
-    "Analyze my budget",
+    "What should I do today?",
+    "What bill is due next?",
+    "How can I save money this week?",
+    "How can I improve my credit?",
+    "Can I afford this?",
+    "Create a savings plan.",
   ];
+
+  const coachContext = {
+    incomeTotal: Number(MOCK.income || 0),
+    budgetSummary: (MOCK.budget || []).map(b => ({ category: b.category, limit: Number(b.limit || 0), spent: Number(b.spent || 0) })),
+    billsSummary: (MOCK.bills || []).map(b => ({ name: b.name, amount: Number(b.amount || 0), dueDay: b.dueDay ?? null, paid: Boolean(b.paid) })),
+    accountsSummary: (MOCK.accounts || []).map(a => ({ name: a.name, type: a.type, balance: Number(a.balance || 0) })),
+    goalsSummary: (INIT_GOALS || []).map(g => ({ name: g.name, target: Number(g.target || 0), current: Number(g.current || 0) })),
+    creditScore: 742,
+    debtSummary: { totalDebt: Number(MOCK.studentLoan || 0) + Number(MOCK.carLoan || 0) + Math.abs(Number(MOCK.accounts?.find(a=>a.type==="credit")?.balance || 0)) },
+  };
+
+  const detectVoiceIntent = (text) => {
+    const t = text.toLowerCase();
+    const amt = (t.match(/\$?\s?(\d+(?:\.\d{1,2})?)/) || [])[1];
+    const day = (t.match(/due on (?:the )?(\d{1,2})/) || [])[1];
+    if (t.includes("add my") && t.includes("bill")) return { type:"bill", summary:"Add bill", payload:{ name:text.replace(/add my/i,"").replace(/for.*/i,"").trim(), amount:amt?Number(amt):"", dueDay:day?Number(day):"" } };
+    if (t.includes("create a goal") || t.includes("save $")) return { type:"goal", summary:"Create savings goal", payload:{ name:"New Savings Goal", target:amt?Number(amt):"" } };
+    if (t.includes("add a category")) return { type:"category", summary:"Add budget category", payload:{ name:(t.match(/called ([a-z ]+)/i)||[])[1]?.trim()||"", limit:amt?Number(amt):"" } };
+    return null;
+  };
 
   const send = async (text) => {
     if (!text.trim()) return;
@@ -1863,36 +1903,45 @@ function AICoachPage({ modeConfig }) {
     try {
       // Calls /api/ai/chat — Anthropic key stays server-side
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
-      const result  = await aiApi.chat(text, history, modeConfig?.id);
+      const result  = await aiApi.chat(text, history, modeConfig?.id, coachContext);
       const reply   = result?.reply || null;
+      setAiMode(result?.mode || "offline");
+      setAiErrorFallback(result?.mode === "error_fallback");
 
       if (reply) {
         setMessages(m => [...m, { role: "assistant", content: reply }]);
-      } else {
-        // Fallback: direct Anthropic call (demo mode — no backend)
-        const context = `You are WealthPilot AI, a personal finance coach. The user's name is ${MOCK.user.name}.
-Monthly income: $${MOCK.income}. Monthly spending: $${MOCK.spending}. Safe to spend: $${Math.round(safeToSpend())}.
-Top spending categories: ${MOCK.budget.map(b => `${b.category}: $${b.spent}/$${b.limit}`).join(", ")}.
-Upcoming bills total: $${MOCK.bills.filter(b=>!b.paid).reduce((s,b)=>s+b.amount,0).toFixed(0)}.
-${modeConfig ? `\nUSER FINANCIAL MODE: ${modeConfig.label.toUpperCase()}\n${modeConfig.aiInstructions}` : ""}
-Be concise, specific. Use emojis sparingly.`;
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514", max_tokens: 1000,
-            system: context,
-            messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-          })
-        });
-        const data = await res.json();
-        const fallbackReply = data.content?.[0]?.text || "I'm having trouble connecting. Please try again.";
-        setMessages(m => [...m, { role: "assistant", content: fallbackReply }]);
       }
     } catch {
-      setMessages(m => [...m, { role: "assistant", content: FRIENDLY_ERRORS.ai }]);
+      setAiMode("offline");
+      setAiErrorFallback(true);
+      setMessages(m => [...m, { role: "assistant", content: "I can still coach you right now: tell me your next bill, budget category, or savings goal and I’ll suggest the next best action." }]);
     }
     setLoading(false);
+  };
+
+  const startVoice = () => {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) {
+      setVoiceUnsupported("Voice input is not supported in this browser yet.");
+      setVoiceState("unsupported");
+      return;
+    }
+    setVoiceUnsupported("");
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => setVoiceState("listening");
+    rec.onend = () => setVoiceState("idle");
+    rec.onerror = () => setVoiceState("idle");
+    rec.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || "";
+      setInput(transcript);
+      const intent = detectVoiceIntent(transcript);
+      if (intent) setConfirmIntent(intent);
+    };
+    voiceRef.current = rec;
+    rec.start();
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -1900,8 +1949,8 @@ Be concise, specific. Use emojis sparingly.`;
   return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 68px)"}}>
       <div style={{padding:"12px 20px 0", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap"}}>
-        <div className="ai-badge"><div className="ai-dot" />AI Coach · Powered by Claude</div>
-        <span className="text-xs text-muted">Your finances are analyzed in real time</span>
+        <div className="ai-badge"><div className="ai-dot" />AI Coach · {aiMode === "online" ? "Online AI mode" : "Offline coach mode"}</div>
+        <span className="text-xs text-muted">{aiErrorFallback ? "Using reliable fallback guidance" : "Your finances are analyzed in real time"}</span>
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:16}}>
@@ -1932,12 +1981,25 @@ Be concise, specific. Use emojis sparingly.`;
         </div>
       )}
 
+      {confirmIntent && (
+        <div className="card" style={{margin:"0 20px 12px",padding:12,border:"1px solid rgba(79,142,247,0.4)"}}>
+          <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Voice action detected: {confirmIntent.summary}</div>
+          <div className="text-xs text-muted" style={{marginBottom:8}}>Review and confirm before saving.</div>
+          <pre style={{margin:0,fontSize:11,whiteSpace:"pre-wrap"}}>{JSON.stringify(confirmIntent.payload, null, 2)}</pre>
+          <div style={{marginTop:8,display:"flex",gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmIntent(null)}>Dismiss</button>
+            <button className="btn btn-primary btn-sm" onClick={() => { setInput(`Please help me ${confirmIntent.summary.toLowerCase()} with these details: ${JSON.stringify(confirmIntent.payload)}`); setConfirmIntent(null); }}>Use in chat</button>
+          </div>
+        </div>
+      )}
       <div className="chat-input-wrap">
         <input className="chat-input" value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && send(input)}
           placeholder="Ask your AI coach anything about your finances..." />
+        <button className="btn btn-ghost" onClick={startVoice} disabled={voiceState === "listening"}>{voiceState === "listening" ? "🎙 Listening…" : "🎤 Mic"}</button>
         <button className="btn btn-primary" onClick={() => send(input)} disabled={loading || !input.trim()}>Send</button>
       </div>
+      {voiceUnsupported && <div style={{padding:"8px 20px",fontSize:12,color:"var(--yellow)"}}>{voiceUnsupported}</div>}
     </div>
   );
 }
@@ -4369,6 +4431,14 @@ export default function WealthPilotOS() {
     setToasts(t => [...t, {id, msg, type}]);
     setTimeout(() => setToasts(t => t.filter(x => x.id!==id)), 3000);
   };
+  const refreshBudgets = async () => {
+    const now = new Date();
+    const items = ensureArray(await budgetsApi.list(now.getMonth() + 1, now.getFullYear()), []);
+    setLiveData((prev) => ({ ...prev, budgets: items }));
+  };
+  const createBudget = async (payload) => { await budgetsApi.create(payload); await refreshBudgets(); };
+  const updateBudget = async (id, limit) => { await budgetsApi.update(id, limit); await refreshBudgets(); };
+  const deleteBudget = async (id) => { await budgetsApi.remove(id); await refreshBudgets(); };
 
   const refreshBudgets = async () => {
     const now = new Date();
