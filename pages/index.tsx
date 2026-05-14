@@ -1,155 +1,130 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
 
-const trustBadges = [
-  'Bank-level encryption',
-  'Read-only bank access',
-  'Powered by Plaid',
-  'AI insights',
-  'Private & secure',
-  'Cancel anytime',
-]
-
-const problemCards = [
-  {
-    title: 'Know where your money goes',
-    copy: 'Unify transactions, budgets, and trends so every dollar has a job.',
-  },
-  {
-    title: 'Stop missing bills',
-    copy: 'Stay ahead with calendar views, reminders, and projected cash flow timing.',
-  },
-  {
-    title: 'Make smarter money moves with AI',
-    copy: 'Get instant insights, saving opportunities, and tactical next steps.',
-  },
+const benefits = [
+  { icon: '🔐', title: 'Secure Bank Sync', copy: 'Connect accounts with read-only, bank-level security.' },
+  { icon: '✨', title: 'AI-Powered Insights', copy: 'Get smart guidance based on your spending behavior.' },
+  { icon: '🎯', title: 'Reach Your Goals', copy: 'Plan milestones and track progress in real time.' },
+  { icon: '📊', title: 'Clean Reports', copy: 'Beautiful monthly summaries you can actually use.' },
 ]
 
 const features = [
-  { icon: '◈', title: 'Smart Budgeting', copy: 'Auto-categorize spending and shape realistic spending plans.' },
-  { icon: '◉', title: 'Bills & Calendar', copy: 'Track due dates and upcoming payments in one timeline.' },
-  { icon: '✦', title: 'AI Financial Coach', copy: 'Ask plain-English questions and get clear, actionable answers.' },
-  { icon: '◎', title: 'Credit Score Tracker', copy: 'Monitor score direction and understand what is moving it.' },
-  { icon: '▣', title: 'Portfolio & Investing', copy: 'See allocation, performance, and diversification at a glance.' },
-  { icon: '◬', title: 'Profit Lock', copy: 'Protect gains with guardrails and disciplined rebalancing cues.' },
-  { icon: '⚡', title: 'Smart Alerts', copy: 'Get notified about unusual activity, bills, and spending spikes.' },
-  { icon: '◍', title: 'Monthly Reports', copy: 'Receive concise, visual recaps of your financial progress.' },
+  { icon: '📒', title: 'Budget Tracking', copy: 'Set spending plans and monitor every category with clarity.' },
+  { icon: '🤖', title: 'AI Coach', copy: 'Ask natural questions and receive practical money actions.' },
+  { icon: '📈', title: 'Spending Insights', copy: 'Spot trends, overspending, and savings opportunities fast.' },
+  { icon: '🏁', title: 'Goal Planning', copy: 'Build and manage savings goals with smart recommendations.' },
+  { icon: '🧾', title: 'Smart Reports', copy: 'Understand your monthly progress with clean visual reports.' },
+  { icon: '🏦', title: 'Bank Connections', copy: 'Sync multiple institutions for one complete money view.' },
 ]
 
-const pricingPlans = [
+const testimonials = [
   {
-    name: 'Free',
-    price: '$0/mo',
-    perks: ['Manual budget', 'Credit score logging', 'Basic dashboard', 'Limited AI messages'],
+    name: 'Sarah J.',
+    role: 'Marketing Manager',
+    quote:
+      'AI Budget changed the way I manage my money. The insights are amazing and I’m saving more every month!',
   },
   {
-    name: 'Pro',
-    price: '$9.99/mo',
-    popular: true,
-    perks: ['Bank sync', 'AI Coach', 'Bills calendar', 'Smart alerts', 'Monthly reports'],
+    name: 'Mike R.',
+    role: 'Software Engineer',
+    quote: 'The AI coach is like having a personal financial advisor in my pocket.',
   },
   {
-    name: 'Premium',
-    price: '$19.99/mo',
-    perks: ['Advanced AI insights', 'Portfolio tools', 'Profit Lock', 'Subscription detection', 'Priority features'],
+    name: 'Emily K.',
+    role: 'Freelancer',
+    quote: 'Beautiful app, super easy to use, and actually helps me reach my savings goals.',
   },
-]
-
-const faqs = [
-  { q: 'Is WealthPilot a bank?', a: 'No. WealthPilot OS is a financial dashboard and AI insight platform.' },
-  { q: 'Is this financial advice?', a: 'No. AI insights are educational and informational, not personalized investment advice.' },
-  { q: 'Is my bank data safe?', a: 'Yes. Bank linking uses secure read-only access and your credentials are never stored by us.' },
-  { q: 'Can I cancel anytime?', a: 'Yes. Paid plans can be canceled anytime with no long-term contracts.' },
-  { q: 'Does it work on mobile?', a: 'Yes. The experience is fully responsive for phones, tablets, and desktop.' },
-  { q: 'Can I use it without connecting a bank?', a: 'Yes. You can start with manual budgeting and upgrade to linked accounts later.' },
 ]
 
 const Home: NextPage = () => {
   return (
     <div className="landing">
-      <div className="bgGlow one" />
-      <div className="bgGlow two" />
+      <div className="ambient ambientOne" />
+      <div className="ambient ambientTwo" />
 
-      <header className="topbar shell">
-        <div className="brand">WealthPilot <span>OS</span></div>
-        <nav>
-          <a href="#features">Features</a>
-          <a href="#pricing">Pricing</a>
-          <a href="#security">Security</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-        <Link href="/dashboard" className="btn btnGhost">Sign In</Link>
+      <header className="shell navWrap">
+        <div className="navBar">
+          <div className="brand">WealthPilot</div>
+          <nav>
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#reviews">Reviews</a>
+          </nav>
+          <div className="navCta">
+            <Link href="/dashboard" className="btn ghostBtn">Sign in</Link>
+            <Link href="/dashboard" className="btn gradientBtn">Get Started</Link>
+          </div>
+        </div>
       </header>
 
-      <main className="shell">
-        <section className="hero sectionCard">
-          <div className="heroCopy">
-            <p className="kicker">AI-first financial operating system</p>
-            <h1>Your AI-powered command center for money, bills, credit, and investing.</h1>
-            <p>
-              WealthPilot OS connects your financial life into one premium dashboard — track spending,
-              plan bills, monitor credit, manage investments, and get AI-powered money insights.
+      <main className="shell pageFlow">
+        <section className="hero">
+          <div>
+            <span className="pill">AI-Powered Personal Finance</span>
+            <h1>
+              Smarter Budgeting,
+              <br />
+              <span>Powered by AI.</span>
+            </h1>
+            <p className="lead">
+              Track spending, build budgets, reach savings goals, and get AI insights that help you make smarter financial decisions.
             </p>
-            <div className="heroCtas">
-              <Link href="/dashboard" className="solid">Start Free</Link>
-              <Link href="/dashboard" className="ghost">View Dashboard</Link>
+            <div className="heroCta">
+              <Link href="/dashboard" className="btn gradientBtn">Start Free</Link>
+              <Link href="/dashboard" className="btn ghostBtn">Watch Demo</Link>
+            </div>
+            <div className="trustDots">
+              <span>• Free 14-day trial</span>
+              <span>• No credit card</span>
+              <span>• Cancel anytime</span>
             </div>
           </div>
 
-          <div className="heroVisual floaty">
-            <aside className="miniSidebar">
-              <p className="miniBrand">WP OS</p>
-              <span>Dashboard</span><span>Accounts</span><span>Bills</span><span>Credit</span><span>AI Coach</span>
+          <article className="dashboardMock">
+            <aside>
+              <h4>AI Budget</h4>
+              <span>Dashboard</span><span>Transactions</span><span>Budgets</span><span>Goals</span><span>Reports</span>
             </aside>
-            <div className="dashArea">
-              <div className="row topCards">
-                <article><small>Net Worth</small><strong>$1,284,632</strong><em>+12.7%</em></article>
-                <article><small>Cash Flow</small><strong>$8,642</strong><em>+8.3%</em></article>
-                <article><small>Credit Score</small><strong>742</strong><em>+14 pts</em></article>
+            <div className="mockMain">
+              <div className="miniGrid">
+                <div><small>Total Balance</small><strong>$1,148.00</strong></div>
+                <div><small>Monthly Budget</small><strong>$1,240.00</strong></div>
               </div>
-              <div className="row">
-                <article className="chartCard">
-                  <h4>Spending Chart</h4>
-                  <div className="chartLine" />
-                </article>
-                <article className="aiCard">
-                  <h4>AI Insight</h4>
-                  <p>Dining is 23% higher this month. Set a $300 cap and move $125 into savings.</p>
-                </article>
+              <div className="spendCard">
+                <small>Spending Breakdown</small>
+                <div className="bar"><i style={{ width: '72%' }} /></div>
               </div>
-              <article className="billsCard">
-                <h4>Upcoming Bills</h4>
-                <div><span>Mortgage</span><span>$2,450</span></div>
-                <div><span>Car Insurance</span><span>$156</span></div>
-                <div><span>Netflix</span><span>$15.99</span></div>
-              </article>
+              <div className="miniGrid">
+                <div><small>Savings Goal</small><strong>$3,450.00</strong></div>
+                <div><small>AI Insight</small><p>Dining spend up 18%. Shift $80 to savings this week.</p></div>
+              </div>
             </div>
+          </article>
+        </section>
+
+        <section className="benefitStrip" id="how-it-works">
+          {benefits.map((item, index) => (
+            <article key={item.title} className={index < benefits.length - 1 ? 'divider' : ''}>
+              <div className="iconGlow">{item.icon}</div>
+              <h3>{item.title}</h3>
+              <p>{item.copy}</p>
+            </article>
+          ))}
+        </section>
+
+        <section id="features" className="section">
+          <div className="sectionHead">
+            <div>
+              <small>POWERFUL FEATURES</small>
+              <h2>Everything You Need to <span>Master Your Money</span></h2>
+            </div>
+            <Link href="/dashboard" className="btn ghostBtn">Explore all features →</Link>
           </div>
-        </section>
-
-        <section className="trustBar">
-          {trustBadges.map((item) => <span key={item}>{item}</span>)}
-        </section>
-
-        <section className="sectionCard">
-          <h2>Most people use 5 different apps to manage money.</h2>
-          <p className="sectionLead">WealthPilot brings budgeting, bills, credit, investing, goals, and AI coaching into one clean command center.</p>
-          <div className="grid three">
-            {problemCards.map((card) => (
-              <article key={card.title} className="glass">
-                <h3>{card.title}</h3>
-                <p>{card.copy}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="features" className="sectionCard">
-          <h2>Everything you need to run your financial life</h2>
-          <div className="grid four">
+          <div className="featureGrid">
             {features.map((feature) => (
-              <article key={feature.title} className="featureCard">
-                <div className="icon">{feature.icon}</div>
+              <article key={feature.title} className="glassCard">
+                <div className="iconGlow">{feature.icon}</div>
                 <h3>{feature.title}</h3>
                 <p>{feature.copy}</p>
               </article>
@@ -157,117 +132,95 @@ const Home: NextPage = () => {
           </div>
         </section>
 
-        <section className="sectionCard aiCoach">
+        <section className="aiShowcase">
+          <div className="leftDecor">
+            <div className="starCard">✦ AI Insight Engine</div>
+            <div className="miniChart"><span /></div>
+          </div>
           <div>
-            <h2>Meet your personal AI money strategist.</h2>
-            <Link href="/dashboard" className="solid">Ask WealthPilot AI</Link>
-          </div>
-          <div className="chatBox glass">
-            <p><strong>User:</strong> “Where am I overspending?”</p>
-            <p><strong>AI:</strong> “Dining is 23% higher this month. Set a $300 cap and move $125 into savings.”</p>
+            <small>AI INSIGHT</small>
+            <h2>AI that Works for You</h2>
+            <p>Our AI analyzes your spending patterns, detects behavior shifts, and gives actionable next steps to improve cash flow and accelerate goals.</p>
+            <Link href="/dashboard" className="btn gradientBtn">See how it works →</Link>
           </div>
         </section>
 
-        <section className="sectionCard">
-          <h2>Command-center dashboard preview</h2>
-          <div className="grid previewGrid">
-            {['Net Worth', 'Cash Flow', 'Savings Rate', 'Credit Score', 'Upcoming Bills', 'Financial Goals', 'AI Insights', 'Market Overview'].map((label) => (
-              <article key={label} className="glass previewCard"><h3>{label}</h3></article>
-            ))}
-          </div>
+        <section className="statsRow">
+          <article className="glassCard"><h3>Total Balance</h3><p className="metric">$1,148.00</p><div className="line" /></article>
+          <article className="glassCard"><h3>Monthly Budget</h3><p className="metric">$1,240.00</p><div className="bar"><i style={{ width: '66%' }} /></div></article>
+          <article className="glassCard"><h3>Spending Breakdown</h3><div className="donut" /><p>Housing • Food • Transport</p></article>
+          <article className="glassCard"><h3>Savings Goal</h3><p className="metric">$3,450.00</p><div className="bar green"><i style={{ width: '58%' }} /></div></article>
         </section>
 
-        <section id="pricing" className="sectionCard">
-          <h2>Simple, transparent pricing</h2>
-          <div className="grid three">
-            {pricingPlans.map((plan) => (
-              <article key={plan.name} className={`priceCard ${plan.popular ? 'popular' : ''}`}>
-                {plan.popular && <span className="pill">Most Popular</span>}
-                <h3>{plan.name}</h3>
-                <p className="price">{plan.price}</p>
-                <ul>
-                  {plan.perks.map((perk) => <li key={perk}>{perk}</li>)}
-                </ul>
-                <Link href="/dashboard" className="ghost">Start Free</Link>
+        <section id="reviews" className="section">
+          <div className="sectionHead">
+            <div><small>TRUSTED BY THOUSANDS</small><h2>Loved by People Like You</h2></div>
+            <Link href="/dashboard" className="btn ghostBtn">View all reviews →</Link>
+          </div>
+          <div className="testimonialGrid">
+            {testimonials.map((t) => (
+              <article key={t.name} className="glassCard">
+                <div className="stars">★★★★★</div>
+                <p>“{t.quote}”</p>
+                <div className="person"><span /> <div><strong>{t.name}</strong><small>{t.role}</small></div></div>
               </article>
             ))}
           </div>
         </section>
 
-        <section id="security" className="sectionCard">
-          <h2>Built with privacy and security in mind.</h2>
-          <ul className="securityList">
-            <li>Your bank credentials are never stored</li>
-            <li>Plaid uses secure read-only access</li>
-            <li>Financial data stays private</li>
-            <li>AI insights are educational only</li>
-            <li>You control your connected accounts</li>
-          </ul>
+        <section id="pricing" className="section">
+          <small>SIMPLE, TRANSPARENT PRICING</small>
+          <h2>Choose the Plan That’s Right for You</h2>
+          <div className="toggle">Monthly <span>Yearly</span> <em>Save 20%</em></div>
+          <div className="pricingGrid">
+            <article className="glassCard"><h3>Free</h3><p className="metric">$0 <small>/ month</small></p><ul><li>Connect up to 2 accounts</li><li>Basic budgeting</li><li>Standard reports</li></ul><Link href="/dashboard" className="btn ghostBtn">Get Started</Link></article>
+            <article className="glassCard popular"><b>Most Popular</b><h3>Pro</h3><p className="metric">$9.99 <small>/ month</small></p><ul><li>Unlimited accounts</li><li>AI insights & coach</li><li>Advanced reports</li><li>Custom goals</li></ul><Link href="/dashboard" className="btn gradientBtn">Start Free Trial</Link></article>
+            <article className="glassCard"><h3>Premium</h3><p className="metric">$19.99 <small>/ month</small></p><ul><li>Everything in Pro</li><li>Priority support</li><li>Early access to new features</li></ul><Link href="/dashboard" className="btn ghostBtn">Start Free Trial</Link></article>
+          </div>
         </section>
 
-        <section id="faq" className="sectionCard">
-          <h2>Frequently asked questions</h2>
-          <div className="faqList">
-            {faqs.map((item) => (
-              <details key={item.q} className="glass">
-                <summary>{item.q}</summary>
-                <p>{item.a}</p>
-              </details>
-            ))}
-          </div>
+        <section className="finalCta">
+          <div><h2>Ready to Take Control of Your Finances?</h2><p>Join thousands of people who are already saving more, spending smarter, and building a better future.</p></div>
+          <Link href="/dashboard" className="btn gradientBtn">Start Managing Money Smarter →</Link>
         </section>
       </main>
 
       <footer className="shell footer">
-        <div>
-          <h3>WealthPilot OS</h3>
-          <p>Your premium AI finance command center.</p>
-        </div>
-        <div className="footerLinks">
-          {['/dashboard', '/privacy', '/terms', '/disclaimer', '/contact', '/delete-account'].map((link) => (
-            <Link key={link} href={link}>{link}</Link>
-          ))}
-        </div>
+        <div><h3>WealthPilot</h3><p>Your premium AI finance command center.</p></div>
+        <div><h4>Product</h4><Link href="/dashboard">Dashboard</Link><Link href="#pricing">Pricing</Link></div>
+        <div><h4>Resources</h4><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
+        <div><h4>Company</h4><Link href="/contact">Contact</Link><Link href="/disclaimer">Disclaimer</Link></div>
+        <div><h4>Stay Updated</h4><input placeholder="Enter your email" /><div className="social">◉ ◉ ◉</div></div>
       </footer>
 
       <style jsx>{`
-        .landing{position:relative;overflow:hidden;min-height:100vh;padding-bottom:2rem;background:#040712;color:#e9efff;font-family:Inter,system-ui,sans-serif}
-        .shell{width:min(1200px,92%);margin:0 auto;position:relative;z-index:2}
-        .bgGlow{position:absolute;filter:blur(75px);opacity:.33;pointer-events:none}
-        .bgGlow.one{background:#6a34ff;width:420px;height:420px;top:-120px;left:-100px;animation:pulse 8s ease-in-out infinite}
-        .bgGlow.two{background:#00c9a7;width:330px;height:330px;right:-90px;top:300px;animation:pulse 10s ease-in-out infinite}
-        @keyframes pulse{50%{transform:translateY(20px) scale(1.05);opacity:.55}}
-        .topbar{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 0}
-        .brand{font-weight:800;font-size:1.4rem}.brand span{color:#8b5dff}
-        nav{display:flex;gap:1.5rem} nav a{color:#c5d2ff;text-decoration:none}
-        .actions,.heroCtas{display:flex;gap:.75rem}.solid,.ghost{padding:.72rem 1.1rem;border-radius:12px;font-weight:700;text-decoration:none;border:1px solid transparent}
-        .solid{background:linear-gradient(100deg,#7f52ff,#4657ff);color:#fff}.ghost{color:#dce6ff;border-color:#4a5a8b;background:rgba(84,101,165,.15)}
-        .sectionCard{border:1px solid rgba(132,151,255,.23);border-radius:20px;background:rgba(7,12,30,.74);backdrop-filter:blur(10px);padding:1.6rem;margin-top:1rem}
-        .hero{display:grid;grid-template-columns:1fr 1.35fr;gap:1rem}
-        .kicker{color:#80f8cb;font-weight:600}.heroCopy h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.1;margin:.5rem 0 1rem}.heroCopy p{color:#bdcbf3;line-height:1.6}
-        .heroVisual{border-radius:16px;border:1px solid rgba(137,153,255,.25);background:linear-gradient(130deg,#0d1333,#090d21);padding:.9rem;display:grid;grid-template-columns:120px 1fr;gap:.75rem;box-shadow:0 0 0 1px rgba(140,100,255,.15),0 24px 40px rgba(26,18,66,.6)}
-        .floaty{animation:float 5s ease-in-out infinite}@keyframes float{50%{transform:translateY(-6px)}}
-        .miniSidebar{border-radius:12px;background:#090f27;padding:.6rem;display:flex;flex-direction:column;gap:.4rem}.miniSidebar span{font-size:.78rem;color:#9db0e6}.miniBrand{font-weight:700;color:#8f6bff}
-        .dashArea{display:grid;gap:.6rem}.row{display:grid;gap:.6rem;grid-template-columns:repeat(2,minmax(0,1fr))}.topCards{grid-template-columns:repeat(3,minmax(0,1fr))}
-        .topCards article,.chartCard,.aiCard,.billsCard{border:1px solid rgba(130,147,255,.2);background:rgba(13,19,43,.85);border-radius:12px;padding:.72rem}.topCards small{display:block;color:#98b0eb}.topCards strong{display:block;margin:.3rem 0}.topCards em{color:#58e48b;font-style:normal;font-size:.82rem}
-        .chartLine{height:70px;border-radius:10px;background:linear-gradient(180deg,rgba(165,95,255,.35),rgba(95,202,255,.08));position:relative;overflow:hidden}.chartLine:before{content:'';position:absolute;inset:auto 0 0;height:2px;background:linear-gradient(90deg,#8f5cff,#43e0b7);animation:scan 3s linear infinite}@keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-        .billsCard div{display:flex;justify-content:space-between;color:#bed0f7;padding:.22rem 0}
-        .trustBar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.6rem;margin-top:1rem}.trustBar span{border:1px solid rgba(134,152,255,.2);background:rgba(8,14,35,.76);padding:.7rem;border-radius:12px;text-align:center;font-size:.9rem;color:#b7c8f6}
-        h2{font-size:clamp(1.6rem,2.8vw,2.5rem);margin:0 0 .75rem}.sectionLead{color:#b7c8ef;margin-top:0}
-        .grid{display:grid;gap:.8rem}.three{grid-template-columns:repeat(3,minmax(0,1fr))}.four{grid-template-columns:repeat(4,minmax(0,1fr))}
-        .glass{border:1px solid rgba(130,149,255,.2);background:rgba(14,22,50,.74);border-radius:14px;padding:1rem}
-        .featureCard{border:1px solid rgba(130,149,255,.2);background:rgba(10,18,43,.8);border-radius:14px;padding:1rem;transition:.25s}.featureCard:hover{box-shadow:0 0 0 1px rgba(104,170,255,.5),0 14px 24px rgba(44,90,205,.28);transform:translateY(-3px)}
-        .icon{font-size:1.2rem;color:#8fb4ff}
-        .aiCoach{display:grid;grid-template-columns:1fr 1.2fr;gap:1rem;align-items:center}.chatBox p{margin:.5rem 0;color:#c9d7fb}
-        .previewGrid{grid-template-columns:repeat(4,minmax(0,1fr))}.previewCard{min-height:92px;display:flex;align-items:flex-end}
-        .priceCard{position:relative;border:1px solid rgba(130,149,255,.2);background:rgba(11,19,45,.85);border-radius:14px;padding:1rem}.popular{box-shadow:0 0 0 1px rgba(153,102,255,.5),0 18px 28px rgba(98,54,199,.3)}
-        .pill{position:absolute;right:1rem;top:-.55rem;background:#7f53ff;color:#fff;font-size:.74rem;padding:.2rem .55rem;border-radius:999px}.price{font-size:2rem;margin:.4rem 0}
-        ul{margin:.3rem 0 1rem;padding-left:1.1rem} li{margin:.24rem 0;color:#c2d1f7}
-        .securityList{columns:2}.faqList{display:grid;gap:.7rem} summary{cursor:pointer;font-weight:700} details p{color:#bfd0f5}
-        .footer{margin-top:1rem;padding:1.4rem 0 2rem;display:flex;justify-content:space-between;gap:1rem;border-top:1px solid rgba(136,153,255,.2)}
-        .footerLinks{display:flex;flex-wrap:wrap;gap:.8rem}.footer a{color:#c2d2ff;text-decoration:none}
-        @media (max-width:1024px){.hero,.aiCoach{grid-template-columns:1fr}.trustBar{grid-template-columns:repeat(3,minmax(0,1fr))}.four,.previewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media (max-width:720px){nav{display:none}.actions{display:none}.topCards,.row,.three,.trustBar,.four,.previewGrid{grid-template-columns:1fr}.heroVisual{grid-template-columns:1fr}.securityList{columns:1}.footer{flex-direction:column}}
+        .landing{background:#050B1F;color:#F8FAFC;min-height:100vh;position:relative;overflow:hidden;font-family:Inter,system-ui,sans-serif}
+        .shell{width:min(1240px,92%);margin:0 auto;position:relative;z-index:2}.pageFlow{display:grid;gap:22px;padding-bottom:40px}
+        .ambient{position:absolute;border-radius:999px;filter:blur(90px);opacity:.35}.ambientOne{width:500px;height:500px;background:#8B5CF6;left:-180px;top:-120px}.ambientTwo{width:420px;height:420px;background:#3B82F6;right:-160px;top:280px}
+        .navWrap{padding-top:20px}.navBar{display:flex;align-items:center;justify-content:space-between;background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:14px 18px;backdrop-filter:blur(18px)}
+        .brand{font-weight:800;font-size:1.2rem}nav{display:flex;gap:24px}nav a{color:#A7B0C3;text-decoration:none}.navCta,.heroCta{display:flex;gap:10px}
+        .btn{padding:11px 16px;border-radius:14px;text-decoration:none;color:#fff;border:1px solid transparent;display:inline-block}.gradientBtn{background:linear-gradient(135deg,#6366F1,#8B5CF6,#A855F7);box-shadow:0 14px 35px rgba(139,92,246,.35)}.ghostBtn{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+        .hero{display:grid;grid-template-columns:1fr 1.05fr;gap:20px;background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:30px;backdrop-filter:blur(18px)}
+        .pill{display:inline-block;padding:8px 14px;border-radius:999px;background:rgba(59,130,246,.18);border:1px solid rgba(255,255,255,.16);color:#cfe3ff}.hero h1{font-size:clamp(2rem,5vw,3.9rem);line-height:1.08;margin:16px 0}.hero h1 span{background:linear-gradient(120deg,#8B5CF6,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.lead{color:#A7B0C3;max-width:620px}.trustDots{display:flex;gap:16px;flex-wrap:wrap;color:#A7B0C3;margin-top:12px}
+        .dashboardMock{background:linear-gradient(180deg,rgba(15,23,52,.9),rgba(8,13,32,.82));border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:14px;display:grid;grid-template-columns:130px 1fr;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+        .dashboardMock aside{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px}.dashboardMock aside span{color:#A7B0C3;font-size:.87rem}
+        .mockMain{display:grid;gap:10px}.miniGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.miniGrid div,.spendCard{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px}.miniGrid small,.spendCard small{color:#A7B0C3}.miniGrid strong{display:block;margin-top:5px}
+        .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:9px}.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#8B5CF6,#3B82F6)}.bar.green i{background:#22C55E}
+        .benefitStrip{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:24px;backdrop-filter:blur(18px)}
+        .benefitStrip article{padding:20px}.divider{border-right:1px solid rgba(255,255,255,.08)}.iconGlow{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:rgba(139,92,246,.2);box-shadow:0 0 24px rgba(139,92,246,.4);margin-bottom:10px}
+        .section,.aiShowcase,.statsRow,.finalCta{background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:24px;backdrop-filter:blur(18px)}
+        .sectionHead{display:flex;justify-content:space-between;gap:14px;align-items:end}.section small{color:#A7B0C3}.section h2 span{background:linear-gradient(120deg,#8B5CF6,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .featureGrid,.testimonialGrid,.pricingGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}.glassCard{background:linear-gradient(180deg,rgba(15,23,52,.9),rgba(8,13,32,.82));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);transition:.25s}.glassCard:hover{transform:translateY(-4px)}
+        .aiShowcase{display:grid;grid-template-columns:.95fr 1.05fr;gap:18px;background:radial-gradient(circle at left,#5130ad77,transparent 45%),rgba(10,18,45,.8)}
+        .starCard,.miniChart{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:16px}.miniChart{height:100px;position:relative}.miniChart span{position:absolute;left:12px;right:12px;bottom:18px;height:2px;background:linear-gradient(90deg,#8B5CF6,#3B82F6)}
+        .statsRow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.metric{font-size:1.8rem;margin:8px 0}.line{height:70px;border-radius:12px;background:linear-gradient(180deg,rgba(139,92,246,.3),rgba(59,130,246,.09))}.donut{width:76px;height:76px;border-radius:50%;background:conic-gradient(#8B5CF6 0 42%,#3B82F6 42% 72%,#22C55E 72% 100%);margin:8px 0;position:relative}.donut:after{content:'';position:absolute;inset:15px;background:#0c1638;border-radius:50%}
+        .stars{color:#FACC15}.person{display:flex;align-items:center;gap:10px}.person span{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#8B5CF6,#3B82F6);display:inline-block}.person small{display:block;color:#A7B0C3}
+        ul{padding-left:18px} li{margin:6px 0;color:#cfd8ed}.popular{outline:1px solid #8B5CF6;position:relative}.popular b{position:absolute;top:-10px;right:16px;background:#8B5CF6;padding:4px 10px;border-radius:999px;font-size:.74rem}
+        .toggle{display:inline-flex;gap:10px;background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.1)}.toggle span{color:#fff}.toggle em{font-style:normal;color:#22C55E}
+        .finalCta{display:flex;justify-content:space-between;gap:18px;align-items:center;background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(139,92,246,.2)),rgba(10,18,45,.8)}
+        .footer{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:14px;border-top:1px solid rgba(255,255,255,.08);padding:28px 0 38px}.footer a{display:block;color:#A7B0C3;text-decoration:none;margin:6px 0}.footer input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;color:#fff}.social{margin-top:8px;color:#8B5CF6}
+        @media (max-width:1080px){.hero,.aiShowcase{grid-template-columns:1fr}.benefitStrip{grid-template-columns:repeat(2,1fr)}.divider{border-right:0}.featureGrid,.pricingGrid,.statsRow,.testimonialGrid,.footer{grid-template-columns:1fr 1fr}}
+        @media (max-width:720px){nav{display:none}.navBar{flex-wrap:wrap;gap:10px}.featureGrid,.pricingGrid,.statsRow,.testimonialGrid,.benefitStrip,.footer{grid-template-columns:1fr}.dashboardMock{grid-template-columns:1fr}.miniGrid{grid-template-columns:1fr}.finalCta,.sectionHead{flex-direction:column;align-items:flex-start}}
       `}</style>
     </div>
   )
