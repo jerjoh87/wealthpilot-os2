@@ -4,8 +4,6 @@ const REQUIRED_PLAID_ENV_VARS = [
   'PLAID_CLIENT_ID',
   'PLAID_SECRET',
   'PLAID_ENV',
-  'PLAID_PRODUCTS',
-  'PLAID_COUNTRY_CODES',
 ] as const
 
 export function getMissingPlaidEnvVars() {
