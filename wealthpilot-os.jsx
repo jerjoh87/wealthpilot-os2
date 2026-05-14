@@ -1115,7 +1115,23 @@ const css = `
   .btn-glass{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:var(--text);}
   .btn-outline{background:transparent; border:1px solid rgba(255,255,255,.18); color:var(--text);}
   .search-input{height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,13,35,.8);color:var(--text);padding:0 16px;min-width:320px;}
-  @media (max-width: 1200px){.dashboard-grid-4{grid-template-columns:repeat(2,1fr)} .hero-insight,.action-grid{grid-template-columns:1fr}}
+  .ref-card{background:linear-gradient(145deg, rgba(15,25,58,.9), rgba(10,18,45,.82));border:1px solid rgba(133,150,255,.2);border-radius:22px;box-shadow:0 16px 40px rgba(26,31,80,.35);}
+  .ref-hero{background:linear-gradient(120deg, rgba(24,33,79,.95), rgba(70,44,132,.45));border:1px solid rgba(164,136,255,.32);border-radius:24px;position:relative;overflow:hidden;}
+  .ref-hero:after{content:"";position:absolute;right:-60px;top:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(168,85,247,.35), transparent 65%);}
+  .stat-amount{font-size:54px;line-height:1.05;font-family:'Syne',sans-serif;}
+  .chip-link{color:#a78bfa;font-weight:600;font-size:13px;cursor:pointer;}
+  .donut{width:120px;height:120px;border-radius:50%;background:conic-gradient(#8b5cf6 0 40%, #6366f1 40% 60%, #22d3ee 60% 75%, #f59e0b 75% 85%, #a855f7 85% 100%);position:relative;}
+  .donut:before{content:"";position:absolute;inset:24px;background:#0b1332;border-radius:50%;}
+
+  
+  .sidebar{background:linear-gradient(180deg, rgba(8,14,36,.96), rgba(7,11,31,.96));}
+  .nav-item.active{background:linear-gradient(135deg, rgba(99,102,241,.28), rgba(168,85,247,.22));color:#dbe4ff;border-color:rgba(167,139,250,.45);}
+  .ai-coach-promo{margin:10px;border-radius:20px;padding:14px;background:linear-gradient(155deg, rgba(64,78,146,.35), rgba(77,39,150,.24));border:1px solid rgba(167,139,250,.35);}
+  .ai-coach-promo h4{font-size:28px;}
+  .mini-list{display:grid;gap:10px;}
+  .mini-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;}
+  .category-bar{height:10px;border-radius:20px;background:rgba(255,255,255,.08);overflow:hidden;}
+@media (max-width: 1200px){.dashboard-grid-4{grid-template-columns:repeat(2,1fr)} .hero-insight,.action-grid{grid-template-columns:1fr}}
 
 
   /* SIDEBAR */
@@ -1789,171 +1805,74 @@ function Dashboard(props = {}) {
   }, [income, spending, safeBudget, upcomingBills, creditScoreValue, creditUtilization, totalCash, safeAccounts]);
 
   return (
-    <div style={{display:"grid",gap:14,paddingBottom:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
-          <div className="card-title">Total Cash</div><div className="card-value" style={{fontSize:34}}>{fmtK(totalCash)}</div>
-          <div className="card-sub">Linked cash accounts</div>
+    <div style={{display:"grid",gap:16,paddingBottom:8}}>
+      <div className="dashboard-grid-4">
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:30,fontWeight:700,marginBottom:8}}>Total Balance</div>
+          <div className="stat-amount">{fmt(totalCash)}</div>
+          <div className="text-green" style={{marginTop:8,fontWeight:700}}>↑ 8.6% <span className="text-muted" style={{fontWeight:400}}>from last month</span></div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
-          <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
-          <div className="card-sub">Cash inflow this cycle</div>
-          {income <= 0 && <div className="text-sm text-muted">Add income to start your plan.</div>}
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700}}>Monthly Budget</div>
+          <div style={{fontSize:36,fontFamily:'Syne',marginTop:8}}>{fmt(totalSpent || 0)}</div>
+          <div className="progress-bar" style={{height:10,marginTop:12}}><div className="progress-fill" style={{width:`${Math.min(100,Math.round((totalSpent/Math.max(1,safeBudget.reduce((m,b)=>m+(b.limit||0),0)))*100))}%`,background:'linear-gradient(90deg,#6366f1,#8b5cf6)'}}/></div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
-          <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
-          <div className="card-sub">{spendPct}% of income</div>
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700,marginBottom:10}}>Spending Breakdown</div>
+          <div style={{display:'flex',gap:12,alignItems:'center'}}><div className="donut"/><div style={{fontSize:13,color:'var(--text2)',display:'grid',gap:5}}><span>Housing 40%</span><span>Food 20%</span><span>Transport 15%</span><span>Entertainment 10%</span></div></div>
+          <div className="chip-link" style={{marginTop:10}} onClick={()=>setPage('reports')}>View full report →</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.03))"}}>
-          <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
-          <div className="card-sub">{daysLeft} days left in month</div>
-        </div>
-      </div>
-
-      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(56,189,248,0.14), rgba(147,51,234,0.08))",border:"1px solid rgba(56,189,248,0.35)"}}>
-        <div className="section-header" style={{marginBottom:6}}>
-          <div className="section-title">Today’s Money Move</div>
-          <span className="badge badge-gray" style={{fontSize:10}}>{moneyMove?.source === 'ai' ? 'AI' : 'Offline rules'}</span>
-        </div>
-        <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
-        <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
-          <button className="btn btn-ghost" onClick={() => setPage("goals")}>Add Goal</button>
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700}}>Savings Goal</div>
+          <div style={{fontSize:36,fontFamily:'Syne',marginTop:8}}>{fmt(safe)}</div>
+          <div className="progress-bar" style={{height:10,marginTop:12}}><div className="progress-fill" style={{width:'69%',background:'linear-gradient(90deg,#22c55e,#34d399)'}}/></div>
+          <div className="chip-link" style={{marginTop:10}} onClick={()=>setPage('goals')}>View goal →</div>
         </div>
       </div>
 
-      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
-            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
+      <div className="ref-hero" style={{padding:24}}>
+        <div className="hero-insight">
+          <div>
+            <div style={{fontSize:22,fontWeight:700,marginBottom:8}}>AI Insight</div>
+            <div style={{fontSize:42,fontWeight:700,lineHeight:1.1}}>You’re on track to save <span style={{color:'#22C55E'}}>$320</span> this month.</div>
+            <div className="text-muted" style={{marginTop:10,fontSize:16}}>Great job! Your spending is lower this month. Review Entertainment expenses to save even more.</div>
+            <button className="btn btn-gradient" style={{marginTop:16}} onClick={()=>setPage('ai-coach')}>View insights →</button>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
+          <div style={{display:'grid',placeItems:'center'}}>
+            <div className="glass-card" style={{width:170,height:170,display:'grid',placeItems:'center',background:'linear-gradient(135deg, rgba(255,255,255,.25), rgba(168,85,247,.22))'}}>✦</div>
           </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {safeAccounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
-          <div style={{marginTop:8}}>
-            {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 ? (
-              <div>
-                <div className="text-sm text-muted">Create your first budget category.</div>
-                <button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>Add Category</button>
-              </div>
-            ) : (
-              <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>View Budget</button>
-            )}
-          </div>
-        </div>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
-          {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 ? (
-            <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p><button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button></div>
-          ) : <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button>}
+      <div className="ref-card" style={{padding:20}}>
+        <div style={{fontSize:30,fontWeight:700}}>Choose Your Action</div>
+        <div className="action-grid" style={{marginTop:14}}>
+          <button className="btn btn-gradient" onClick={onRefresh}>🏦 Connect Bank →</button>
+          <button className="btn btn-glass" onClick={()=>setPage('budget')}>＋ Add Budget →</button>
+          <button className="btn btn-outline" onClick={()=>setPage('ai-coach')}>✦ Ask AI Coach →</button>
         </div>
       </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(147,51,234,0.16), rgba(56,189,248,0.05))"}}>
-          <div className="card-title">Financial Health Score</div>
-          <div className="card-value">{Number(financialHealth.score || 0)}</div>
-          <div className="card-sub">{financialHealth.label || "Starter"} · {financialHealth.summary || "Based on your live data"}</div>
-          <div className="text-sm text-muted" style={{marginTop:8,display:"grid",gap:4}}>
-            {(financialHealth.tips || []).slice(0,2).map((tip, idx) => <div key={idx}>• {tip}</div>)}
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr",gap:14}}>
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-header"><div className="section-title">Recent Transactions</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View all →</button></div>
+          <div className="mini-list">
+            {safeTransactions.slice(0,4).map(t => <div key={t.id} className="mini-item"><div><div style={{fontWeight:600}}>{t.name}</div><div className="text-xs text-muted">{t.category}</div></div><div className={t.amount>0?"text-green":""}>{t.amount>0?'+':''}{fmt(t.amount)}</div></div>)}
+            {safeTransactions.length===0 && <div className="text-sm text-muted">No transactions yet.</div>}
           </div>
         </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
-          <div className="card-title">Webull / Portfolio</div>
-          <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
-          <div className="card-sub">Day performance · {portfolio?.connected ? "Connected" : "Demo mode"}</div>
-        </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
-          <div className="card-title">Credit Score Tracker</div>
-          <div className="card-value">{creditScoreValue ?? "—"}</div>
-          {creditScoreValue ? (
-            <div className="card-sub">
-              {Array.isArray(creditScore?.history) && creditScore.history.length >= 2
-                ? `Trend: ${Number(creditScore?.trend || 0) >= 0 ? "↑" : "↓"} ${Math.abs(Number(creditScore?.trend || 0))} pts`
-                : "No trend yet"}
-            </div>
-          ) : <div className="card-sub">No credit score data yet.</div>}
-          <div className="card-sub" style={{marginTop:6}}>
-            Utilization: {creditUtilization == null ? "N/A" : `${Math.round(creditUtilization * 100)}%`}
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-title" style={{marginBottom:10}}>Budget Health</div>
+          <div className="mini-list">
+            {safeBudget.slice(0,4).map((b)=>{const pct=Math.min(100,Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100)); return <div key={b.category}><div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:5}}><span>{b.category}</span><span>{pct}%</span></div><div className="category-bar"><div style={{width:`${pct}%`,height:'100%',background:'linear-gradient(90deg,#6366f1,#a855f7)'}}/></div></div>})}
+            {!safeBudget.length && <div className="text-sm text-muted">Create categories to track health.</div>}
           </div>
-          {creditUtilization != null && creditUtilization >= 0.3 && (
-            <div className="text-sm text-red" style={{marginTop:6}}>High utilization warning: Keep below 30%.</div>
-          )}
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>View Credit</button>
         </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
-          <div className="card-title">Bill Calendar</div>
-          <div className="card-value">{upcomingBills.length}</div>
-          <div className="card-sub">{fmt(billRunway)} due this cycle</div>
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
-        </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(20,184,166,0.14), rgba(56,189,248,0.04))"}}>
-          <div className="card-title">Weekly Money Report</div>
-          <div className="card-value">Ready</div>
-          <div className="card-sub">{transactions.length ? "Your Weekly Money Report is ready." : "Generate activity to unlock your weekly report."}</div>
-          {transactions.length > 0 && (
-            <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("reports")}>View Report</button>
-          )}
-        </div>
-      </div>
-
-      <div className="card mt-4" style={{borderRadius:18}}>
-        <div className="section-header">
-          <div className="section-title">Recent Transactions</div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View All →</button>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Merchant</th><th>Category</th><th>Account</th><th>Date</th>
-                <th style={{textAlign:"right"}}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {safeTransactions.slice(0, 6).map(t => (
-                <tr key={t.id}>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <div style={{width:28,height:28,borderRadius:8,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>
-                        {CATEGORY_ICONS[t.category] || "💳"}
-                      </div>
-                      <span style={{fontSize:13,fontWeight:500}}>{t.name}</span>
-                    </div>
-                  </td>
-                  <td><span className="badge badge-gray">{t.category}</span></td>
-                  <td className="text-muted text-sm">{t.account}</td>
-                  <td className="text-muted text-sm">{t.date}</td>
-                  <td style={{textAlign:"right"}} className={t.amount > 0 ? "text-green font-bold" : "font-bold"}>
-                    {t.amount > 0 ? "+" : ""}{fmt(t.amount)}
-                  </td>
-                </tr>
-              ))}
-              {safeTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet. Connect your bank to get started.</p></div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-header"><div className="section-title">Top Categories</div><span className="text-muted text-sm">This month</span></div>
+          <div className="mini-list">
+            {safeBudget.slice(0,4).map((b)=> <div key={b.category}><div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}}><span>{b.category}</span><span>{fmt(b.spent||0)}</span></div><div className="category-bar"><div style={{width:`${Math.min(100,Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,height:'100%',background:'#8b5cf6'}}/></div></div>)}
+            {!safeBudget.length && <div className="text-sm text-muted">No category data yet.</div>}
+          </div>
         </div>
       </div>
     </div>
@@ -5903,6 +5822,11 @@ function WealthPilotOSApp() {
           </div>
 
           <div className="sidebar-bottom">
+            <div className="ai-coach-promo">
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:34,height:34,borderRadius:10,display:"grid",placeItems:"center",background:"rgba(255,255,255,.14)"}}>🤖</div><div style={{fontWeight:700}}>AI Coach</div></div>
+              <div className="text-sm text-muted" style={{marginBottom:8}}>Your personal finance guide.</div>
+              <div className="chip-link" onClick={()=>showPage('ai-coach')}>Chat now →</div>
+            </div>
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
               <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
