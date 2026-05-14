@@ -1106,6 +1106,18 @@ const css = `
 
   .app { display: flex; height: 100vh; overflow: hidden; }
 
+  .premium-shell { background: radial-gradient(circle at 10% -20%, rgba(99,102,241,.22), transparent 36%), radial-gradient(circle at 90% 0%, rgba(59,130,246,.2), transparent 32%), #050B1F; }
+  .glass-card {background: rgba(10,18,45,0.75); border:1px solid rgba(255,255,255,0.08); backdrop-filter: blur(18px); border-radius:24px; box-shadow: 0 12px 34px rgba(18,20,60,.45), inset 0 1px 0 rgba(255,255,255,.03);}
+  .dashboard-grid-4 {display:grid;grid-template-columns:2fr 1.2fr 1.4fr 1.2fr;gap:14px;}
+  .hero-insight{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;align-items:center;}
+  .action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .btn-gradient{background:linear-gradient(135deg,#6366F1,#8B5CF6,#A855F7); color:#fff; box-shadow:0 12px 30px rgba(139,92,246,.35);border:1px solid rgba(255,255,255,.15);}
+  .btn-glass{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:var(--text);}
+  .btn-outline{background:transparent; border:1px solid rgba(255,255,255,.18); color:var(--text);}
+  .search-input{height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,13,35,.8);color:var(--text);padding:0 16px;min-width:320px;}
+  @media (max-width: 1200px){.dashboard-grid-4{grid-template-columns:repeat(2,1fr)} .hero-insight,.action-grid{grid-template-columns:1fr}}
+
+
   /* SIDEBAR */
   .sidebar {
     width: 240px; flex-shrink: 0;
@@ -5431,10 +5443,10 @@ function LearningCenterPage() {
 // Grouped sidebar nav
 const NAV_GROUPS = [
   { label: "Main", items: [
-    { id:"dashboard",    icon:"⊞", label:"Dashboard"    },
+    { id:"dashboard",    icon:"⌂", label:"Overview"    },
     { id:"net-worth",    icon:"💎", label:"Net Worth"    },
-    { id:"budget",       icon:"◎", label:"Budget"        },
-    { id:"transactions", icon:"⇅", label:"Transactions"  },
+    { id:"budget",       icon:"◔", label:"Budgets"        },
+    { id:"transactions", icon:"↕", label:"Transactions"  },
     { id:"bills",        icon:"📋", label:"Bills"         },
     { id:"calendar",     icon:"📅", label:"Calendar"      },
   ]},
@@ -5442,7 +5454,7 @@ const NAV_GROUPS = [
     { id:"portfolio",     icon:"📈", label:"Portfolio"     },
     { id:"profit-lock",   icon:"🔒", label:"Profit Lock"   },
     { id:"credit-score",  icon:"⭐", label:"Credit Score"  },
-    { id:"goals",         icon:"🎯", label:"Goals"         },
+    { id:"goals",         icon:"◉", label:"Goals"         },
     { id:"reports",       icon:"📊", label:"Reports"       },
   ]},
   { label: "Tools", items: [
@@ -5476,7 +5488,7 @@ const FAB_PAGES = [
   { id:"portfolio",     icon:"📈", label:"Portfolio"     },
   { id:"profit-lock",   icon:"🔒", label:"Profit Lock"   },
   { id:"credit-score",  icon:"⭐", label:"Credit Score"  },
-  { id:"goals",         icon:"🎯", label:"Goals"         },
+  { id:"goals",         icon:"◉", label:"Goals"         },
   { id:"reports",       icon:"📊", label:"Reports"       },
   { id:"debt-planner",  icon:"🧮", label:"Debt Planner"  },
   { id:"learning-center", icon:"📚", label:"Learning Center" },
@@ -5867,7 +5879,7 @@ function WealthPilotOSApp() {
 
     <Toast toasts={toasts} />
 
-    <div className="app">
+    <div className="app premium-shell">
         {/* ── Desktop Sidebar ── */}
         <nav className={`sidebar ${collapsed ? "collapsed" : ""}`}>
           <div className="sidebar-logo" style={{cursor:"pointer"}} onClick={() => setCollapsed(c => !c)}>
@@ -5908,9 +5920,9 @@ function WealthPilotOSApp() {
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div className="logo-mark" style={{display:"none"}} id="mobile-logo">W</div>
-              <div className="page-title">{PAGE_TITLES[page]}</div>
+              <div><div className="page-title">{page==="dashboard"?`Good evening, ${user?.user_metadata?.name || user?.name || "there"} 👋`:PAGE_TITLES[page]}</div><div style={{fontSize:13,color:"var(--text2)",marginTop:4}}>{page==="dashboard"?"Here's your financial overview for this month.":""}</div></div>
             </div>
-            <div className="topbar-right">
+            <div className="topbar-right">{page==="dashboard"&&<input className="search-input" placeholder="Search transactions, budgets..." />}
               {page==="dashboard"&&(
                 <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text2)"}}>
                   <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>
@@ -5960,7 +5972,7 @@ function WealthPilotOSApp() {
                   </span>
                 )}
               </button>
-              <div className="avatar">AC</div>
+              <div className="avatar">{((user?.user_metadata?.name||user?.name||"AB").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase())}</div>
             </div>
           </div>
 
