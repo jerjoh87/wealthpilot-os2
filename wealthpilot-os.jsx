@@ -5081,7 +5081,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
   const LIAB_CATS = [
     {
       key:"credit", label:"Credit Cards", icon:"💳", color:"#f43f5e",
-      value: creditLiab, connected: true,
+      value: creditCardsLiab, connected: true,
       detail: accounts.filter(a => a.type === "credit").map(a => ({
         name: a.name, val: Math.abs(a.balance), sub: `••••${a.last4} · ${a.institution}`
       }))
@@ -5093,8 +5093,8 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
     },
     {
       key:"car", label:"Car Loan", icon:"🚗", color:"#fb923c",
-      value: carLiab, connected: false,
-      detail: [{ name:"Auto Financing", val: carLiab, sub:"Est. payoff: Jan 2027" }]
+      value: autoLiab, connected: false,
+      detail: [{ name:"Auto Financing", val: autoLiab, sub:"Est. payoff: Jan 2027" }]
     },
   ];
 
@@ -5302,7 +5302,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
               {label:"Spending",         val:MOCK.spending,     color:"var(--red)"},
               {label:"Net Cash Flow",    val:cashflowNet,       color:cashflowNet>=0?"var(--green)":"var(--red)"},
               {label:"Savings Rate",     val:`${savingsRate}%`, color:"var(--accent)", raw:true},
-              {label:"Debt Payments",    val:carLiab/12 + studentLiab/12, color:"var(--yellow)"},
+              {label:"Debt Payments",    val:autoLiab/12 + studentLiab/12, color:"var(--yellow)"},
             ].map(r=>(
               <div key={r.label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
                 <span style={{fontSize:12,color:"var(--text2)"}}>{r.label}</span>
