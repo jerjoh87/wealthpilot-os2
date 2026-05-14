@@ -1752,6 +1752,19 @@ function Dashboard(props = {}) {
         <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
       </div>
 
+      <div className="card" style={{padding:16,borderRadius:18,border:"1px solid rgba(99,102,241,0.35)",background:"linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9))"}}>
+        <div className="section-header" style={{marginBottom:10}}>
+          <div className="section-title">Quick Actions</div>
+          <span className="badge badge-gray" style={{fontSize:10}}>Dashboard Main UI</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          <button className="btn btn-primary" onClick={() => setPage("transactions")}>Review transactions</button>
+          <button className="btn btn-ghost" onClick={() => setPage("bills")}>Pay upcoming bills</button>
+          <button className="btn btn-ghost" onClick={() => setPage("budget")}>Adjust budget</button>
+          <button className="btn btn-ghost" onClick={() => setPage("reports")}>Open monthly report</button>
+        </div>
+      </div>
+
       <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5264,7 +5277,7 @@ function WealthPilotOSApp() {
                   <span className="plaid-sync-text" style={{whiteSpace:"nowrap"}}>Plaid synced 2m ago</span>
                 </div>
               )}
-              <div className="badge badge-red" style={{fontWeight:700}}>UI VERSION: 2026-05-11-3</div>
+              <div className="badge badge-red" style={{fontWeight:700}}>UI VERSION: 2026-05-14-1</div>
               {/* Mode selector */}
               <div style={{position:"relative"}}>
                 {modeOpen && <div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setModeOpen(false)}/>}

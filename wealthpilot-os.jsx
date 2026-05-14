@@ -1115,48 +1115,65 @@ const css = `
   .btn-glass{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:var(--text);}
   .btn-outline{background:transparent; border:1px solid rgba(255,255,255,.18); color:var(--text);}
   .search-input{height:42px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(7,13,35,.8);color:var(--text);padding:0 16px;min-width:320px;}
-  @media (max-width: 1200px){.dashboard-grid-4{grid-template-columns:repeat(2,1fr)} .hero-insight,.action-grid{grid-template-columns:1fr}}
+  .ref-card{background:linear-gradient(145deg, rgba(15,25,58,.9), rgba(10,18,45,.82));border:1px solid rgba(133,150,255,.2);border-radius:22px;box-shadow:0 16px 40px rgba(26,31,80,.35);}
+  .ref-hero{background:linear-gradient(120deg, rgba(24,33,79,.95), rgba(70,44,132,.45));border:1px solid rgba(164,136,255,.32);border-radius:24px;position:relative;overflow:hidden;}
+  .ref-hero:after{content:"";position:absolute;right:-60px;top:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(168,85,247,.35), transparent 65%);}
+  .stat-amount{font-size:54px;line-height:1.05;font-family:'Syne',sans-serif;}
+  .chip-link{color:#a78bfa;font-weight:600;font-size:13px;cursor:pointer;}
+  .donut{width:120px;height:120px;border-radius:50%;background:conic-gradient(#8b5cf6 0 40%, #6366f1 40% 60%, #22d3ee 60% 75%, #f59e0b 75% 85%, #a855f7 85% 100%);position:relative;}
+  .donut:before{content:"";position:absolute;inset:24px;background:#0b1332;border-radius:50%;}
+
+  
+  .sidebar{background:linear-gradient(180deg, rgba(8,14,36,.96), rgba(7,11,31,.96));}
+  .nav-item.active{background:linear-gradient(135deg, rgba(99,102,241,.28), rgba(168,85,247,.22));color:#dbe4ff;border-color:rgba(167,139,250,.45);}
+  .ai-coach-promo{margin:10px;border-radius:20px;padding:14px;background:linear-gradient(155deg, rgba(64,78,146,.35), rgba(77,39,150,.24));border:1px solid rgba(167,139,250,.35);}
+  .ai-coach-promo h4{font-size:28px;}
+  .mini-list{display:grid;gap:10px;}
+  .mini-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;}
+  .category-bar{height:10px;border-radius:20px;background:rgba(255,255,255,.08);overflow:hidden;}
+@media (max-width: 1200px){.dashboard-grid-4{grid-template-columns:repeat(2,1fr)} .hero-insight,.action-grid{grid-template-columns:1fr}}
 
 
   /* SIDEBAR */
   .sidebar {
-    width: 240px; flex-shrink: 0;
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
+    width: 264px; flex-shrink: 0;
+    background: linear-gradient(180deg, #070d25 0%, #060b1f 100%);
+    border-right: 1px solid rgba(121,140,255,.16);
     display: flex; flex-direction: column;
     padding: 0; overflow: hidden;
     transition: width 0.3s ease;
   }
-  .sidebar.collapsed { width: 64px; }
+  .sidebar.collapsed { width: 76px; }
   .sidebar-logo {
-    padding: 20px 20px 16px;
-    border-bottom: 1px solid var(--border);
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(121,140,255,.14);
     display: flex; align-items: center; gap: 10px;
   }
   .logo-mark {
-    width: 34px; height: 34px; border-radius: 10px;
-    background: linear-gradient(135deg, #4f8ef7, #6366f1);
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #7c3aed, #8b5cf6);
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; flex-shrink: 0;
     box-shadow: 0 4px 12px rgba(79,142,247,0.35);
   }
-  .logo-text { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; }
-  .logo-text span { color: var(--accent); }
-  .nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+  .logo-text { font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 34px; line-height: 1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; }
+  .logo-text small { display:block; font-size:13px; color:#9aa4bf; font-weight:500; margin-top:6px; }
+  .logo-text span { color: #fff; }
+  .nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
   .nav-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; border-radius: var(--radius-sm);
-    cursor: pointer; color: var(--text2);
+    padding: 11px 14px; border-radius: 12px;
+    cursor: pointer; color: #d7ddf2;
     font-size: 14px; font-weight: 500;
     transition: all 0.15s ease;
     white-space: nowrap; overflow: hidden;
     border: 1px solid transparent;
     margin-bottom: 2px;
   }
-  .nav-item:hover { background: var(--bg3); color: var(--text); }
-  .nav-item.active { background: rgba(79,142,247,0.12); color: var(--accent); border-color: rgba(79,142,247,0.2); }
-  .nav-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
-  .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
+  .nav-item:hover { background: rgba(95,112,255,.12); color: #fff; }
+  .nav-item.active { background: linear-gradient(135deg, rgba(99,102,241,.32), rgba(147,51,234,.25)); color: #f1f5ff; border-color: rgba(139,92,246,.45); }
+  .nav-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; opacity: .95; }
+  .sidebar-bottom { padding: 12px 10px 16px; border-top: 1px solid rgba(121,140,255,.14); }
   .plan-badge {
     margin: 8px 4px 0;
     padding: 8px 12px; border-radius: var(--radius-sm);
@@ -1169,23 +1186,23 @@ const css = `
   /* MAIN */
   .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
   .topbar {
-    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    padding: 18px 24px; border-bottom: 1px solid rgba(121,140,255,.14);
     display: flex; align-items: center; justify-content: space-between;
-    background: rgba(16,21,34,0.74); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 10; flex-shrink: 0;
+    background: rgba(4,10,31,0.84); backdrop-filter: blur(14px); position: sticky; top: 0; z-index: 10; flex-shrink: 0;
   }
-  .page-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; }
+  .page-title { font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 40px; line-height: 1; }
   .topbar-right { display: flex; align-items: center; gap: 12px; }
   .avatar {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: linear-gradient(135deg, #4f8ef7, #6366f1);
+    width: 38px; height: 38px; border-radius: 50%;
+    background: rgba(255,255,255,.08);
     display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-size: 18px; font-weight: 500; cursor: pointer; border: 1px solid rgba(255,255,255,.15);
   }
   .content { padding: 24px; flex: 1; }
 
   /* CARDS */
   .card {
-    background: var(--bg2); border: 1px solid var(--border);
+    background: linear-gradient(145deg, rgba(9,17,44,.9), rgba(7,14,34,.86)); border: 1px solid rgba(121,140,255,.18);
     border-radius: 18px; padding: 20px;
     box-shadow: var(--card-glow);
   }
@@ -1223,12 +1240,12 @@ const css = `
   .progress-fill { height: 100%; border-radius: 999px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
 
   /* TABLE */
-  .table-wrap { overflow-x: auto; }
+  .table-wrap { overflow-x: auto; border:1px solid rgba(121,140,255,.14); border-radius:14px; background:linear-gradient(180deg, rgba(5,11,33,.84), rgba(6,12,30,.72)); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 10px 12px; color: var(--text3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
-  td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { text-align: left; padding: 11px 12px; color: #8f9ab8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(121,140,255,.14); }
+  td { padding: 12px; border-bottom: 1px solid rgba(121,140,255,.11); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:hover td { background: rgba(91,107,255,0.08); }
 
   /* BADGE */
   .badge {
@@ -1248,10 +1265,10 @@ const css = `
     font-size: 13px; font-weight: 600; cursor: pointer; border: none;
     transition: all 0.15s; font-family: 'DM Sans', sans-serif;
   }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #3d7df6; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,142,247,0.35); }
-  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
-  .btn-ghost:hover { background: var(--bg3); color: var(--text); }
+  .btn-primary { background: linear-gradient(135deg, #5b5cf6, #8b5cf6); color: #fff; border:1px solid rgba(177,159,255,.4); box-shadow: 0 8px 22px rgba(94,89,255,.32); }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-ghost { background: rgba(9,18,44,.45); color: #aeb9d8; border: 1px solid rgba(121,140,255,.24); }
+  .btn-ghost:hover { background: rgba(97,112,255,.16); color: #f7f8ff; }
   .btn-sm { padding: 6px 12px; font-size: 12px; }
   .btn-danger { background: rgba(244,63,94,0.12); color: var(--red); border: 1px solid rgba(244,63,94,0.2); }
 
@@ -1349,15 +1366,15 @@ const css = `
   .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
   .pricing-shell { font-family: 'Inter', 'DM Sans', system-ui, sans-serif; }
   .pricing-grid { margin-top: 12px; }
-  .plan-card { border: 1px solid var(--border2); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); padding: 14px; }
+  .plan-card { border: 1px solid rgba(139,92,246,.36); border-radius: 16px; background: linear-gradient(145deg, rgba(28,27,86,.55), rgba(9,18,44,.95)); padding: 16px; box-shadow: 0 14px 30px rgba(16,19,60,.36); }
   .plan-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; text-transform: capitalize; letter-spacing: 0.2px; }
   .plan-price { font-size: 13px; font-weight: 600; color: var(--text2); margin: 4px 0 10px; }
   .plan-list { margin: 0; padding-left: 18px; color: var(--text2); line-height: 1.5; font-size: 12px; }
-  .upgrade-btn { width: 100%; margin-top: 12px; font-weight: 700; letter-spacing: 0.2px; }
-  .billing-form { margin-top: 16px; padding: 14px; border-radius: 12px; border: 1px solid var(--border2); background: linear-gradient(135deg, rgba(79,142,247,0.08), rgba(79,142,247,0.02)); }
+  .upgrade-btn { width: 100%; margin-top: 12px; font-weight: 700; letter-spacing: 0.2px; background: linear-gradient(135deg, #7c3aed, #8b5cf6); border:1px solid rgba(200,176,255,.3); }
+  .billing-form { margin-top: 16px; padding: 14px; border-radius: 14px; border: 1px solid rgba(121,140,255,.2); background: linear-gradient(135deg, rgba(36,56,130,.26), rgba(76,29,149,.2)); }
   .billing-form-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-  .billing-input { height: 38px; border-radius: 10px; border: 1px solid var(--border2); background: rgba(12,16,24,0.95); color: var(--text); padding: 0 12px; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; outline: none; }
-  .billing-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,142,247,0.2); }
+  .billing-input { height: 40px; border-radius: 10px; border: 1px solid rgba(121,140,255,.24); background: rgba(8,14,38,0.96); color: var(--text); padding: 0 12px; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; outline: none; }
+  .billing-input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.2); }
   .mt-4 { margin-top: 16px; } .mt-6 { margin-top: 24px; }
   .mb-4 { margin-bottom: 16px; }
   .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
@@ -1789,171 +1806,74 @@ function Dashboard(props = {}) {
   }, [income, spending, safeBudget, upcomingBills, creditScoreValue, creditUtilization, totalCash, safeAccounts]);
 
   return (
-    <div style={{display:"grid",gap:14,paddingBottom:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(79,142,247,0.12), rgba(79,142,247,0.04))"}}>
-          <div className="card-title">Total Cash</div><div className="card-value" style={{fontSize:34}}>{fmtK(totalCash)}</div>
-          <div className="card-sub">Linked cash accounts</div>
+    <div style={{display:"grid",gap:16,paddingBottom:8}}>
+      <div className="dashboard-grid-4">
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:30,fontWeight:700,marginBottom:8}}>Total Balance</div>
+          <div className="stat-amount">{fmt(totalCash)}</div>
+          <div className="text-green" style={{marginTop:8,fontWeight:700}}>↑ 8.6% <span className="text-muted" style={{fontWeight:400}}>from last month</span></div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))"}}>
-          <div className="card-title">Monthly Income</div><div className="card-value">{fmtK(income)}</div>
-          <div className="card-sub">Cash inflow this cycle</div>
-          {income <= 0 && <div className="text-sm text-muted">Add income to start your plan.</div>}
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700}}>Monthly Budget</div>
+          <div style={{fontSize:36,fontFamily:'Syne',marginTop:8}}>{fmt(totalSpent || 0)}</div>
+          <div className="progress-bar" style={{height:10,marginTop:12}}><div className="progress-fill" style={{width:`${Math.min(100,Math.round((totalSpent/Math.max(1,safeBudget.reduce((m,b)=>m+(b.limit||0),0)))*100))}%`,background:'linear-gradient(90deg,#6366f1,#8b5cf6)'}}/></div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(244,63,94,0.12), rgba(244,63,94,0.03))"}}>
-          <div className="card-title">Monthly Spending</div><div className="card-value">{fmtK(spending)}</div>
-          <div className="card-sub">{spendPct}% of income</div>
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700,marginBottom:10}}>Spending Breakdown</div>
+          <div style={{display:'flex',gap:12,alignItems:'center'}}><div className="donut"/><div style={{fontSize:13,color:'var(--text2)',display:'grid',gap:5}}><span>Housing 40%</span><span>Food 20%</span><span>Transport 15%</span><span>Entertainment 10%</span></div></div>
+          <div className="chip-link" style={{marginTop:10}} onClick={()=>setPage('reports')}>View full report →</div>
         </div>
-        <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.03))"}}>
-          <div className="card-title">Safe to Spend</div><div className="card-value text-green">{fmtK(safe)}</div>
-          <div className="card-sub">{daysLeft} days left in month</div>
-        </div>
-      </div>
-
-      <div className="card" style={{padding:18,borderRadius:18,background:"linear-gradient(135deg, rgba(56,189,248,0.14), rgba(147,51,234,0.08))",border:"1px solid rgba(56,189,248,0.35)"}}>
-        <div className="section-header" style={{marginBottom:6}}>
-          <div className="section-title">Today’s Money Move</div>
-          <span className="badge badge-gray" style={{fontSize:10}}>{moneyMove?.source === 'ai' ? 'AI' : 'Offline rules'}</span>
-        </div>
-        <div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,lineHeight:1.35,marginBottom:8}}>{moneyMove?.main}</div>
-        <div className="text-sm text-muted" style={{marginBottom:14}}>{moneyMove?.why}</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn btn-primary" onClick={() => setPage(moneyMove?.actionPage || 'ai-coach')}>{moneyMove?.actionLabel || 'Ask AI Coach'}</button>
-          <button className="btn btn-ghost" onClick={() => setPage("goals")}>Add Goal</button>
+        <div className="ref-card" style={{padding:20}}>
+          <div style={{fontSize:24,fontWeight:700}}>Savings Goal</div>
+          <div style={{fontSize:36,fontFamily:'Syne',marginTop:8}}>{fmt(safe)}</div>
+          <div className="progress-bar" style={{height:10,marginTop:12}}><div className="progress-fill" style={{width:'69%',background:'linear-gradient(90deg,#22c55e,#34d399)'}}/></div>
+          <div className="chip-link" style={{marginTop:10}} onClick={()=>setPage('goals')}>View goal →</div>
         </div>
       </div>
 
-      <div className="card" style={{padding:"16px 20px",borderRadius:18}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontFamily:"Syne",fontWeight:700,fontSize:14}}>Connected Accounts</span>
-            {lastSync && <span style={{fontSize:10,color:"var(--text3)"}}>· synced {lastSync.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>}
+      <div className="ref-hero" style={{padding:24}}>
+        <div className="hero-insight">
+          <div>
+            <div style={{fontSize:22,fontWeight:700,marginBottom:8}}>AI Insight</div>
+            <div style={{fontSize:42,fontWeight:700,lineHeight:1.1}}>You’re on track to save <span style={{color:'#22C55E'}}>$320</span> this month.</div>
+            <div className="text-muted" style={{marginTop:10,fontSize:16}}>Great job! Your spending is lower this month. Review Entertainment expenses to save even more.</div>
+            <button className="btn btn-gradient" style={{marginTop:16}} onClick={()=>setPage('ai-coach')}>View insights →</button>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} disabled={syncing}>{syncing ? "Syncing…" : "↻ Refresh"}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPage("settings")}>+ Add Account</button>
+          <div style={{display:'grid',placeItems:'center'}}>
+            <div className="glass-card" style={{width:170,height:170,display:'grid',placeItems:'center',background:'linear-gradient(135deg, rgba(255,255,255,.25), rgba(168,85,247,.22))'}}>✦</div>
           </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {safeAccounts.length === 0 ? (
-            <div className="empty-state" style={{gridColumn:"1 / -1"}}><div className="icon">🏦</div><p className="text-sm">No connected accounts yet.</p></div>
-          ) : safeAccounts.map(a => <div key={a.id} style={{background:"var(--bg3)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border)",borderLeft:`3px solid ${a.type==="credit"?"var(--red)":a.type==="savings"?"var(--green)":"var(--accent)"}`}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:"var(--text3)",textTransform:"capitalize"}}>{a.type}</span><span style={{fontSize:10,color:"var(--text3)"}}>••••{a.last4}</span></div><div style={{fontFamily:"Syne",fontWeight:700,fontSize:18,color:a.balance<0?"var(--red)":"var(--text)"}}>{fmt(a.balance)}</div><div style={{fontSize:11,color:"var(--text2)"}}>{a.name}</div></div>)}
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Budget Progress</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("budget")}>View All →</button></div>
-          <div style={{marginTop:8}}>
-            {safeBudget.slice(0,5).map(b => (<div key={b.category} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text2)",marginBottom:4}}><span>{CATEGORY_ICONS[b.category] || "💳"} {b.category}</span><span style={{color:"var(--text)"}}>{fmt(b.spent || 0)} / {fmt(b.limit || 0)}</span></div><div style={{height:8,borderRadius:99,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100, Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,background:b.color||"var(--accent)"}}/></div></div>))}
-            {safeBudget.length===0 ? (
-              <div>
-                <div className="text-sm text-muted">Create your first budget category.</div>
-                <button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>Add Category</button>
-              </div>
-            ) : (
-              <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("budget")}>View Budget</button>
-            )}
-          </div>
-        </div>
-        <div className="card" style={{padding:18,borderRadius:18}}>
-          <div className="section-header"><div className="section-title">Upcoming Bills</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("bills")}>All →</button></div>
-          {upcomingBills.slice(0,4).map(b => <div key={b.id} className="bill-item"><div className="bill-icon">{CATEGORY_ICONS[b.category] || "💳"}</div><div className="bill-info"><div className="bill-name">{b.name}</div><div className="bill-due">Due day {b.dueDay}</div></div><div className="bill-amount">{fmt(b.amount)}</div></div>)}
-          {upcomingBills.length===0 ? (
-            <div className="empty-state"><div className="icon">🧾</div><p className="text-sm">Add your first bill.</p><button className="btn btn-primary btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button></div>
-          ) : <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("bills")}>Add Bill</button>}
+      <div className="ref-card" style={{padding:20}}>
+        <div style={{fontSize:30,fontWeight:700}}>Choose Your Action</div>
+        <div className="action-grid" style={{marginTop:14}}>
+          <button className="btn btn-gradient" onClick={onRefresh}>🏦 Connect Bank →</button>
+          <button className="btn btn-glass" onClick={()=>setPage('budget')}>＋ Add Budget →</button>
+          <button className="btn btn-outline" onClick={()=>setPage('ai-coach')}>✦ Ask AI Coach →</button>
         </div>
       </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(147,51,234,0.16), rgba(56,189,248,0.05))"}}>
-          <div className="card-title">Financial Health Score</div>
-          <div className="card-value">{Number(financialHealth.score || 0)}</div>
-          <div className="card-sub">{financialHealth.label || "Starter"} · {financialHealth.summary || "Based on your live data"}</div>
-          <div className="text-sm text-muted" style={{marginTop:8,display:"grid",gap:4}}>
-            {(financialHealth.tips || []).slice(0,2).map((tip, idx) => <div key={idx}>• {tip}</div>)}
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr",gap:14}}>
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-header"><div className="section-title">Recent Transactions</div><button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View all →</button></div>
+          <div className="mini-list">
+            {safeTransactions.slice(0,4).map(t => <div key={t.id} className="mini-item"><div><div style={{fontWeight:600}}>{t.name}</div><div className="text-xs text-muted">{t.category}</div></div><div className={t.amount>0?"text-green":""}>{t.amount>0?'+':''}{fmt(t.amount)}</div></div>)}
+            {safeTransactions.length===0 && <div className="text-sm text-muted">No transactions yet.</div>}
           </div>
         </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))"}}>
-          <div className="card-title">Webull / Portfolio</div>
-          <div className={`card-value ${portfolioPnl >= 0 ? "text-green" : "text-red"}`}>{portfolioPnl >= 0 ? "+" : ""}{portfolioPnl.toFixed(2)}%</div>
-          <div className="card-sub">Day performance · {portfolio?.connected ? "Connected" : "Demo mode"}</div>
-        </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.03))"}}>
-          <div className="card-title">Credit Score Tracker</div>
-          <div className="card-value">{creditScoreValue ?? "—"}</div>
-          {creditScoreValue ? (
-            <div className="card-sub">
-              {Array.isArray(creditScore?.history) && creditScore.history.length >= 2
-                ? `Trend: ${Number(creditScore?.trend || 0) >= 0 ? "↑" : "↓"} ${Math.abs(Number(creditScore?.trend || 0))} pts`
-                : "No trend yet"}
-            </div>
-          ) : <div className="card-sub">No credit score data yet.</div>}
-          <div className="card-sub" style={{marginTop:6}}>
-            Utilization: {creditUtilization == null ? "N/A" : `${Math.round(creditUtilization * 100)}%`}
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-title" style={{marginBottom:10}}>Budget Health</div>
+          <div className="mini-list">
+            {safeBudget.slice(0,4).map((b)=>{const pct=Math.min(100,Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100)); return <div key={b.category}><div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:5}}><span>{b.category}</span><span>{pct}%</span></div><div className="category-bar"><div style={{width:`${pct}%`,height:'100%',background:'linear-gradient(90deg,#6366f1,#a855f7)'}}/></div></div>})}
+            {!safeBudget.length && <div className="text-sm text-muted">Create categories to track health.</div>}
           </div>
-          {creditUtilization != null && creditUtilization >= 0.3 && (
-            <div className="text-sm text-red" style={{marginTop:6}}>High utilization warning: Keep below 30%.</div>
-          )}
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("credit-score")}>View Credit</button>
         </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.02))"}}>
-          <div className="card-title">Bill Calendar</div>
-          <div className="card-value">{upcomingBills.length}</div>
-          <div className="card-sub">{fmt(billRunway)} due this cycle</div>
-          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("calendar")}>View Calendar</button>
-        </div>
-        <div className="card" style={{padding:16,borderRadius:16,background:"linear-gradient(135deg, rgba(20,184,166,0.14), rgba(56,189,248,0.04))"}}>
-          <div className="card-title">Weekly Money Report</div>
-          <div className="card-value">Ready</div>
-          <div className="card-sub">{transactions.length ? "Your Weekly Money Report is ready." : "Generate activity to unlock your weekly report."}</div>
-          {transactions.length > 0 && (
-            <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={() => setPage("reports")}>View Report</button>
-          )}
-        </div>
-      </div>
-
-      <div className="card mt-4" style={{borderRadius:18}}>
-        <div className="section-header">
-          <div className="section-title">Recent Transactions</div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setPage("transactions")}>View All →</button>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Merchant</th><th>Category</th><th>Account</th><th>Date</th>
-                <th style={{textAlign:"right"}}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {safeTransactions.slice(0, 6).map(t => (
-                <tr key={t.id}>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <div style={{width:28,height:28,borderRadius:8,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>
-                        {CATEGORY_ICONS[t.category] || "💳"}
-                      </div>
-                      <span style={{fontSize:13,fontWeight:500}}>{t.name}</span>
-                    </div>
-                  </td>
-                  <td><span className="badge badge-gray">{t.category}</span></td>
-                  <td className="text-muted text-sm">{t.account}</td>
-                  <td className="text-muted text-sm">{t.date}</td>
-                  <td style={{textAlign:"right"}} className={t.amount > 0 ? "text-green font-bold" : "font-bold"}>
-                    {t.amount > 0 ? "+" : ""}{fmt(t.amount)}
-                  </td>
-                </tr>
-              ))}
-              {safeTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    <div className="empty-state"><div className="icon">📭</div><p className="text-sm">No transactions yet. Connect your bank to get started.</p></div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="ref-card" style={{padding:18}}>
+          <div className="section-header"><div className="section-title">Top Categories</div><span className="text-muted text-sm">This month</span></div>
+          <div className="mini-list">
+            {safeBudget.slice(0,4).map((b)=> <div key={b.category}><div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5}}><span>{b.category}</span><span>{fmt(b.spent||0)}</span></div><div className="category-bar"><div style={{width:`${Math.min(100,Math.round(((b.spent||0)/Math.max(1,b.limit||1))*100))}%`,height:'100%',background:'#8b5cf6'}}/></div></div>)}
+            {!safeBudget.length && <div className="text-sm text-muted">No category data yet.</div>}
+          </div>
         </div>
       </div>
     </div>
@@ -5883,8 +5803,8 @@ function WealthPilotOSApp() {
         {/* ── Desktop Sidebar ── */}
         <nav className={`sidebar ${collapsed ? "collapsed" : ""}`}>
           <div className="sidebar-logo" style={{cursor:"pointer"}} onClick={() => setCollapsed(c => !c)}>
-            <div className="logo-mark">W</div>
-            <div className="logo-text">Wealth<span>Pilot</span> OS</div>
+            <div className="logo-mark">◈</div>
+            <div className="logo-text"><span>WealthPilot</span><small>Your Financial Command Center</small></div>
           </div>
 
           <div className="nav">
@@ -5903,6 +5823,11 @@ function WealthPilotOSApp() {
           </div>
 
           <div className="sidebar-bottom">
+            <div className="ai-coach-promo">
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:34,height:34,borderRadius:10,display:"grid",placeItems:"center",background:"rgba(255,255,255,.14)"}}>🤖</div><div style={{fontWeight:700}}>AI Coach</div></div>
+              <div className="text-sm text-muted" style={{marginBottom:8}}>Your personal finance guide.</div>
+              <div className="chip-link" onClick={()=>showPage('ai-coach')}>Chat now →</div>
+            </div>
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
               <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
