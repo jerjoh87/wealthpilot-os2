@@ -53,6 +53,33 @@ const post   = (path, body)   => request(path, { method: 'POST',   body });
 const put    = (path, body)   => request(path, { method: 'PUT',    body });
 const del    = (path)         => request(path, { method: 'DELETE' });
 
+const pick = (obj, ...keys) => {
+  for (const key of keys) {
+    if (obj && obj[key] !== undefined && obj[key] !== null) return obj[key];
+  }
+  return undefined;
+};
+
+const normalizeBill = (bill = {}) => ({
+  ...bill,
+  dueDay: Number(pick(bill, 'dueDay', 'due_day') ?? 0),
+  amount: Number(pick(bill, 'amount', 'amount_due') ?? 0),
+  amountDue: Number(pick(bill, 'amountDue', 'amount_due', 'amount') ?? 0),
+  minimumPayment: Number(pick(bill, 'minimumPayment', 'minimum_payment') ?? 0),
+});
+
+const normalizeTransaction = (tx = {}) => ({
+  ...tx,
+  transactionDate: pick(tx, 'transactionDate', 'transaction_date', 'date') ?? null,
+  accountId: pick(tx, 'accountId', 'account_id') ?? null,
+  categoryId: pick(tx, 'categoryId', 'category_id') ?? null,
+});
+
+const normalizeAccount = (account = {}) => ({
+  ...account,
+  creditLimit: Number(pick(account, 'creditLimit', 'credit_limit') ?? 0),
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const auth = {
   signup: (email, password, name) => post('/auth/signup', { email, password, name }),
@@ -68,12 +95,16 @@ export const auth = {
 
 // ── Accounts ──────────────────────────────────────────────────────────────
 export const accounts = {
-  list: () => get('/accounts'),
+  list: async () => {
+    const data = await get('/accounts');
+    return (Array.isArray(data) ? data : []).map(normalizeAccount);
+  },
+  create: (data) => post('/accounts', data),
 };
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
 export const bills = {
-  list:   ()          => get('/bills'),
+  list:   async ()    => (await get('/bills') || []).map(normalizeBill),
   create: (data)      => post('/bills', data),
   update: (id, data)  => put(`/bills/${id}`, data),
   remove: (id)        => del(`/bills/${id}`),
@@ -91,8 +122,10 @@ export const calendarEvents = {
 export const transactions = {
   list:           async (params = {}) => {
     const data = await get(`/transactions?${new URLSearchParams(params)}`);
-    return Array.isArray(data) ? data : (data?.transactions || []);
+    const rows = Array.isArray(data) ? data : (data?.transactions || []);
+    return rows.map(normalizeTransaction);
   },
+  create:         (data)        => post('/transactions', data),
   updateCategory: (id, cat)     => put(`/transactions/${id}`, { category: cat }),
 };
 
@@ -154,7 +187,11 @@ export const creditReport = {
       xhr.send(form);
     });
   },
+  save: (scanData) => post('/credit-report/save', { scanData }),
 };
+
+export const scanCreditReportPdf = (file, onProgress) => creditReport.scan(file, onProgress);
+export const saveCreditReportScan = (scanData) => creditReport.save(scanData);
 
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 export const ai = {
@@ -176,3 +213,5 @@ export const reminders = {
   sendTest: () => post('/reminders/test', {}),
   sendBudgetSummary: (userId) => post('/reminders/send-budget-summary', { userId }),
 };
+
+export const getHealthStatus = () => get('/health');

@@ -1,0 +1,36 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Install dependencies (npm install)
+        if: ${{ hashFiles('package-lock.json') == '' }}
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint (if available)
+        run: npm run lint --if-present
+
+      - name: Typecheck (if available)
+        run: npm run typecheck --if-present
