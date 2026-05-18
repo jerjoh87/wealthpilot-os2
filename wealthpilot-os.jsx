@@ -1,5 +1,5 @@
 import { Component, useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "./lib/supabase";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 // ── API CLIENT ────────────────────────────────────────────────────────────────
 // LIVE: uncomment the import below and remove the stub block beneath it.
@@ -554,11 +554,21 @@ function useAuth() {
     }
   }, []);
 
-  return { user, loading, login, signup, logout };
+  const demoLogin = useCallback(() => {
+    setUser({
+      id: 'demo-user',
+      email: 'demo@wealthpilot.local',
+      name: 'Demo User',
+      user_metadata: { name: 'Demo User', plan: 'premium' },
+    });
+    safeStorageSet('wp_token', 'demo-token');
+  }, []);
+
+  return { user, loading, login, signup, logout, demoLogin };
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
-function AuthGate({ onAuth }) {
+function AuthGate({ onAuth, onDemoAccess }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
   const [email, setEmail]     = useState("");
   const [password, setPass]   = useState("");
@@ -650,6 +660,15 @@ function AuthGate({ onAuth }) {
           opacity:busy?0.7:1,transition:"opacity .15s"
         }}>
           {busy ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+
+        <button onClick={onDemoAccess} disabled={busy} style={{
+          width:"100%",padding:"11px",borderRadius:10,border:"1px solid rgba(79,142,247,0.45)",cursor:"pointer",
+          background:"rgba(79,142,247,0.12)",color:"#dbeafe",
+          fontFamily:"inherit",fontSize:14,fontWeight:700,
+          opacity:busy?0.7:1,transition:"opacity .15s",marginTop:10
+        }}>
+          Continue in Demo Mode
         </button>
 
 
@@ -5081,7 +5100,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
   const LIAB_CATS = [
     {
       key:"credit", label:"Credit Cards", icon:"💳", color:"#f43f5e",
-      value: creditLiab, connected: true,
+      value: creditCardsLiab, connected: true,
       detail: accounts.filter(a => a.type === "credit").map(a => ({
         name: a.name, val: Math.abs(a.balance), sub: `••••${a.last4} · ${a.institution}`
       }))
@@ -5093,8 +5112,8 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
     },
     {
       key:"car", label:"Car Loan", icon:"🚗", color:"#fb923c",
-      value: carLiab, connected: false,
-      detail: [{ name:"Auto Financing", val: carLiab, sub:"Est. payoff: Jan 2027" }]
+      value: autoLiab, connected: false,
+      detail: [{ name:"Auto Financing", val: autoLiab, sub:"Est. payoff: Jan 2027" }]
     },
   ];
 
@@ -5302,7 +5321,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
               {label:"Spending",         val:MOCK.spending,     color:"var(--red)"},
               {label:"Net Cash Flow",    val:cashflowNet,       color:cashflowNet>=0?"var(--green)":"var(--red)"},
               {label:"Savings Rate",     val:`${savingsRate}%`, color:"var(--accent)", raw:true},
-              {label:"Debt Payments",    val:carLiab/12 + studentLiab/12, color:"var(--yellow)"},
+              {label:"Debt Payments",    val:autoLiab/12 + studentLiab/12, color:"var(--yellow)"},
             ].map(r=>(
               <div key={r.label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
                 <span style={{fontSize:12,color:"var(--text2)"}}>{r.label}</span>
@@ -5451,7 +5470,7 @@ class AppErrorBoundary extends Component {
 }
 
 function WealthPilotOSApp() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, logout, demoLogin } = useAuth();
   const acct = useAccounts();
   const { mode, setMode, config: modeConfig, suggestion: modeSuggestion } = useMode();
   const [page, setPage]           = useState("dashboard");
@@ -5489,6 +5508,7 @@ function WealthPilotOSApp() {
     creditScore: { loading: true, error: false },
     portfolio: { loading: true, error: false },
   });
+  const [showSupabaseNotice, setShowSupabaseNotice] = useState(!isSupabaseConfigured);
 
 
   useEffect(() => {
@@ -5672,7 +5692,7 @@ function WealthPilotOSApp() {
       Loading…
     </div>
   );
-  if (!user) return <AuthGate onAuth={handleAuth} />;
+  if (!user) return <AuthGate onAuth={handleAuth} onDemoAccess={demoLogin} />;
 
   const showPage = (id) => {
     const requiredPlan = FEATURE_GATES[id];
@@ -5753,7 +5773,6 @@ function WealthPilotOSApp() {
   const renderPage = () => {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
-      case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} debts={liveData.debts} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
@@ -5842,6 +5861,12 @@ function WealthPilotOSApp() {
 
         {/* ── Main Content ── */}
         <div className="main">
+          {showSupabaseNotice && (
+            <div style={{ margin: '10px 16px 0', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(245,158,11,.3)', background: 'rgba(245,158,11,.1)', color: '#fbbf24', fontSize: 12 }}>
+              Supabase is not configured. Live sync is temporarily unavailable. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY.
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => setShowSupabaseNotice(false)}>Dismiss</button>
+            </div>
+          )}
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div className="logo-mark" style={{display:"none"}} id="mobile-logo">W</div>

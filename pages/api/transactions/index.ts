@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
+import { ok, err, requireUser, methodNotAllowed, ensureSupabaseConfigured } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { z } from 'zod'
 
@@ -14,10 +14,16 @@ const TransactionSchema = z.object({
 // GET  /api/transactions?month=5&year=2026&category=Dining&limit=50&offset=0
 // POST /api/transactions  (manual entry; Plaid will upsert via plaid_tx_id later)
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!ensureSupabaseConfigured(res)) return
   const user = await requireUser(req, res)
   if (!user) return
 
-  const db = supabaseAdmin()
+  let db: any
+  try {
+    db = supabaseAdmin()
+  } catch {
+    return err(res, 'Supabase admin is not configured. Add SUPABASE_SERVICE_ROLE_KEY.', 503)
+  }
 
   if (req.method === 'GET') {
     const { month, year, category, limit = '50', offset = '0' } = req.query
