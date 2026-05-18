@@ -3,6 +3,8 @@ import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { runAiChat } from '../../../lib/ai-provider'
 import { z } from 'zod'
+import { AI_USAGE_LIMITS, validateChatMessageLength } from '../../../lib/ai-usage-guard'
+import { sendBadRequest } from '../../../lib/api-errors'
 
 type UserSummary = {
   name: string | null
@@ -33,7 +35,7 @@ type AiMessageInsert = {
 }
 
 const ChatSchema = z.object({
-  message: z.string().min(1).max(2000),
+  message: z.string().min(1).max(AI_USAGE_LIMITS.maxChatChars),
 
   history: z
     .array(
@@ -224,6 +226,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!parsed.success) return err(res, parsed.error.errors[0].message)
 
   const { message, history } = parsed.data
+  const messageError = validateChatMessageLength(message)
+  if (messageError) return sendBadRequest(res, messageError)
   const db = supabaseAdmin() as any
 
   const userMessage: AiMessageInsert = {
