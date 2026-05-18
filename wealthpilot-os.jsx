@@ -1,5 +1,5 @@
 import { Component, useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "./lib/supabase";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 // ── API CLIENT ────────────────────────────────────────────────────────────────
 // LIVE: uncomment the import below and remove the stub block beneath it.
@@ -554,11 +554,21 @@ function useAuth() {
     }
   }, []);
 
-  return { user, loading, login, signup, logout };
+  const demoLogin = useCallback(() => {
+    setUser({
+      id: 'demo-user',
+      email: 'demo@wealthpilot.local',
+      name: 'Demo User',
+      user_metadata: { name: 'Demo User', plan: 'premium' },
+    });
+    safeStorageSet('wp_token', 'demo-token');
+  }, []);
+
+  return { user, loading, login, signup, logout, demoLogin };
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
-function AuthGate({ onAuth }) {
+function AuthGate({ onAuth, onDemoAccess }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
   const [email, setEmail]     = useState("");
   const [password, setPass]   = useState("");
@@ -650,6 +660,15 @@ function AuthGate({ onAuth }) {
           opacity:busy?0.7:1,transition:"opacity .15s"
         }}>
           {busy ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+
+        <button onClick={onDemoAccess} disabled={busy} style={{
+          width:"100%",padding:"11px",borderRadius:10,border:"1px solid rgba(79,142,247,0.45)",cursor:"pointer",
+          background:"rgba(79,142,247,0.12)",color:"#dbeafe",
+          fontFamily:"inherit",fontSize:14,fontWeight:700,
+          opacity:busy?0.7:1,transition:"opacity .15s",marginTop:10
+        }}>
+          Continue in Demo Mode
         </button>
 
 
@@ -3836,9 +3855,9 @@ function CreditScorePage({ addToast, initialScore }) {
   const [showForm, setShowForm] = useState(false);
   const [smartCreditState, setSmartCreditState] = useState({ status: "not_configured", message: "SmartCredit credentials not configured." });
   const [scanState, setScanState] = useState({ loading:false, progress:0, message:'', error:'' });
-  const [scanData, setScanData] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('wp_credit_report_scan') || 'null'); } catch { return null; }
-  });
+  const [scanData, setScanData] = useState(null);
+  const [scanFileName, setScanFileName] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const hasHistory = history.length > 0;
   const latest  = hasHistory ? history[history.length - 1] : null;
   const prev    = history.length > 1 ? history[history.length - 2] : null;
@@ -3869,22 +3888,40 @@ function CreditScorePage({ addToast, initialScore }) {
   };
 
   // Upload credit report PDF, trigger backend scan, and cache scan output locally.
-  const onUploadCreditReport = async (event) => {
-    const file = event.target.files?.[0];
+  const beginScan = async (file) => {
     if (!file) return;
     if (file.type !== 'application/pdf') return setScanState({ loading:false, progress:0, message:'', error:'Wrong file type. Please upload a PDF.' });
     if (file.size > 10 * 1024 * 1024) return setScanState({ loading:false, progress:0, message:'', error:'File too large. Maximum size is 10MB.' });
+    setScanFileName(file.name || 'credit-report.pdf');
     setScanState({ loading:true, progress:0, message:'Uploading and scanning report...', error:'' });
     try {
-      const result = await creditReportApi.scan(file, (progress) => setScanState((s) => ({ ...s, progress })));
+      const result = await (typeof creditReportApi.scanCreditReportPdf === 'function' ? creditReportApi.scanCreditReportPdf(file, (progress) => setScanState((s) => ({ ...s, progress }))) : creditReportApi.scan(file, (progress) => setScanState((s) => ({ ...s, progress }))));
       setScanData(result);
-      try { localStorage.setItem('wp_credit_report_scan', JSON.stringify(result)); } catch {}
-      if (result?.creditScore) setHistory(h => [...h, { score: Number(result.creditScore), date: result.reportDate || toISO(new Date()), provider: 'credit-report-scan' }]);
-      setScanState({ loading:false, progress:100, message:`Scan complete. ${result?.databaseMessage || ''}`.trim(), error:'' });
-      addToast && addToast("Credit report scanned successfully.", "success");
+      setScanState({ loading:false, progress:100, message:'Scan complete. Review before saving.', error:'' });
+      addToast && addToast("Credit report scanned. Review and save to dashboard.", "success");
     } catch (e) {
       setScanState({ loading:false, progress:0, message:'', error:e?.message || 'Scan failed.' });
       addToast && addToast(e?.message || "Scan failed.", "error");
+    }
+  };
+  const onUploadCreditReport = async (event) => beginScan(event.target.files?.[0]);
+  const onDropCreditReport = async (event) => {
+    event.preventDefault();
+    setDragOver(false);
+    const file = event.dataTransfer?.files?.[0];
+    await beginScan(file);
+  };
+  const saveScanToDashboard = async () => {
+    if (!scanData) return;
+    try {
+      await (typeof creditReportApi.saveCreditReportScan === 'function' ? creditReportApi.saveCreditReportScan(scanData) : creditReportApi.save(scanData));
+      const score = Number(scanData?.scores?.ficoScore ?? scanData?.scores?.vantageScore ?? 0);
+      if (score > 0) setHistory(h => [...h, { score, date: scanData?.consumer?.reportDate || toISO(new Date()), provider: 'credit-report-scan' }]);
+      try { localStorage.setItem('wp_credit_report_scan', JSON.stringify(scanData)); } catch {}
+      setScanState({ loading:false, progress:100, message:'Saved to dashboard.', error:'' });
+      addToast && addToast("Credit report scan saved.", "success");
+    } catch (e) {
+      setScanState((s) => ({ ...s, error: e?.message || 'Database is not configured yet.' }));
     }
   };
 
@@ -3919,18 +3956,29 @@ function CreditScorePage({ addToast, initialScore }) {
           <button className="btn btn-ghost" style={{width:"100%",marginTop:8,justifyContent:"center"}} onClick={connectSmartCredit} disabled={smartCreditState.status==="loading"}>{smartCreditState.status==="loading" ? "Connecting..." : "Connect SmartCredit"}</button>
           <div className="text-xs text-muted" style={{marginTop:6}}>Status: {smartCreditState.status.replace('_',' ')} · {smartCreditState.message}</div>
           <div className="card" style={{marginTop:12,textAlign:"left"}}>
-            <div className="section-title">Credit Report</div>
-            <p className="text-xs text-muted" style={{marginTop:6}}>Upload a PDF report to auto-populate dashboard credit metrics.</p>
+            <div className="section-title">Credit Report Scanner</div>
+            <p className="text-xs text-muted" style={{marginTop:6}}>Upload a PDF report to extract credit data for review.</p>
+            <p className="text-xs text-muted" style={{marginTop:6}}>Your credit report contains sensitive personal information. Upload only your own report or a report you are authorized to use.</p>
+            <div onDragOver={(e)=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={onDropCreditReport} style={{marginTop:8,padding:'10px',border:'1px dashed var(--border2)',borderRadius:8,background:dragOver?'rgba(79,142,247,0.08)':'transparent',fontSize:12,color:'var(--text2)'}}>
+              Drag and drop PDF here
+            </div>
             <label className="btn btn-ghost" style={{marginTop:10,display:"inline-flex",justifyContent:"center",cursor:"pointer"}}>
               Upload Credit Report
               <input type="file" accept="application/pdf" onChange={onUploadCreditReport} style={{display:"none"}} disabled={scanState.loading} />
             </label>
+            {scanFileName && <div className="text-xs text-muted" style={{marginTop:8}}>Selected: {scanFileName}</div>}
             {scanState.loading && <div className="text-xs" style={{marginTop:8}}>Scanning... {scanState.progress}%</div>}
             {scanState.message && <div className="text-xs" style={{marginTop:8,color:"var(--green)"}}>{scanState.message}</div>}
             {scanState.error && <div className="text-xs" style={{marginTop:8,color:"var(--red)"}}>{scanState.error}</div>}
             {scanData && <div className="text-xs text-muted" style={{marginTop:8}}>
-              Score: {scanData.creditScore ?? 'N/A'} · Negative Items: {scanData.negativeItems ?? 0} · Total Debt: {fmt(Number(scanData.totalDebt || 0))} · Utilization: {scanData.revolvingUtilization ?? 0}% · Hard Inquiries: {scanData.hardInquiries ?? 0} · Funding Readiness: {scanData.fundingReadinessScore ?? 0}
-              <div style={{marginTop:4}}>Next Best Action: {Array.isArray(scanData.recommendedNextActions) ? scanData.recommendedNextActions[0] : 'N/A'}</div>
+              Score: {scanData?.scores?.ficoScore ?? scanData?.scores?.vantageScore ?? 'N/A'} · Derogatory Items: {scanData?.summary?.derogatoryCount ?? 0} · Total Debt: {fmt(Number(scanData?.summary?.totalDebt || 0))} · Utilization: {scanData?.summary?.creditUtilization ?? 0}% · Inquiries: {scanData?.summary?.inquiryCount ?? 0}
+              <div style={{marginTop:6,maxHeight:120,overflow:'auto'}}>
+                {(scanData?.accounts || []).slice(0, 8).map((a, idx) => <div key={idx}>{a.creditorName || 'Account'} · {a.accountStatus || 'Unknown'} · {fmt(Number(a.balance || 0))}</div>)}
+              </div>
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button className="btn btn-primary btn-sm" onClick={saveScanToDashboard}>Save to Dashboard</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>{setScanData(null);setScanState({ loading:false, progress:0, message:'Scan canceled.', error:'' });}}>Cancel</button>
+              </div>
             </div>}
           </div>
           {showForm && (
@@ -5081,7 +5129,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
   const LIAB_CATS = [
     {
       key:"credit", label:"Credit Cards", icon:"💳", color:"#f43f5e",
-      value: creditLiab, connected: true,
+      value: creditCardsLiab, connected: true,
       detail: accounts.filter(a => a.type === "credit").map(a => ({
         name: a.name, val: Math.abs(a.balance), sub: `••••${a.last4} · ${a.institution}`
       }))
@@ -5093,8 +5141,8 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
     },
     {
       key:"car", label:"Car Loan", icon:"🚗", color:"#fb923c",
-      value: carLiab, connected: false,
-      detail: [{ name:"Auto Financing", val: carLiab, sub:"Est. payoff: Jan 2027" }]
+      value: autoLiab, connected: false,
+      detail: [{ name:"Auto Financing", val: autoLiab, sub:"Est. payoff: Jan 2027" }]
     },
   ];
 
@@ -5302,7 +5350,7 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
               {label:"Spending",         val:MOCK.spending,     color:"var(--red)"},
               {label:"Net Cash Flow",    val:cashflowNet,       color:cashflowNet>=0?"var(--green)":"var(--red)"},
               {label:"Savings Rate",     val:`${savingsRate}%`, color:"var(--accent)", raw:true},
-              {label:"Debt Payments",    val:carLiab/12 + studentLiab/12, color:"var(--yellow)"},
+              {label:"Debt Payments",    val:autoLiab/12 + studentLiab/12, color:"var(--yellow)"},
             ].map(r=>(
               <div key={r.label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
                 <span style={{fontSize:12,color:"var(--text2)"}}>{r.label}</span>
@@ -5378,7 +5426,6 @@ const NAV_GROUPS = [
     { id:"reports",       icon:"📊", label:"Reports"       },
   ]},
   { label: "Tools", items: [
-    { id:"ai-coach",     icon:"✦",  label:"AI Coach"      },
     { id:"learning-center", icon:"📚", label:"Learning Center" },
     { id:"settings",     icon:"⚙",  label:"Settings"      },
   ]},
@@ -5398,7 +5445,7 @@ const BOTTOM_NAV = [
   { id:"budget",       icon:"◎", label:"Budget" },
   { id:"calendar",     icon:"📅", label:"Cal"   },
   { id:"bills",        icon:"📋", label:"Bills" },
-  { id:"ai-coach",     icon:"✦",  label:"Coach" },
+  { id:"learning-center", icon:"📚", label:"Learn" },
 ];
 
 // FAB overflow pages (not in bottom nav)
@@ -5411,6 +5458,7 @@ const FAB_PAGES = [
   { id:"goals",         icon:"◉", label:"Goals"         },
   { id:"reports",       icon:"📊", label:"Reports"       },
   { id:"debt-planner",  icon:"🧮", label:"Debt Planner"  },
+  { id:"ai-coach",      icon:"✦",  label:"AI Coach"      },
   { id:"learning-center", icon:"📚", label:"Learning Center" },
   { id:"settings",      icon:"⚙",  label:"Settings"      },
 ];
@@ -5451,7 +5499,7 @@ class AppErrorBoundary extends Component {
 }
 
 function WealthPilotOSApp() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, logout, demoLogin } = useAuth();
   const acct = useAccounts();
   const { mode, setMode, config: modeConfig, suggestion: modeSuggestion } = useMode();
   const [page, setPage]           = useState("dashboard");
@@ -5461,6 +5509,7 @@ function WealthPilotOSApp() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [modeOpen, setModeOpen]   = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [aiCoachOpen, setAiCoachOpen] = useState(false);
   const [billingStatus, setBillingStatus] = useState('premium');
   const [demoPlan, setDemoPlan] = useState('premium');
   const [cardEntryOpen, setCardEntryOpen] = useState(false);
@@ -5489,6 +5538,7 @@ function WealthPilotOSApp() {
     creditScore: { loading: true, error: false },
     portfolio: { loading: true, error: false },
   });
+  const [showSupabaseNotice, setShowSupabaseNotice] = useState(!isSupabaseConfigured);
 
 
   useEffect(() => {
@@ -5672,9 +5722,14 @@ function WealthPilotOSApp() {
       Loading…
     </div>
   );
-  if (!user) return <AuthGate onAuth={handleAuth} />;
+  if (!user) return <AuthGate onAuth={handleAuth} onDemoAccess={demoLogin} />;
 
   const showPage = (id) => {
+    if (id === 'ai-coach') {
+      setAiCoachOpen(true);
+      setFabOpen(false);
+      return;
+    }
     const requiredPlan = FEATURE_GATES[id];
     if (requiredPlan && !canAccessPlan(currentPlan, requiredPlan)) {
       addToast(`This feature requires the ${requiredPlan} plan.`, "info");
@@ -5753,7 +5808,6 @@ function WealthPilotOSApp() {
   const renderPage = () => {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
-      case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} debts={liveData.debts} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
@@ -5826,7 +5880,7 @@ function WealthPilotOSApp() {
             <div className="ai-coach-promo">
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:34,height:34,borderRadius:10,display:"grid",placeItems:"center",background:"rgba(255,255,255,.14)"}}>🤖</div><div style={{fontWeight:700}}>AI Coach</div></div>
               <div className="text-sm text-muted" style={{marginBottom:8}}>Your personal finance guide.</div>
-              <div className="chip-link" onClick={()=>showPage('ai-coach')}>Chat now →</div>
+              <div className="chip-link" onClick={()=>setAiCoachOpen(true)}>Chat now →</div>
             </div>
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
@@ -5842,6 +5896,12 @@ function WealthPilotOSApp() {
 
         {/* ── Main Content ── */}
         <div className="main">
+          {showSupabaseNotice && (
+            <div style={{ margin: '10px 16px 0', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(245,158,11,.3)', background: 'rgba(245,158,11,.1)', color: '#fbbf24', fontSize: 12 }}>
+              Supabase is not configured. Live sync is temporarily unavailable. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY.
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => setShowSupabaseNotice(false)}>Dismiss</button>
+            </div>
+          )}
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div className="logo-mark" style={{display:"none"}} id="mobile-logo">W</div>
@@ -5912,7 +5972,7 @@ function WealthPilotOSApp() {
             <div className="content">
               <OnboardingWizard onComplete={completeOnboarding} onSkip={() => { setOnboarding({ completed: true, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: true, step: 0 })); } catch {} }} />
             </div>
-          ) : (page==="ai-coach" ? renderPage() : <div className="content">{renderPage()}</div>)}
+          ) : (<div className="content">{renderPage()}</div>)}
         </div>
 
         {pricingOpen && (
@@ -5995,6 +6055,21 @@ function WealthPilotOSApp() {
           ))}
         </div>
         <button className={`fab ${fabOpen?"open":""}`} onClick={()=>setFabOpen(o=>!o)}>+</button>
+
+        <button className="btn btn-primary" onClick={() => setAiCoachOpen((v) => !v)} style={{position:'fixed',right:18,bottom:18,zIndex:620,borderRadius:999,padding:'10px 14px',boxShadow:'0 8px 24px rgba(0,0,0,0.35)'}}>
+          ✦ AI Coach
+        </button>
+        {aiCoachOpen && (
+          <div style={{position:'fixed',right:18,bottom:66,width:'min(420px, calc(100vw - 24px))',height:'min(72vh, 700px)',zIndex:621,background:'var(--bg2)',border:'1px solid var(--border2)',borderRadius:14,overflow:'hidden',boxShadow:'0 20px 40px rgba(0,0,0,.45)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',borderBottom:'1px solid var(--border)'}}>
+              <strong style={{fontSize:13}}>AI Coach</strong>
+              <button className="btn btn-ghost btn-sm" onClick={() => setAiCoachOpen(false)}>Close</button>
+            </div>
+            <div style={{height:'calc(100% - 46px)',overflow:'auto'}}>
+              <AICoachPage modeConfig={modeConfig} />
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

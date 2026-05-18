@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { runAiChat } from '../../../lib/ai-provider'
 import { z } from 'zod'
 
 type UserSummary = {
@@ -237,51 +238,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // 2. Build context-aware system prompt from live DB
   const systemPrompt = await buildSystemPrompt(user.id)
 
-  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY)
-  const hasOpenAI = Boolean(process.env.OPENAI_API_KEY)
   let reply = ''
   let mode: 'online' | 'offline' | 'error_fallback' = 'offline'
 
   try {
-    if (hasAnthropic) {
-      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY as string,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: [...history, { role: 'user', content: message }],
-        }),
-      })
-      if (!anthropicRes.ok) throw new Error('Anthropic request failed')
-      const aiData = await anthropicRes.json()
-      reply = aiData.content?.[0]?.text ?? ''
-      mode = 'online'
-    } else if (hasOpenAI) {
-      const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4.1-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history,
-            { role: 'user', content: message },
-          ],
-          temperature: 0.3,
-        }),
-      })
-      if (!openAiRes.ok) throw new Error('OpenAI request failed')
-      const aiData = await openAiRes.json()
-      reply = aiData.choices?.[0]?.message?.content ?? ''
+    const aiData = await runAiChat([
+      { role: 'system', content: systemPrompt },
+      ...(history as any),
+      { role: 'user', content: message },
+    ])
+    if ((aiData as any)?.notConfigured) return err(res, 'AI Coach is not configured yet.', 503)
+    reply = (aiData as any)?.text || ''
+    if (reply) {
       mode = 'online'
     }
   } catch (_) {
