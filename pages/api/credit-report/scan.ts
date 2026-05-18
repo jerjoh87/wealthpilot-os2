@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { err, methodNotAllowed, ok, requireUser } from '../../../lib/api'
-import { supabaseAdmin } from '../../../lib/supabase'
+import { scanCreditReportText } from '../../../lib/ai-provider'
 
 export const config = { api: { bodyParser: false } }
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
-const asNumber = (value: unknown, fallback = 0) => (Number.isFinite(Number(value)) ? Number(value) : fallback)
 
 // Parse multipart upload manually to avoid extra runtime dependencies.
 async function readMultipartPdf(req: NextApiRequest) {
@@ -38,22 +37,6 @@ function extractPdfText(pdfBuffer: Buffer) {
   return text
 }
 
-function fallbackExtract(text: string) {
-  const score = text.match(/credit\s*score\D{0,20}(\d{3})/i)?.[1]
-  return { creditScore: score ? Number(score) : null, reportDate: null, bureaus: [], totalOpenAccounts: 0, totalClosedAccounts: 0, totalDebt: 0, revolvingUtilization: 0, hardInquiries: 0, collections: 0, chargeOffs: 0, latePayments: 0, bankruptcies: 0, negativeItems: 0, accountSummary: [], fundingReadinessScore: 0, recommendedNextActions: ['Upload a text-based report or configure AI extraction for full parsing.'] }
-}
-
-async function extractStructured(text: string) {
-  if (!process.env.OPENAI_API_KEY) return { data: fallbackExtract(text), aiUnavailable: true }
-  const fields = 'creditScore, reportDate, bureaus, totalOpenAccounts, totalClosedAccounts, totalDebt, revolvingUtilization, hardInquiries, collections, chargeOffs, latePayments, bankruptcies, negativeItems, accountSummary, fundingReadinessScore, recommendedNextActions'
-  const prompt = `Extract structured credit report JSON from the text below. Return JSON only (no markdown) with fields: ${fields}.\n\nReport text:\n${text.slice(0, 15000)}`
-  const res = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: 'gpt-4.1-mini', input: prompt }) })
-  if (!res.ok) throw new Error('AI temporarily unavailable. Please try again in a moment.')
-  const payload: any = await res.json()
-  const raw = payload?.output_text || payload?.output?.[0]?.content?.[0]?.text || '{}'
-  return { data: JSON.parse(String(raw).trim().replace(/^```json/i, '').replace(/```$/i, '').trim()), aiUnavailable: false }
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
   const user = await requireUser(req, res)
@@ -61,20 +44,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const pdfBuffer = await readMultipartPdf(req)
     const text = extractPdfText(pdfBuffer)
-    const { data, aiUnavailable } = await extractStructured(text)
-    let databaseSaved = false
-    let databaseMessage = 'Backend/database not configured.'
-    try {
-      const db = supabaseAdmin() as any
-      const { data: report, error } = await db.from('credit_reports').insert({ user_id: user.id, credit_score: asNumber(data.creditScore, 0), report_date: data.reportDate || null, bureaus: data.bureaus || [], total_open_accounts: asNumber(data.totalOpenAccounts, 0), total_closed_accounts: asNumber(data.totalClosedAccounts, 0), total_debt: asNumber(data.totalDebt, 0), revolving_utilization: asNumber(data.revolvingUtilization, 0), hard_inquiries: asNumber(data.hardInquiries, 0), collections: asNumber(data.collections, 0), charge_offs: asNumber(data.chargeOffs, 0), late_payments: asNumber(data.latePayments, 0), bankruptcies: asNumber(data.bankruptcies, 0), negative_items: asNumber(data.negativeItems, 0), funding_readiness_score: asNumber(data.fundingReadinessScore, 0), recommended_next_actions: data.recommendedNextActions || [], raw_text_excerpt: text.slice(0, 4000) }).select('id').single()
-      if (error) throw error
-      if (Array.isArray(data.accountSummary) && data.accountSummary.length) await db.from('credit_report_accounts').insert(data.accountSummary.map((a: any) => ({ report_id: report.id, user_id: user.id, account_name: a.accountName || a.name || 'Account' })))
-      databaseSaved = true
-      databaseMessage = 'Saved to Supabase.'
-    } catch (dbError: any) {
-      databaseMessage = dbError?.message || databaseMessage
-    }
-    return ok(res, { ...data, aiUnavailable, databaseSaved, databaseMessage })
+    const result = await scanCreditReportText(text)
+    if ((result as any)?.notConfigured) return err(res, 'AI credit scan is not configured yet.', 503)
+    const data = (result as any)?.data || result
+    return ok(res, data)
   } catch (e: any) {
     const msg = String(e?.message || 'Failed to scan credit report.')
     if (msg.includes('File too large')) return err(res, msg, 413)

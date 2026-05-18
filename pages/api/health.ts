@@ -10,6 +10,9 @@ type HealthPayload = {
     supabaseAnonKey: boolean
     supabaseServiceKey: boolean
     openai: boolean
+    gemini: boolean
+    groq: boolean
+    openrouter: boolean
     plaidClientId: boolean
     plaidSecret: boolean
     tellerApplicationId: boolean
@@ -26,6 +29,9 @@ export default function handler(_req: NextApiRequest, res: NextApiResponse<Healt
     supabaseAnonKey: isConfigured(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     supabaseServiceKey: isConfigured(process.env.SUPABASE_SERVICE_ROLE_KEY),
     openai: isConfigured(process.env.OPENAI_API_KEY),
+    gemini: isConfigured(process.env.GEMINI_API_KEY),
+    groq: isConfigured(process.env.GROQ_API_KEY),
+    openrouter: isConfigured(process.env.OPENROUTER_API_KEY),
     plaidClientId: isConfigured(process.env.PLAID_CLIENT_ID),
     plaidSecret: isConfigured(process.env.PLAID_SECRET),
     tellerApplicationId: isConfigured(process.env.TELLER_APPLICATION_ID),
@@ -34,6 +40,9 @@ export default function handler(_req: NextApiRequest, res: NextApiResponse<Healt
 
   const warnings: string[] = []
   if (!checks.openai) warnings.push('OPENAI_API_KEY is missing')
+  if (!checks.gemini) warnings.push('GEMINI_API_KEY is missing')
+  if (!checks.groq) warnings.push('GROQ_API_KEY is missing')
+  if (!checks.openrouter) warnings.push('OPENROUTER_API_KEY is missing')
   if (!checks.plaidClientId) warnings.push('PLAID_CLIENT_ID is missing')
   if (!checks.plaidSecret) warnings.push('PLAID_SECRET is missing')
   if (!checks.tellerApplicationId) warnings.push('TELLER_APPLICATION_ID is missing')

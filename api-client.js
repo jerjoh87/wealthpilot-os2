@@ -187,7 +187,11 @@ export const creditReport = {
       xhr.send(form);
     });
   },
+  save: (scanData) => post('/credit-report/save', { scanData }),
 };
+
+export const scanCreditReportPdf = (file, onProgress) => creditReport.scan(file, onProgress);
+export const saveCreditReportScan = (scanData) => creditReport.save(scanData);
 
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 export const ai = {
