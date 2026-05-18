@@ -1145,8 +1145,6 @@ const css = `
   
   .sidebar{background:linear-gradient(180deg, rgba(8,14,36,.96), rgba(7,11,31,.96));}
   .nav-item.active{background:linear-gradient(135deg, rgba(99,102,241,.28), rgba(168,85,247,.22));color:#dbe4ff;border-color:rgba(167,139,250,.45);}
-  .ai-coach-promo{margin:10px;border-radius:20px;padding:14px;background:linear-gradient(155deg, rgba(64,78,146,.35), rgba(77,39,150,.24));border:1px solid rgba(167,139,250,.35);}
-  .ai-coach-promo h4{font-size:28px;}
   .mini-list{display:grid;gap:10px;}
   .mini-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;}
   .category-bar{height:10px;border-radius:20px;background:rgba(255,255,255,.08);overflow:hidden;}
@@ -1192,7 +1190,7 @@ const css = `
   .nav-item:hover { background: rgba(95,112,255,.12); color: #fff; }
   .nav-item.active { background: linear-gradient(135deg, rgba(99,102,241,.32), rgba(147,51,234,.25)); color: #f1f5ff; border-color: rgba(139,92,246,.45); }
   .nav-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; opacity: .95; }
-  .sidebar-bottom { padding: 12px 10px 16px; border-top: 1px solid rgba(121,140,255,.14); }
+  .sidebar-bottom { padding: 8px 10px 16px; border-top: 1px solid rgba(121,140,255,.14); margin-top: auto; }
   .plan-badge {
     margin: 8px 4px 0;
     padding: 8px 12px; border-radius: var(--radius-sm);
