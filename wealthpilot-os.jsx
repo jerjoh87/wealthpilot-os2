@@ -554,11 +554,21 @@ function useAuth() {
     }
   }, []);
 
-  return { user, loading, login, signup, logout };
+  const demoLogin = useCallback(() => {
+    setUser({
+      id: 'demo-user',
+      email: 'demo@wealthpilot.local',
+      name: 'Demo User',
+      user_metadata: { name: 'Demo User', plan: 'premium' },
+    });
+    safeStorageSet('wp_token', 'demo-token');
+  }, []);
+
+  return { user, loading, login, signup, logout, demoLogin };
 }
 
 // ─── AUTH GATE ────────────────────────────────────────────────────────────────
-function AuthGate({ onAuth }) {
+function AuthGate({ onAuth, onDemoAccess }) {
   const [mode, setMode]       = useState("login");   // "login" | "signup"
   const [email, setEmail]     = useState("");
   const [password, setPass]   = useState("");
@@ -650,6 +660,15 @@ function AuthGate({ onAuth }) {
           opacity:busy?0.7:1,transition:"opacity .15s"
         }}>
           {busy ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+
+        <button onClick={onDemoAccess} disabled={busy} style={{
+          width:"100%",padding:"11px",borderRadius:10,border:"1px solid rgba(79,142,247,0.45)",cursor:"pointer",
+          background:"rgba(79,142,247,0.12)",color:"#dbeafe",
+          fontFamily:"inherit",fontSize:14,fontWeight:700,
+          opacity:busy?0.7:1,transition:"opacity .15s",marginTop:10
+        }}>
+          Continue in Demo Mode
         </button>
 
 
@@ -5451,7 +5470,7 @@ class AppErrorBoundary extends Component {
 }
 
 function WealthPilotOSApp() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, logout, demoLogin } = useAuth();
   const acct = useAccounts();
   const { mode, setMode, config: modeConfig, suggestion: modeSuggestion } = useMode();
   const [page, setPage]           = useState("dashboard");
@@ -5673,7 +5692,7 @@ function WealthPilotOSApp() {
       Loading…
     </div>
   );
-  if (!user) return <AuthGate onAuth={handleAuth} />;
+  if (!user) return <AuthGate onAuth={handleAuth} onDemoAccess={demoLogin} />;
 
   const showPage = (id) => {
     const requiredPlan = FEATURE_GATES[id];
