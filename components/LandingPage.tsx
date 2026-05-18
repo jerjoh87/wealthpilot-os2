@@ -1,226 +1,122 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
 
-const benefits = [
-  { icon: '🔐', title: 'Secure Bank Sync', copy: 'Connect accounts with read-only, bank-level security.' },
-  { icon: '✨', title: 'AI-Powered Insights', copy: 'Get smart guidance based on your spending behavior.' },
-  { icon: '🎯', title: 'Reach Your Goals', copy: 'Plan milestones and track progress in real time.' },
-  { icon: '📊', title: 'Clean Reports', copy: 'Beautiful monthly summaries you can actually use.' },
+const trustBadges = ['Bank-grade security', '256-bit encryption', 'Read-only sync', 'SOC-ready posture', 'Private beta', 'AI assisted']
+const painPoints = ['No clear monthly plan', 'Bills slipping through', 'Debt progress feels slow', 'Unclear credit impact', 'Scattered account data', 'No actionable AI guidance']
+const features = ['Unified dashboard', 'Smart budgeting', 'Bill reminders', 'Debt planner', 'Credit scanner', 'AI coach', 'Weekly reports', 'Goal tracking']
+const steps = ['Connect or add accounts', 'Set monthly budgets', 'Track bills and due dates', 'Scan credit report', 'Follow AI action plan']
+const faqs = [
+  ['Is this live?', 'We are currently in private beta with staged feature rollout.'],
+  ['Is my data secure?', 'Yes, we use encrypted transport and keep sensitive processing server-side.'],
+  ['Do I need bank sync?', 'No, manual mode works if you do not connect accounts.'],
+  ['Can I cancel?', 'Yes. You can leave beta access at any time.'],
 ]
 
-const features = [
-  { icon: '📒', title: 'Budget Tracking', copy: 'Set spending plans and monitor every category with clarity.' },
-  { icon: '🤖', title: 'AI Coach', copy: 'Ask natural questions and receive practical money actions.' },
-  { icon: '📈', title: 'Spending Insights', copy: 'Spot trends, overspending, and savings opportunities fast.' },
-  { icon: '🏁', title: 'Goal Planning', copy: 'Build and manage savings goals with smart recommendations.' },
-  { icon: '🧾', title: 'Smart Reports', copy: 'Understand your monthly progress with clean visual reports.' },
-  { icon: '🏦', title: 'Bank Connections', copy: 'Sync multiple institutions for one complete money view.' },
-]
-
-const testimonials = [
-  {
-    name: 'Sarah J.',
-    role: 'Marketing Manager',
-    quote:
-      'AI Budget changed the way I manage my money. The insights are amazing and I’m saving more every month!',
-  },
-  {
-    name: 'Mike R.',
-    role: 'Software Engineer',
-    quote: 'The AI coach is like having a personal financial advisor in my pocket.',
-  },
-  {
-    name: 'Emily K.',
-    role: 'Freelancer',
-    quote: 'Beautiful app, super easy to use, and actually helps me reach my savings goals.',
-  },
-]
+const Counter = ({ to, prefix = '', suffix = '' }: { to: number; prefix?: string; suffix?: string }) => {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    let raf = 0
+    const start = performance.now()
+    const duration = 1200
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / duration)
+      setValue(Math.round(to * p))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [to])
+  return <>{prefix}{value.toLocaleString()}{suffix}</>
+}
 
 const LandingPage: NextPage = () => {
-  return (
-    <div className="landing">
-      <div className="ambient ambientOne" />
-      <div className="ambient ambientTwo" />
+  const [openFaq, setOpenFaq] = useState<number | null>(0)
 
-      <header className="shell navWrap">
-        <div className="navBar">
-          <div className="brand">WealthPilot</div>
-          <nav>
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How It Works</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#reviews">Reviews</a>
-          </nav>
-          <div className="navCta">
-            <Link href="/dashboard" className="btn ghostBtn">Sign in</Link>
-            <Link href="/dashboard" className="btn gradientBtn">Get Started</Link>
-          </div>
-        </div>
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll('.reveal'))
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.14 })
+    nodes.forEach((n) => io.observe(n))
+    return () => io.disconnect()
+  }, [])
+
+  const year = useMemo(() => new Date().getFullYear(), [])
+
+  return (
+    <div className="lp">
+      <header className="nav reveal">
+        <strong>WealthPilot</strong>
+        <nav><a href="#features">Features</a><a href="#scanner">Scanner</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
+        <label htmlFor="mnav" className="hamb">☰</label><input id="mnav" type="checkbox" hidden />
       </header>
 
-      <main className="shell pageFlow">
-        <section className="hero">
-          <div>
-            <span className="pill">AI-Powered Personal Finance</span>
-            <h1>
-              Smarter Budgeting,
-              <br />
-              <span>Powered by AI.</span>
-            </h1>
-            <p className="lead">
-              Track spending, build budgets, reach savings goals, and get AI insights that help you make smarter financial decisions.
-            </p>
-            <div className="heroCta">
-              <Link href="/dashboard" className="btn gradientBtn">Start Free</Link>
-              <Link href="/dashboard" className="btn ghostBtn">Watch Demo</Link>
-            </div>
-            <div className="trustDots">
-              <span>• Free 14-day trial</span>
-              <span>• No credit card</span>
-              <span>• Cancel anytime</span>
-            </div>
-          </div>
+      <section className="hero reveal">
+        <h1>Luxury Financial Control <span>for Real Life</span></h1>
+        <p>Track money, optimize debt, and monitor credit with AI-assisted insights in one command center.</p>
+        <div className="cta"><Link href="/dashboard" className="btn pri">Join Private Beta</Link><Link href="/dashboard" className="btn">View Demo</Link></div>
+        <small>Trusted by beta users across budgeting, credit, and cash-flow planning.</small>
+      </section>
 
-          <article className="dashboardMock">
-            <aside>
-              <h4>AI Budget</h4>
-              <span>Dashboard</span><span>Transactions</span><span>Budgets</span><span>Goals</span><span>Reports</span>
-            </aside>
-            <div className="mockMain">
-              <div className="miniGrid">
-                <div><small>Total Balance</small><strong>$1,148.00</strong></div>
-                <div><small>Monthly Budget</small><strong>$1,240.00</strong></div>
-              </div>
-              <div className="spendCard">
-                <small>Spending Breakdown</small>
-                <div className="bar"><i style={{ width: '72%' }} /></div>
-              </div>
-              <div className="miniGrid">
-                <div><small>Savings Goal</small><strong>$3,450.00</strong></div>
-                <div><small>AI Insight</small><p>Dining spend up 18%. Shift $80 to savings this week.</p></div>
-              </div>
-            </div>
-          </article>
-        </section>
+      <section className="dash reveal">
+        <div className="cards">
+          <article><b><Counter to={12480} prefix="$" /></b><span>Total Cash</span></article>
+          <article><b><Counter to={742} /></b><span>Credit Score</span></article>
+          <article><b><Counter to={28} suffix="%" /></b><span>Utilization</span></article>
+        </div>
+        <div className="bars"><i style={{ width: '78%' }} /><i style={{ width: '62%' }} /><i style={{ width: '91%' }} /></div>
+        <div className="insight">AI Insight: Reduce card A by $320 to move utilization under 25%.</div>
+      </section>
 
-        <section className="benefitStrip" id="how-it-works">
-          {benefits.map((item, index) => (
-            <article key={item.title} className={index < benefits.length - 1 ? 'divider' : ''}>
-              <div className="iconGlow">{item.icon}</div>
-              <h3>{item.title}</h3>
-              <p>{item.copy}</p>
-            </article>
-          ))}
-        </section>
+      <section className="badges reveal">{trustBadges.map((b) => <span key={b}>{b}</span>)}</section>
 
-        <section id="features" className="section">
-          <div className="sectionHead">
-            <div>
-              <small>POWERFUL FEATURES</small>
-              <h2>Everything You Need to <span>Master Your Money</span></h2>
-            </div>
-            <Link href="/dashboard" className="btn ghostBtn">Explore all features →</Link>
-          </div>
-          <div className="featureGrid">
-            {features.map((feature) => (
-              <article key={feature.title} className="glassCard">
-                <div className="iconGlow">{feature.icon}</div>
-                <h3>{feature.title}</h3>
-                <p>{feature.copy}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+      <section className="grid reveal"><h2>Problems We Solve</h2><div>{painPoints.map((p) => <article key={p}>{p}</article>)}</div></section>
+      <section id="features" className="grid reveal"><h2>Core Features</h2><div>{features.map((f) => <article key={f}>{f}</article>)}</div></section>
 
-        <section className="aiShowcase">
-          <div className="leftDecor">
-            <div className="starCard">✦ AI Insight Engine</div>
-            <div className="miniChart"><span /></div>
-          </div>
-          <div>
-            <small>AI INSIGHT</small>
-            <h2>AI that Works for You</h2>
-            <p>Our AI analyzes your spending patterns, detects behavior shifts, and gives actionable next steps to improve cash flow and accelerate goals.</p>
-            <Link href="/dashboard" className="btn gradientBtn">See how it works →</Link>
-          </div>
-        </section>
+      <section className="steps reveal"><h2>How It Works</h2><ol>{steps.map((s) => <li key={s}>{s}</li>)}</ol></section>
 
-        <section className="statsRow">
-          <article className="glassCard"><h3>Total Balance</h3><p className="metric">$1,148.00</p><div className="line" /></article>
-          <article className="glassCard"><h3>Monthly Budget</h3><p className="metric">$1,240.00</p><div className="bar"><i style={{ width: '66%' }} /></div></article>
-          <article className="glassCard"><h3>Spending Breakdown</h3><div className="donut" /><p>Housing • Food • Transport</p></article>
-          <article className="glassCard"><h3>Savings Goal</h3><p className="metric">$3,450.00</p><div className="bar green"><i style={{ width: '58%' }} /></div></article>
-        </section>
+      <section id="scanner" className="scanner reveal">
+        <div><h2>AI Credit Scanner</h2><p>Upload a credit report PDF, review extracted data, then save to dashboard.</p></div>
+        <aside><div>Drop PDF here</div><button>Upload Credit Report</button><small>Your credit report contains sensitive personal information. Upload only your own report or a report you are authorized to use.</small></aside>
+      </section>
 
-        <section id="reviews" className="section">
-          <div className="sectionHead">
-            <div><small>TRUSTED BY THOUSANDS</small><h2>Loved by People Like You</h2></div>
-            <Link href="/dashboard" className="btn ghostBtn">View all reviews →</Link>
-          </div>
-          <div className="testimonialGrid">
-            {testimonials.map((t) => (
-              <article key={t.name} className="glassCard">
-                <div className="stars">★★★★★</div>
-                <p>“{t.quote}”</p>
-                <div className="person"><span /> <div><strong>{t.name}</strong><small>{t.role}</small></div></div>
-              </article>
-            ))}
-          </div>
-        </section>
+      <section className="beta reveal"><h3>Private Beta Status</h3><div><span>Core Dashboard: Live</span><span>AI Scanner: Rolling Out</span><span>Bank Sync: Limited</span></div></section>
 
-        <section id="pricing" className="section">
-          <small>SIMPLE, TRANSPARENT PRICING</small>
-          <h2>Choose the Plan That’s Right for You</h2>
-          <div className="toggle">Monthly <span>Yearly</span> <em>Save 20%</em></div>
-          <div className="pricingGrid">
-            <article className="glassCard"><h3>Free</h3><p className="metric">$0 <small>/ month</small></p><ul><li>Connect up to 2 accounts</li><li>Basic budgeting</li><li>Standard reports</li></ul><Link href="/dashboard" className="btn ghostBtn">Get Started</Link></article>
-            <article className="glassCard popular"><b>Most Popular</b><h3>Pro</h3><p className="metric">$9.99 <small>/ month</small></p><ul><li>Unlimited accounts</li><li>AI insights & coach</li><li>Advanced reports</li><li>Custom goals</li></ul><Link href="/dashboard" className="btn gradientBtn">Start Free Trial</Link></article>
-            <article className="glassCard"><h3>Premium</h3><p className="metric">$19.99 <small>/ month</small></p><ul><li>Everything in Pro</li><li>Priority support</li><li>Early access to new features</li></ul><Link href="/dashboard" className="btn ghostBtn">Start Free Trial</Link></article>
-          </div>
-        </section>
+      <section id="pricing" className="pricing reveal">
+        <article className="hot"><h4>Free Beta</h4><p>$0</p></article><article><h4>Pro</h4><p>$9.99</p></article><article><h4>Premium</h4><p>$19.99</p></article>
+      </section>
 
-        <section className="finalCta">
-          <div><h2>Ready to Take Control of Your Finances?</h2><p>Join thousands of people who are already saving more, spending smarter, and building a better future.</p></div>
-          <Link href="/dashboard" className="btn gradientBtn">Start Managing Money Smarter →</Link>
-        </section>
-      </main>
+      <section id="faq" className="faq reveal">
+        <h2>FAQ</h2>
+        {faqs.map(([q, a], i) => <div key={q}><button onClick={() => setOpenFaq(openFaq === i ? null : i)}>{q}</button><p className={openFaq === i ? 'open' : ''}>{a}</p></div>)}
+      </section>
 
-      <footer className="shell footer">
-        <div><h3>WealthPilot</h3><p>Your premium AI finance command center.</p></div>
-        <div><h4>Product</h4><Link href="/dashboard">Dashboard</Link><Link href="#pricing">Pricing</Link></div>
-        <div><h4>Resources</h4><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
-        <div><h4>Company</h4><Link href="/contact">Contact</Link><Link href="/disclaimer">Disclaimer</Link></div>
-        <div><h4>Stay Updated</h4><input placeholder="Enter your email" /><div className="social">◉ ◉ ◉</div></div>
-      </footer>
+      <section className="final reveal"><h2>Ready to Join WealthPilot Private Beta?</h2><Link href="/dashboard" className="btn pri">Request Access</Link></section>
+      <footer className="reveal">© {year} WealthPilot · Not financial advice. For educational purposes only.</footer>
 
       <style jsx>{`
-        .landing{background:#050B1F;color:#F8FAFC;min-height:100vh;position:relative;overflow:hidden;font-family:Inter,system-ui,sans-serif}
-        .shell{width:min(1200px,92%);margin:0 auto;position:relative;z-index:2}.pageFlow{display:grid;gap:26px;padding-bottom:48px}
-        .ambient{position:absolute;border-radius:999px;filter:blur(90px);opacity:.35}.ambientOne{width:500px;height:500px;background:#8B5CF6;left:-180px;top:-120px}.ambientTwo{width:420px;height:420px;background:#3B82F6;right:-160px;top:280px}
-        .navWrap{padding-top:22px}.navBar{display:flex;align-items:center;justify-content:space-between;background:rgba(10,18,45,.72);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:12px 20px;backdrop-filter:blur(18px)}
-        .brand{font-weight:800;font-size:1.25rem;letter-spacing:.2px}nav{display:flex;gap:26px}nav a{color:#A7B0C3;text-decoration:none;font-size:.94rem}.navCta,.heroCta{display:flex;gap:12px}
-        .btn{padding:12px 18px;border-radius:16px;text-decoration:none;color:#fff;border:1px solid transparent;display:inline-block;font-weight:600}.gradientBtn{background:linear-gradient(135deg,#6366F1,#8B5CF6,#A855F7);box-shadow:0 14px 35px rgba(139,92,246,.35)}.ghostBtn{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
-        .hero{display:grid;grid-template-columns:1fr 1.05fr;gap:22px;background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.1);border-radius:28px;padding:34px;backdrop-filter:blur(18px)}
-        .pill{display:inline-block;padding:8px 15px;border-radius:999px;background:rgba(59,130,246,.18);border:1px solid rgba(255,255,255,.16);color:#cfe3ff;font-size:.84rem;font-weight:600}.hero h1{font-size:clamp(2.3rem,5vw,4.15rem);line-height:1.04;margin:18px 0 14px;font-weight:800}.hero h1 span{background:linear-gradient(120deg,#8B5CF6,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.lead{color:#A7B0C3;max-width:620px;font-size:1.03rem;line-height:1.7}.trustDots{display:flex;gap:16px;flex-wrap:wrap;color:#A7B0C3;margin-top:12px}
-        .dashboardMock{background:linear-gradient(180deg,rgba(15,23,52,.9),rgba(8,13,32,.82));border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:16px;display:grid;grid-template-columns:132px 1fr;gap:12px;box-shadow:0 24px 64px rgba(0,0,0,.42)}
-        .dashboardMock aside{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px}.dashboardMock aside span{color:#A7B0C3;font-size:.87rem}
-        .mockMain{display:grid;gap:10px}.miniGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.miniGrid div,.spendCard{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px}.miniGrid small,.spendCard small{color:#A7B0C3}.miniGrid strong{display:block;margin-top:5px}
-        .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:9px}.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#8B5CF6,#3B82F6)}.bar.green i{background:#22C55E}
-        .benefitStrip{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:24px;backdrop-filter:blur(18px)}
-        .benefitStrip article{padding:22px}.divider{border-right:1px solid rgba(255,255,255,.08)}.iconGlow{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(139,92,246,.2);box-shadow:0 0 24px rgba(139,92,246,.4);margin-bottom:12px;font-size:1.05rem}
-        .section,.aiShowcase,.statsRow,.finalCta{background:rgba(10,18,45,.75);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:26px;backdrop-filter:blur(18px)}
-        .sectionHead{display:flex;justify-content:space-between;gap:14px;align-items:end}.section small{color:#A7B0C3}.section h2 span{background:linear-gradient(120deg,#8B5CF6,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        .featureGrid,.testimonialGrid,.pricingGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}.glassCard{background:linear-gradient(180deg,rgba(15,23,52,.9),rgba(8,13,32,.82));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);transition:.25s}.glassCard:hover{transform:translateY(-4px)}
-        .aiShowcase{display:grid;grid-template-columns:.95fr 1.05fr;gap:18px;background:radial-gradient(circle at left,#5130ad77,transparent 45%),rgba(10,18,45,.8)}
-        .starCard,.miniChart{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:16px}.miniChart{height:100px;position:relative}.miniChart span{position:absolute;left:12px;right:12px;bottom:18px;height:2px;background:linear-gradient(90deg,#8B5CF6,#3B82F6)}
-        .statsRow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.metric{font-size:1.8rem;margin:8px 0}.line{height:70px;border-radius:12px;background:linear-gradient(180deg,rgba(139,92,246,.3),rgba(59,130,246,.09))}.donut{width:76px;height:76px;border-radius:50%;background:conic-gradient(#8B5CF6 0 42%,#3B82F6 42% 72%,#22C55E 72% 100%);margin:8px 0;position:relative}.donut:after{content:'';position:absolute;inset:15px;background:#0c1638;border-radius:50%}
-        .stars{color:#FACC15}.person{display:flex;align-items:center;gap:10px}.person span{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#8B5CF6,#3B82F6);display:inline-block}.person small{display:block;color:#A7B0C3}
-        ul{padding-left:18px} li{margin:6px 0;color:#cfd8ed}.popular{outline:1px solid #8B5CF6;position:relative}.popular b{position:absolute;top:-10px;right:16px;background:#8B5CF6;padding:4px 10px;border-radius:999px;font-size:.74rem}
-        .toggle{display:inline-flex;gap:10px;background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.1)}.toggle span{color:#fff}.toggle em{font-style:normal;color:#22C55E}
-        .finalCta{display:flex;justify-content:space-between;gap:18px;align-items:center;background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(139,92,246,.2)),rgba(10,18,45,.8)}
-        .footer{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:14px;border-top:1px solid rgba(255,255,255,.08);padding:28px 0 38px}.footer a{display:block;color:#A7B0C3;text-decoration:none;margin:6px 0}.footer input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;color:#fff}.social{margin-top:8px;color:#8B5CF6}
-        @media (max-width:1080px){.hero,.aiShowcase{grid-template-columns:1fr}.benefitStrip{grid-template-columns:repeat(2,1fr)}.divider{border-right:0}.featureGrid,.pricingGrid,.statsRow,.testimonialGrid,.footer{grid-template-columns:1fr 1fr}}
-        @media (max-width:720px){nav{display:none}.navBar{flex-wrap:wrap;gap:10px}.featureGrid,.pricingGrid,.statsRow,.testimonialGrid,.benefitStrip,.footer{grid-template-columns:1fr}.dashboardMock{grid-template-columns:1fr}.miniGrid{grid-template-columns:1fr}.finalCta,.sectionHead{flex-direction:column;align-items:flex-start}}
+        .lp{background:radial-gradient(circle at 15% 0,#101833,#070a14 45%,#05070e);color:#f8fafc;min-height:100vh;padding:20px;display:grid;gap:18px;font-family:Inter,system-ui}
+        .reveal{opacity:0;transform:translateY(18px);transition:.6s ease}.reveal.in{opacity:1;transform:none}
+        .nav{position:sticky;top:10px;z-index:30;display:flex;justify-content:space-between;align-items:center;background:#0b1120cc;border:1px solid #23314f;border-radius:16px;padding:12px 16px}
+        nav{display:flex;gap:16px}nav a{color:#cbd5e1;text-decoration:none}.hamb{display:none}
+        section,footer{max-width:1200px;width:100%;margin:0 auto}
+        .hero,.dash,.grid,.steps,.scanner,.beta,.pricing,.faq,.final,.badges{background:#0b1222;border:1px solid #1f2b45;border-radius:18px;padding:24px}
+        .hero h1{font-size:clamp(2rem,5vw,4rem);margin:0}.hero h1 span{background:linear-gradient(90deg,#8b5cf6,#22c55e,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .cta{display:flex;gap:10px;margin:14px 0}.btn{padding:10px 14px;border-radius:12px;border:1px solid #334155;color:white;text-decoration:none}.pri{background:linear-gradient(135deg,#7c3aed,#3b82f6)}
+        .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cards article{background:#10192f;border-radius:12px;padding:12px}.cards b{font-size:1.4rem}
+        .bars i{display:block;height:9px;border-radius:99px;background:linear-gradient(90deg,#8b5cf6,#22c55e);margin-top:10px}
+        .insight{margin-top:12px;padding:10px;border-radius:10px;background:#13213d;color:#c7d2fe}
+        .badges{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.badges span{background:#121a2d;border-radius:999px;padding:8px 10px;text-align:center}
+        .grid>div{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.grid article{background:#121a2d;padding:14px;border-radius:12px}
+        .steps ol{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:0;list-style:none}.steps li{background:#121a2d;padding:12px;border-radius:12px}
+        .scanner{display:grid;grid-template-columns:1fr 1fr;gap:14px}.scanner aside{background:#121a2d;padding:14px;border-radius:12px;display:grid;gap:10px}
+        .scanner button{padding:10px;border-radius:10px;background:#2563eb;border:none;color:#fff}
+        .beta div{display:flex;gap:8px;flex-wrap:wrap}.beta span{background:#0f1a30;border:1px solid #24344f;padding:8px 10px;border-radius:999px}
+        .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pricing article{background:#121a2d;padding:16px;border-radius:12px}.hot{outline:2px solid #22c55e}
+        .faq div{border-top:1px solid #24344f}.faq button{width:100%;text-align:left;background:none;border:none;color:#fff;padding:12px 0}.faq p{max-height:0;overflow:hidden;transition:max-height .3s ease;color:#cbd5e1}.faq p.open{max-height:90px}
+        .final{display:flex;justify-content:space-between;align-items:center}
+        footer{color:#94a3b8;padding:10px 2px 30px}
+        @media (max-width:900px){.cards,.grid>div,.steps ol,.pricing,.scanner,.badges{grid-template-columns:1fr 1fr}.final{flex-direction:column;align-items:flex-start;gap:10px}}
+        @media (max-width:640px){nav{display:none}.hamb{display:block}.cards,.grid>div,.steps ol,.pricing,.scanner,.badges{grid-template-columns:1fr}}
       `}</style>
     </div>
   )
