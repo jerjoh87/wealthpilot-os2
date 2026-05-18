@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { supabase } from './supabase'
+import { isSupabaseConfigured, supabase } from './supabase'
 
 export type ApiResponse<T = unknown> =
   | { data: T; error: null }
@@ -10,6 +10,12 @@ export const ok = <T>(res: NextApiResponse, data: T, status = 200) =>
 
 export const err = (res: NextApiResponse, message: string, status = 400) =>
   res.status(status).json({ data: null, error: message })
+
+export function ensureSupabaseConfigured(res: NextApiResponse) {
+  if (isSupabaseConfigured) return true
+  err(res, 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.', 503)
+  return false
+}
 
 // Extracts user from Bearer token; returns null if invalid
 export async function getUser(req: NextApiRequest) {

@@ -1,5 +1,5 @@
 import { Component, useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "./lib/supabase";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 // ── API CLIENT ────────────────────────────────────────────────────────────────
 // LIVE: uncomment the import below and remove the stub block beneath it.
@@ -5489,6 +5489,7 @@ function WealthPilotOSApp() {
     creditScore: { loading: true, error: false },
     portfolio: { loading: true, error: false },
   });
+  const [showSupabaseNotice, setShowSupabaseNotice] = useState(!isSupabaseConfigured);
 
 
   useEffect(() => {
@@ -5753,7 +5754,6 @@ function WealthPilotOSApp() {
   const renderPage = () => {
     switch (page) {
       case "dashboard":    return <Dashboard {...dashboardProps} />;
-      case "net-worth":    return <NetWorthPage accounts={acct.accounts} totalCash={acct.totalCash} creditDebt={acct.creditDebt} debts={liveData.debts} />;
       case "budget":       return <BudgetPage modeConfig={modeConfig} budgets={liveData.budgets} onAddCategory={handleAddCategory} />;
       case "transactions": return <TransactionsPage transactions={liveData.transactions} />;
       case "bills":        return <BillsPage bills={liveData.bills} onAddBill={handleAddBill} onUpdateBills={(next)=>setLiveData(prev=>({...prev,bills:next}))} />;
@@ -5842,6 +5842,12 @@ function WealthPilotOSApp() {
 
         {/* ── Main Content ── */}
         <div className="main">
+          {showSupabaseNotice && (
+            <div style={{ margin: '10px 16px 0', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(245,158,11,.3)', background: 'rgba(245,158,11,.1)', color: '#fbbf24', fontSize: 12 }}>
+              Supabase is not configured. Live sync is temporarily unavailable. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY.
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => setShowSupabaseNotice(false)}>Dismiss</button>
+            </div>
+          )}
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div className="logo-mark" style={{display:"none"}} id="mobile-logo">W</div>

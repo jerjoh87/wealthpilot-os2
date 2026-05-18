@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { ok, err, requireUser, methodNotAllowed } from '../../../lib/api'
+import { ok, err, requireUser, methodNotAllowed, ensureSupabaseConfigured } from '../../../lib/api'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { z } from 'zod'
 
@@ -19,10 +19,16 @@ type BudgetInsertPayload = {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!ensureSupabaseConfigured(res)) return
   const user = await requireUser(req, res)
   if (!user) return
 
-  const db = supabaseAdmin() as any
+  let db: any
+  try {
+    db = supabaseAdmin() as any
+  } catch {
+    return err(res, 'Supabase admin is not configured. Add SUPABASE_SERVICE_ROLE_KEY.', 503)
+  }
 
   if (req.method === 'GET') {
     const now = new Date()
