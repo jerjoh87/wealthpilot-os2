@@ -5875,6 +5875,11 @@ function WealthPilotOSApp() {
           </div>
 
           <div className="sidebar-bottom">
+            <div className="ai-coach-promo">
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:34,height:34,borderRadius:10,display:"grid",placeItems:"center",background:"rgba(255,255,255,.14)"}}>🤖</div><div style={{fontWeight:700}}>AI Coach</div></div>
+              <div className="text-sm text-muted" style={{marginBottom:8}}>Your personal finance guide.</div>
+              <div className="chip-link" onClick={()=>setAiCoachOpen(true)}>Chat now →</div>
+            </div>
             <div className="nav-item" style={{cursor:"default"}}>
               <span className="nav-icon">👤</span>
               <span style={{fontSize:13,fontWeight:500}}>{user?.user_metadata?.name || user?.name || user?.email || "WealthPilot User"}</span>
