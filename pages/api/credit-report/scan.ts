@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { err, methodNotAllowed, ok, requireUser } from '../../../lib/api'
+import { sendBadRequest, sendNotConfigured } from '../../../lib/api-errors'
+import { maxPdfBytes, validateCreditReportTextLength, validatePdfFileSize } from '../../../lib/ai-usage-guard'
 import { scanCreditReportText } from '../../../lib/ai-provider'
 
 export const config = { api: { bodyParser: false } }
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+const MAX_FILE_SIZE_BYTES = maxPdfBytes()
 
 // Parse multipart upload manually to avoid extra runtime dependencies.
 async function readMultipartPdf(req: NextApiRequest) {
@@ -16,7 +18,8 @@ async function readMultipartPdf(req: NextApiRequest) {
   for await (const chunk of req) {
     const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += b.length
-    if (size > MAX_FILE_SIZE_BYTES + 1024 * 1024) throw new Error('File too large. Maximum size is 10MB.')
+    const uploadError = validatePdfFileSize(size)
+    if (uploadError) throw new Error(uploadError)
     chunks.push(b)
   }
   const body = Buffer.concat(chunks)
@@ -44,8 +47,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const pdfBuffer = await readMultipartPdf(req)
     const text = extractPdfText(pdfBuffer)
+    const textLengthError = validateCreditReportTextLength(text)
+    if (textLengthError) return sendBadRequest(res, textLengthError)
     const result = await scanCreditReportText(text)
-    if ((result as any)?.notConfigured) return err(res, 'AI credit scan is not configured yet.', 503)
+    if ((result as any)?.notConfigured) return sendNotConfigured(res, 'AI credit scan is not configured yet.')
     const data = (result as any)?.data || result
     return ok(res, data)
   } catch (e: any) {
