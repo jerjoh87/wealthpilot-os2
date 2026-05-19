@@ -3364,6 +3364,22 @@ function Toast({ toasts }) {
 
 // ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
 
+function normalizeCalendarEvent(event) {
+  if (!event || typeof event !== "object") return event;
+  return {
+    ...event,
+    dueDate: event.dueDate || event.due_date || "",
+    notes: event.notes ?? "",
+  };
+}
+
+function serializeCalendarEvent(event) {
+  return {
+    ...event,
+    due_date: event.dueDate,
+  };
+}
+
 function CalendarPage({ addToast }) {
   const now = new Date();
   const [yr, setYr]         = useState(now.getFullYear());
@@ -3381,7 +3397,7 @@ function CalendarPage({ addToast }) {
 
   useEffect(() => {
     setLoading(true);
-    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d); }).catch(() => setError(FRIENDLY_ERRORS.calendar)).finally(() => setLoading(false));
+    calApi.list(mo + 1, yr).then(d => { if (d) setEvents(d.map(normalizeCalendarEvent)); }).catch(() => setError(FRIENDLY_ERRORS.calendar)).finally(() => setLoading(false));
   }, [mo, yr]);
 
   const todayISO = toISO(now);
@@ -3409,12 +3425,12 @@ function CalendarPage({ addToast }) {
     const ev = {...form, amount:parseFloat(form.amount)||0};
     if (drawer==="edit") {
       setEvents(es=>es.map(e=>e.id===editing.id?{...ev,id:editing.id}:e));
-      try { await calApi.update(editing.id, ev); } catch {}
+      try { await calApi.update(editing.id, serializeCalendarEvent(ev)); } catch {}
       addToast&&addToast("Event updated","success");
     } else {
       const tid = Date.now();
       setEvents(es=>[...es,{...ev,id:tid}]);
-      try { const s=await calApi.create(ev); if(s?.id) setEvents(es=>es.map(e=>e.id===tid?s:e)); } catch {}
+      try { const s=await calApi.create(serializeCalendarEvent(ev)); if(s?.id) setEvents(es=>es.map(e=>e.id===tid?normalizeCalendarEvent(s):e)); } catch {}
       addToast&&addToast("Event added","success");
     }
     setDrawer(null);
