@@ -5362,49 +5362,6 @@ function NetWorthPage({ accounts, totalCash, creditDebt, debts = [] }) {
   );
 }
 
-const LEARNING_CENTER_STORAGE_KEY = "wp_learning_center_completed";
-const LEARNING_CATEGORIES = ["Budgeting","Saving","Debt payoff","Credit building","Investing basics","Business funding","Net worth","App tutorials"];
-const STARTER_LESSONS = [
-  { id:"low-income-budget", category:"Budgeting", title:"How to budget with low income", description:"Build a simple budget that protects essentials first.", readTime:"4 min", actionStep:"List your top 3 must-pay expenses and set spending caps for everything else.", content:["Start with needs: housing, food, transport, and minimum debt payments.","Use a weekly spending limit for flexible categories like food and shopping.","Track every expense for 7 days to see where small leaks happen.","If money is tight, reduce variable costs first before touching essentials."] },
-  { id:"save-first-1000", category:"Saving", title:"How to save your first $1,000", description:"Use small automated habits to reach your first milestone.", readTime:"3 min", actionStep:"Set up an automatic transfer today, even if it is only $10 per week.", content:["Pick a starter emergency goal of $1,000.","Automate transfers right after payday so saving happens first.","Cut one repeat expense and move that amount directly into savings.","Use windfalls like tax refunds or gifts to accelerate progress."] },
-  { id:"lower-credit-utilization", category:"Credit building", title:"How to lower credit utilization", description:"Reduce utilization to support a healthier credit score.", readTime:"4 min", actionStep:"Make an extra card payment before your statement closing date.", content:["Credit utilization is your balance divided by your credit limit.","Aim to keep each card below 30%, and ideally below 10%.","Pay down high-balance cards first to lower your ratio faster.","Request a credit limit increase only if you can avoid extra spending."] },
-  { id:"avoid-late-fees", category:"Credit building", title:"How to avoid late fees", description:"Create a simple system so bills are paid on time.", readTime:"3 min", actionStep:"Turn on due-date reminders for at least your top 3 bills.", content:["Set reminders 7 days and 2 days before each due date.","Use autopay for minimum payments when possible.","Keep a small bill buffer in checking to prevent overdrafts.","Paying on time protects both your cash and your credit history."] },
-  { id:"snowball-vs-avalanche", category:"Debt payoff", title:"Snowball vs avalanche debt payoff", description:"Choose the debt strategy that fits your behavior and goals.", readTime:"5 min", actionStep:"Pick one method and write your debt payment order today.", content:["Snowball: pay smallest balance first for quick wins.","Avalanche: pay highest interest rate first to save more money.","Both methods require minimum payments on all debts.","Consistency matters more than picking the perfect method."] },
-  { id:"business-funding-prep", category:"Business funding", title:"How to prepare for business funding", description:"Get your records funding-ready before you apply.", readTime:"5 min", actionStep:"Gather your last 3 months of business statements and revenue records.", content:["Separate personal and business finances.","Track monthly revenue, expenses, and cash flow trends.","Keep debt balances and payment history organized.","Prepare a clear plan for how funds will be used and repaid."] },
-  { id:"track-net-worth", category:"Net worth", title:"How to track net worth", description:"Measure progress by tracking assets and liabilities monthly.", readTime:"4 min", actionStep:"Log your current assets and debts, then set a monthly check-in date.", content:["Net worth equals assets minus liabilities.","Track the same accounts each month for consistency.","Watch trend direction over time, not just one month.","Use net worth tracking to guide debt payoff and saving priorities."] },
-  { id:"use-ai-coach", category:"App tutorials", title:"How to use the AI Coach", description:"Ask better prompts to get practical money guidance quickly.", readTime:"2 min", actionStep:"Ask AI Coach: 'What is my next best money move this week?'", content:["Be specific with questions, timelines, and dollar amounts.","Ask for one action you can complete in 15 minutes.","Use follow-up prompts to adjust advice to your real constraints.","Turn useful advice into reminders or goals immediately."] },
-];
-
-function LearningCenterPage() {
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [activeLessonId, setActiveLessonId] = useState(STARTER_LESSONS[0].id);
-  const [completedLessons, setCompletedLessons] = useState([]);
-  useEffect(() => { try { const saved = JSON.parse(localStorage.getItem(LEARNING_CENTER_STORAGE_KEY) || "[]"); if (Array.isArray(saved)) setCompletedLessons(saved); } catch { setCompletedLessons([]); } }, []);
-  useEffect(() => { try { localStorage.setItem(LEARNING_CENTER_STORAGE_KEY, JSON.stringify(completedLessons)); } catch {} }, [completedLessons]);
-  const visibleLessons = selectedCategory === "All" ? STARTER_LESSONS : STARTER_LESSONS.filter((lesson) => lesson.category === selectedCategory);
-  const activeLesson = STARTER_LESSONS.find((lesson) => lesson.id === activeLessonId) || visibleLessons[0] || STARTER_LESSONS[0];
-  const completedCount = completedLessons.length;
-  const percentComplete = Math.round((completedCount / STARTER_LESSONS.length) * 100);
-  const recommended = STARTER_LESSONS.find((lesson) => !completedLessons.includes(lesson.id)) || STARTER_LESSONS[0];
-  const markComplete = (lessonId) => setCompletedLessons((prev) => prev.includes(lessonId) ? prev : [...prev, lessonId]);
-
-  return <div className="page-wrap">
-    <div className="grid-3 mb-4">
-      <div className="stat-card"><div className="label">Lessons completed</div><div className="value">{completedCount} / {STARTER_LESSONS.length}</div></div>
-      <div className="stat-card"><div className="label">Percentage complete</div><div className="value">{percentComplete}%</div></div>
-      <div className="stat-card"><div className="label">Recommended next lesson</div><div className="value" style={{fontSize:14}}>{recommended.title}</div></div>
-    </div>
-    <div className="card mb-4"><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["All", ...LEARNING_CATEGORIES].map((category) => <button key={category} className={`btn btn-sm ${selectedCategory===category ? "btn-primary" : "btn-ghost"}`} onClick={() => setSelectedCategory(category)}>{category}</button>)}</div></div>
-    <div className="grid-2" style={{alignItems:"start"}}>
-      <div className="card"><div className="section-title mb-3">Lessons</div>{visibleLessons.map((lesson) => {
-        const done = completedLessons.includes(lesson.id);
-        return <div key={lesson.id} className="transaction-item" style={{cursor:"pointer",border:activeLesson?.id===lesson.id?"1px solid var(--accent)":"1px solid transparent"}} onClick={() => setActiveLessonId(lesson.id)}><div><div className="transaction-title">{lesson.title}</div><div className="transaction-date">{lesson.description}</div><div className="transaction-date">{lesson.category} • {lesson.readTime}</div></div><div style={{fontSize:12,color:done?"var(--green)":"var(--text2)"}}>{done ? "Completed" : "Not started"}</div></div>;
-      })}</div>
-      <div className="card"><div className="section-title">{activeLesson.title}</div><div className="text-sm text-muted mb-3">{activeLesson.description}</div><div className="text-sm mb-3">Estimated reading time: <strong>{activeLesson.readTime}</strong></div><div className="text-sm" style={{display:"grid",gap:8}}>{activeLesson.content.map((line, idx) => <div key={idx}>• {line}</div>)}</div><div style={{marginTop:14,padding:"10px 12px",borderRadius:10,background:"var(--bg3)",border:"1px solid var(--border2)"}}><div style={{fontWeight:700,marginBottom:6}}>Action step</div><div className="text-sm">{activeLesson.actionStep}</div></div><button className="btn btn-primary" style={{marginTop:14}} onClick={() => markComplete(activeLesson.id)} disabled={completedLessons.includes(activeLesson.id)}>{completedLessons.includes(activeLesson.id) ? "Completed" : "Mark complete"}</button></div>
-    </div>
-  </div>;
-}
-
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 // Grouped sidebar nav
 const NAV_GROUPS = [
@@ -5424,7 +5381,6 @@ const NAV_GROUPS = [
     { id:"reports",       icon:"📊", label:"Reports"       },
   ]},
   { label: "Tools", items: [
-    { id:"learning-center", icon:"📚", label:"Learning Center" },
     { id:"settings",     icon:"⚙",  label:"Settings"      },
   ]},
 ];
@@ -5443,7 +5399,7 @@ const BOTTOM_NAV = [
   { id:"budget",       icon:"◎", label:"Budget" },
   { id:"calendar",     icon:"📅", label:"Cal"   },
   { id:"bills",        icon:"📋", label:"Bills" },
-  { id:"learning-center", icon:"📚", label:"Learn" },
+  { id:"settings",     icon:"⚙", label:"Settings" },
 ];
 
 // FAB overflow pages (not in bottom nav)
@@ -5457,14 +5413,13 @@ const FAB_PAGES = [
   { id:"reports",       icon:"📊", label:"Reports"       },
   { id:"debt-planner",  icon:"🧮", label:"Debt Planner"  },
   { id:"ai-coach",      icon:"✦",  label:"AI Coach"      },
-  { id:"learning-center", icon:"📚", label:"Learning Center" },
   { id:"settings",      icon:"⚙",  label:"Settings"      },
 ];
 
 const PAGE_TITLES = {
   "credit-score":"Credit Score", "reports":"Reports", "profit-lock":"Profit Lock", "net-worth":"Net Worth Command Center", dashboard:"Dashboard", budget:"Budget", transactions:"Transactions",
   bills:"Bills & Subscriptions", "debt-planner":"Debt Payoff Planner", calendar:"Calendar", portfolio:"Portfolio",
-  goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", "learning-center":"Learning Center", settings:"Settings",
+  goals:"Goals", reports:"Reports", "ai-coach":"AI Coach", settings:"Settings",
 };
 
 class AppErrorBoundary extends Component {
@@ -5723,6 +5678,12 @@ function WealthPilotOSApp() {
   if (!user) return <AuthGate onAuth={handleAuth} onDemoAccess={demoLogin} />;
 
   const showPage = (id) => {
+    const legacyPageAliases = new Set(['learning-center', 'learning', 'education', 'courses', 'academy', 'resources']);
+    if (legacyPageAliases.has(id)) {
+      setPage('dashboard');
+      setFabOpen(false);
+      return;
+    }
     if (id === 'ai-coach') {
       setAiCoachOpen(true);
       setFabOpen(false);
@@ -5818,7 +5779,6 @@ function WealthPilotOSApp() {
       case "goals":        return <GoalsPage addToast={addToast} modeConfig={modeConfig} />;
       case "reports":      return <ReportsPage accounts={[...(liveData.accounts.length ? liveData.accounts : acct.accounts), ...(manualAccounts || [])]} bills={liveData.bills} budget={liveData.budgets} transactions={liveData.transactions} portfolio={liveData.portfolio} creditScore={liveData.creditScore} debts={liveData.debts} />;
       case "ai-coach":     return <AICoachPage modeConfig={modeConfig} />;
-      case "learning-center": return <LearningCenterPage />;
       case "settings":     return <SettingsPage addToast={addToast} user={user} currentPlan={currentPlan} billingStatus={billingStatus} setPricingOpen={setPricingOpen} manualIncomeEntries={manualIncomeEntries} setManualIncomeEntries={setManualIncomeEntries} manualAccounts={manualAccounts} setManualAccounts={setManualAccounts} onRestartSetup={() => { setOnboarding({ completed: false, step: 0 }); try { localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ completed: false, step: 0, form: {} })); } catch {} setPage("dashboard"); }} />;
       default:             return <Dashboard {...dashboardProps} />;
     }
